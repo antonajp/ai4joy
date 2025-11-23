@@ -1,0 +1,54 @@
+# Improv Olympics - Terraform Variables Example
+# Copy this file to terraform.tfvars and fill in your values
+
+# Required: GCP Project ID
+project_id = "improvOlympics"
+
+# Required: Billing account ID for budget alerts
+# Find yours: gcloud billing accounts list
+billing_account_id = "XXXXXX-YYYYYY-ZZZZZZ"
+
+# Required: Session encryption key (generate with: openssl rand -base64 32)
+session_encryption_key = "REPLACE_WITH_GENERATED_KEY"
+
+# Optional: Customize region
+region = "us-central1"
+
+# Optional: Environment name
+environment = "prod"
+
+# Optional: Domain (if different from default)
+domain = "ai4joy.org"
+
+# Optional: Cloud Run scaling
+min_instances = 1
+max_instances = 100
+
+# Optional: Cloud Run resources
+cloud_run_cpu    = "2"
+cloud_run_memory = "2Gi"
+
+# Optional: Enable Memorystore Redis (adds ~$40/month)
+enable_memorystore  = false
+memorystore_size_gb = 1
+
+# Optional: Notification channels for alerting
+# Create notification channels first, then add their IDs here
+notification_channels = [
+  # "projects/improvOlympics/notificationChannels/1234567890",
+]
+
+# Optional: Resource labels
+labels = {
+  app         = "improv-olympics"
+  environment = "production"
+  managed_by  = "terraform"
+  team        = "ai4joy"
+}
+
+# Optional: Log and backup retention
+log_retention_days    = 30
+backup_retention_days = 30
+
+# Optional: Enable Cloud CDN (if serving static assets)
+enable_cloud_cdn = false

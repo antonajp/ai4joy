@@ -1,0 +1,319 @@
+# Improv Olympics - Cloud Build CI/CD Pipeline
+# Triggered on push to main branch for production deployment
+
+steps:
+  # Step 1: Run unit tests
+  - name: 'python:3.11-slim'
+    id: 'run-unit-tests'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Installing dependencies..."
+        pip install --quiet -r requirements.txt
+        pip install --quiet pytest pytest-cov pytest-asyncio
+
+        echo "Running unit tests..."
+        pytest tests/ \
+          --cov=app \
+          --cov-report=term-missing \
+          --cov-report=html:coverage \
+          --junit-xml=test-results.xml \
+          -v
+
+        echo "Test coverage report generated in coverage/"
+
+  # Step 2: Lint and code quality checks
+  - name: 'python:3.11-slim'
+    id: 'lint-code'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Installing linting tools..."
+        pip install --quiet black flake8 mypy
+
+        echo "Running Black formatter check..."
+        black --check app/ || exit 1
+
+        echo "Running Flake8 linter..."
+        flake8 app/ --max-line-length=100 --exclude=venv || exit 1
+
+        echo "Running MyPy type checking..."
+        mypy app/ --ignore-missing-imports || echo "Warning: Type check issues found"
+    waitFor: ['-']  # Run in parallel with tests
+
+  # Step 3: Build Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-image'
+    args:
+      - 'build'
+      - '--build-arg'
+      - 'BUILD_DATE=${BUILD_ID}'
+      - '--build-arg'
+      - 'GIT_COMMIT=${COMMIT_SHA}'
+      - '--tag'
+      - '${_ARTIFACT_REGISTRY}/${_IMAGE_NAME}:${COMMIT_SHA}'
+      - '--tag'
+      - '${_ARTIFACT_REGISTRY}/${_IMAGE_NAME}:latest'
+      - '--tag'
+      - '${_ARTIFACT_REGISTRY}/${_IMAGE_NAME}:${TAG_NAME}'
+      - '--cache-from'
+      - '${_ARTIFACT_REGISTRY}/${_IMAGE_NAME}:latest'
+      - '.'
+    waitFor: ['run-unit-tests', 'lint-code']
+
+  # Step 4: Scan container for vulnerabilities
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'scan-image'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Scanning image for vulnerabilities..."
+        gcloud artifacts docker images scan ${_ARTIFACT_REGISTRY}/${_IMAGE_NAME}:${COMMIT_SHA} \
+          --remote \
+          --location=${_REGION} \
+          --format=json > scan-results.json || true
+
+        echo "Vulnerability scan complete. Check Artifact Registry for details."
+    waitFor: ['build-image']
+
+  # Step 5: Push image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-image'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_ARTIFACT_REGISTRY}/${_IMAGE_NAME}'
+    waitFor: ['scan-image']
+
+  # Step 6: Deploy to Cloud Run (Production)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'deploy-cloud-run'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image=${_ARTIFACT_REGISTRY}/${_IMAGE_NAME}:${COMMIT_SHA}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--service-account=${_SERVICE_ACCOUNT}'
+      - '--no-allow-unauthenticated'
+      - '--min-instances=${_MIN_INSTANCES}'
+      - '--max-instances=${_MAX_INSTANCES}'
+      - '--cpu=${_CPU}'
+      - '--memory=${_MEMORY}'
+      - '--timeout=${_TIMEOUT}'
+      - '--concurrency=${_CONCURRENCY}'
+      - '--vpc-connector=${_VPC_CONNECTOR}'
+      - '--vpc-egress=private-ranges-only'
+      - '--set-env-vars=PROJECT_ID=${PROJECT_ID},REGION=${_REGION},ENVIRONMENT=production,BUILD_ID=${BUILD_ID}'
+      - '--set-secrets=SESSION_ENCRYPTION_KEY=session-encryption-key:latest'
+      - '--labels=app=improv-olympics,environment=production,managed-by=cloud-build'
+      - '--revision-suffix=${SHORT_SHA}'
+    waitFor: ['push-image']
+
+  # Step 7: Run smoke tests against deployment
+  - name: 'gcr.io/cloud-builders/curl'
+    id: 'smoke-tests'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Getting Cloud Run service URL..."
+        SERVICE_URL=$(gcloud run services describe ${_SERVICE_NAME} \
+          --region=${_REGION} \
+          --format='value(status.url)')
+
+        echo "Service URL: $SERVICE_URL"
+
+        echo "Testing health endpoint..."
+        HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" $SERVICE_URL/health)
+        if [ "$HEALTH_STATUS" != "200" ]; then
+          echo "Health check failed with status: $HEALTH_STATUS"
+          exit 1
+        fi
+        echo "Health check passed."
+
+        echo "Testing ready endpoint..."
+        READY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" $SERVICE_URL/ready)
+        if [ "$READY_STATUS" != "200" ]; then
+          echo "Ready check failed with status: $READY_STATUS"
+          exit 1
+        fi
+        echo "Ready check passed."
+
+        echo "Testing API endpoint..."
+        API_RESPONSE=$(curl -s -X POST $SERVICE_URL/api/v1/session \
+          -H "Content-Type: application/json" \
+          -d '{"user_id":"smoke-test","location":"Test Location"}')
+
+        if echo "$API_RESPONSE" | grep -q "session_id"; then
+          echo "API test passed."
+        else
+          echo "API test failed. Response: $API_RESPONSE"
+          exit 1
+        fi
+
+        echo "All smoke tests passed!"
+    waitFor: ['deploy-cloud-run']
+
+  # Step 8: Gradual rollout (90% new, 10% previous)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'gradual-rollout'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Configuring traffic split for gradual rollout..."
+
+        # Get current revision
+        CURRENT_REVISION=$(gcloud run services describe ${_SERVICE_NAME} \
+          --region=${_REGION} \
+          --format='value(status.latestReadyRevisionName)')
+
+        # Get previous revision (if exists)
+        PREVIOUS_REVISION=$(gcloud run revisions list \
+          --service=${_SERVICE_NAME} \
+          --region=${_REGION} \
+          --format='value(metadata.name)' \
+          --limit=2 | tail -n 1)
+
+        if [ "$CURRENT_REVISION" = "$PREVIOUS_REVISION" ]; then
+          echo "No previous revision found. Deploying 100% to new revision."
+          gcloud run services update-traffic ${_SERVICE_NAME} \
+            --region=${_REGION} \
+            --to-latest
+        else
+          echo "Splitting traffic: 90% new, 10% previous"
+          gcloud run services update-traffic ${_SERVICE_NAME} \
+            --region=${_REGION} \
+            --to-revisions=$CURRENT_REVISION=90,$PREVIOUS_REVISION=10
+        fi
+
+        echo "Traffic split configured successfully."
+    waitFor: ['smoke-tests']
+
+  # Step 9: Monitor for errors (5 minute window)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'monitor-deployment'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Monitoring deployment for errors (5 minutes)..."
+
+        # Wait 5 minutes while monitoring error rate
+        for i in {1..5}; do
+          echo "Monitoring minute $i/5..."
+
+          # Check error rate in Cloud Logging
+          ERROR_COUNT=$(gcloud logging read \
+            "resource.type=cloud_run_revision \
+            AND resource.labels.service_name=${_SERVICE_NAME} \
+            AND severity>=ERROR \
+            AND timestamp>=\"$(date -u -d '1 minute ago' +%Y-%m-%dT%H:%M:%SZ)\"" \
+            --limit=100 \
+            --format=json \
+            --project=${PROJECT_ID} | jq '. | length')
+
+          echo "Errors in last minute: $ERROR_COUNT"
+
+          if [ "$ERROR_COUNT" -gt 10 ]; then
+            echo "High error rate detected! Initiating rollback..."
+            exit 1
+          fi
+
+          sleep 60
+        done
+
+        echo "No significant errors detected. Deployment stable."
+    waitFor: ['gradual-rollout']
+
+  # Step 10: Complete rollout (100% to new revision)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'complete-rollout'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Completing rollout to 100% new revision..."
+
+        gcloud run services update-traffic ${_SERVICE_NAME} \
+          --region=${_REGION} \
+          --to-latest
+
+        echo "Deployment complete! 100% traffic on new revision."
+
+        # Get final service URL
+        SERVICE_URL=$(gcloud run services describe ${_SERVICE_NAME} \
+          --region=${_REGION} \
+          --format='value(status.url)')
+
+        echo "Service URL: $SERVICE_URL"
+        echo "Deployment successful!"
+    waitFor: ['monitor-deployment']
+
+# Rollback on failure
+onFailure:
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Deployment failed! Initiating rollback..."
+
+        # Get previous stable revision
+        PREVIOUS_REVISION=$(gcloud run revisions list \
+          --service=${_SERVICE_NAME} \
+          --region=${_REGION} \
+          --format='value(metadata.name)' \
+          --limit=2 | tail -n 1)
+
+        if [ -n "$PREVIOUS_REVISION" ]; then
+          echo "Rolling back to revision: $PREVIOUS_REVISION"
+
+          gcloud run services update-traffic ${_SERVICE_NAME} \
+            --region=${_REGION} \
+            --to-revisions=$PREVIOUS_REVISION=100
+
+          echo "Rollback complete."
+        else
+          echo "No previous revision found. Cannot rollback."
+        fi
+
+        exit 1
+
+# Build configuration
+options:
+  machineType: 'E2_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+  dynamic_substitutions: true
+
+timeout: 2400s  # 40 minutes
+
+# Substitutions (default values, override via trigger)
+substitutions:
+  _REGION: 'us-central1'
+  _SERVICE_NAME: 'improv-olympics-app'
+  _IMAGE_NAME: 'improv-olympics'
+  _ARTIFACT_REGISTRY: 'us-central1-docker.pkg.dev/improvOlympics/improv-app'
+  _SERVICE_ACCOUNT: 'improv-app-runtime@improvOlympics.iam.gserviceaccount.com'
+  _MIN_INSTANCES: '1'
+  _MAX_INSTANCES: '100'
+  _CPU: '2'
+  _MEMORY: '2Gi'
+  _TIMEOUT: '300s'
+  _CONCURRENCY: '20'
+  _VPC_CONNECTOR: 'projects/improvOlympics/locations/us-central1/connectors/improv-vpc-connector'
+
+# Artifacts to save
+artifacts:
+  objects:
+    location: 'gs://improvOlympics-build-artifacts/${BUILD_ID}'
+    paths:
+      - 'test-results.xml'
+      - 'coverage/**'
+      - 'scan-results.json'
