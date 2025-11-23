@@ -15,7 +15,7 @@ session_encryption_key = "gmPYuhXN3dQgh7PWATlVFZ33Le01JV+N6wOMacyyYYs="
 region = "us-central1"
 
 # Optional: Environment name
-environment = "stage"
+environment = "prod"
 
 # Optional: Domain (if different from default)
 domain = "ai4joy.org"
@@ -41,7 +41,7 @@ notification_channels = [
 # Optional: Resource labels
 labels = {
   app         = "improv-olympics"
-  environment = "stage"
+  environment = "production"
   managed_by  = "terraform"
   team        = "ai4joy"
 }
