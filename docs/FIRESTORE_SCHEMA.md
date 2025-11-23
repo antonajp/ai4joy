@@ -236,7 +236,7 @@ Global configuration for rate limits and feature flags.
 
 ```bash
 # Set project
-PROJECT_ID="coherent-answer-479115-e1"
+PROJECT_ID="your-gcp-project-id"
 gcloud config set project $PROJECT_ID
 
 # Create user_limits document for admin user
@@ -426,14 +426,14 @@ resource "google_cloud_scheduler_job" "firestore_backup" {
 ```bash
 # Export all collections
 gcloud firestore export \
-  gs://coherent-answer-479115-e1-backups/firestore/manual-$(date +%Y%m%d) \
-  --project=coherent-answer-479115-e1
+  gs://your-gcp-project-id-backups/firestore/manual-$(date +%Y%m%d) \
+  --project=your-gcp-project-id
 
 # Export specific collection
 gcloud firestore export \
-  gs://coherent-answer-479115-e1-backups/firestore/sessions-$(date +%Y%m%d) \
+  gs://your-gcp-project-id-backups/firestore/sessions-$(date +%Y%m%d) \
   --collection-ids=sessions \
-  --project=coherent-answer-479115-e1
+  --project=your-gcp-project-id
 ```
 
 ### Restore from Backup
@@ -441,14 +441,14 @@ gcloud firestore export \
 ```bash
 # Restore all collections
 gcloud firestore import \
-  gs://coherent-answer-479115-e1-backups/firestore/2025-11-23 \
-  --project=coherent-answer-479115-e1
+  gs://your-gcp-project-id-backups/firestore/2025-11-23 \
+  --project=your-gcp-project-id
 
 # Restore specific collection
 gcloud firestore import \
-  gs://coherent-answer-479115-e1-backups/firestore/2025-11-23 \
+  gs://your-gcp-project-id-backups/firestore/2025-11-23 \
   --collection-ids=sessions \
-  --project=coherent-answer-479115-e1
+  --project=your-gcp-project-id
 ```
 
 ---
@@ -462,7 +462,7 @@ gcloud firestore import \
 gcloud firestore documents list user_limits \
   --filter="sessions_today>5" \
   --order-by=sessions_today \
-  --project=coherent-answer-479115-e1
+  --project=your-gcp-project-id
 ```
 
 ### Query Cost by User

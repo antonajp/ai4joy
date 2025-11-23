@@ -6,8 +6,8 @@ Complete guide for deploying the Improv Olympics multi-agent application to Goog
 
 ```bash
 # 1. Set environment variables
-export PROJECT_ID="coherent-answer-479115-e1"
-export BILLING_ACCOUNT_ID="01A9DB-10D578-9E9D47"
+export PROJECT_ID="your-gcp-project-id"
+export BILLING_ACCOUNT_ID="your-billing-account-id"
 
 # 2. Run setup
 ./scripts/setup.sh

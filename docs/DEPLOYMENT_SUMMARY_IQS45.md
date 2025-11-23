@@ -272,11 +272,11 @@ user_concurrent_session_limit  = 3   # Max concurrent sessions per user
 **Other Configuration:**
 
 ```terraform
-project_id          = "coherent-answer-479115-e1"
+project_id          = "your-gcp-project-id"
 region              = "us-central1"
 environment         = "prod"
 domain              = "ai4joy.org"
-billing_account_id  = "01A9DB-10D578-9E9D47"
+billing_account_id  = "your-billing-account-id"
 
 # Cloud Run scaling
 min_instances       = 1
@@ -300,7 +300,7 @@ session_encryption_key = "<generated-key>"
 
 **Steps:**
 
-1. Visit: https://console.cloud.google.com/apis/credentials/consent?project=coherent-answer-479115-e1
+1. Visit: https://console.cloud.google.com/apis/credentials/consent?project=your-gcp-project-id
 
 2. Configure OAuth consent screen:
    - User Type: Internal (if Google Workspace) or External
@@ -363,8 +363,8 @@ session_encryption_key = "<generated-key>"
 cd /Users/jpantona/Documents/code/ai4joy
 
 # Set environment variables
-export PROJECT_ID="coherent-answer-479115-e1"
-export BILLING_ACCOUNT_ID="01A9DB-10D578-9E9D47"
+export PROJECT_ID="your-gcp-project-id"
+export BILLING_ACCOUNT_ID="your-billing-account-id"
 
 # Run setup script
 ./scripts/setup.sh
@@ -691,10 +691,10 @@ gcloud run services logs read improv-olympics-app \
 
 ### GCP Console Links
 
-- IAP Dashboard: https://console.cloud.google.com/security/iap?project=coherent-answer-479115-e1
-- OAuth Consent Screen: https://console.cloud.google.com/apis/credentials/consent?project=coherent-answer-479115-e1
-- Cloud Run Service: https://console.cloud.google.com/run/detail/us-central1/improv-olympics-app?project=coherent-answer-479115-e1
-- Cloud Monitoring: https://console.cloud.google.com/monitoring?project=coherent-answer-479115-e1
+- IAP Dashboard: https://console.cloud.google.com/security/iap?project=your-gcp-project-id
+- OAuth Consent Screen: https://console.cloud.google.com/apis/credentials/consent?project=your-gcp-project-id
+- Cloud Run Service: https://console.cloud.google.com/run/detail/us-central1/improv-olympics-app?project=your-gcp-project-id
+- Cloud Monitoring: https://console.cloud.google.com/monitoring?project=your-gcp-project-id
 
 ### Contact
 
