@@ -85,6 +85,27 @@ output "deployment_commands" {
   }
 }
 
+output "iap_oauth_brand" {
+  description = "IAP OAuth Brand name"
+  value       = google_iap_brand.improv_brand.name
+}
+
+output "iap_oauth_client_id" {
+  description = "IAP OAuth Client ID"
+  value       = google_iap_client.improv_oauth.client_id
+}
+
+output "iap_oauth_client_secret" {
+  description = "IAP OAuth Client Secret (sensitive)"
+  value       = google_iap_client.improv_oauth.secret
+  sensitive   = true
+}
+
+output "iap_allowed_users" {
+  description = "Users/groups allowed to access via IAP"
+  value       = var.iap_allowed_users
+}
+
 output "next_steps" {
   description = "Next steps after infrastructure deployment"
   value = <<-EOT
@@ -97,16 +118,28 @@ output "next_steps" {
     2. Wait 15-30 minutes for SSL certificate provisioning.
        Check status: https://console.cloud.google.com/net-services/loadbalancing/advanced/sslCertificates/details/improv-cert?project=${var.project_id}
 
-    3. Build and deploy your application:
+    3. Verify IAP OAuth configuration:
+       - OAuth Brand: ${google_iap_brand.improv_brand.name}
+       - OAuth Client ID: ${google_iap_client.improv_oauth.client_id}
+       - Allowed Users: ${length(var.iap_allowed_users)} user(s)/group(s)
+       Console: https://console.cloud.google.com/security/iap?project=${var.project_id}
+
+    4. Build and deploy your application:
        ${var.region}-docker.pkg.dev/${var.project_id}/improv-app/improv-olympics:latest
 
-    4. Test the deployment:
-       curl -k https://${var.domain}/health
+    5. Test the deployment:
+       curl -k https://${var.domain}/health  (should work without auth)
+       Visit https://${var.domain} (should redirect to Google Sign-In)
 
-    5. Set up notification channels for alerting:
+    6. Manage IAP access:
+       gcloud iap web add-iam-policy-binding --resource-type=backend-services \
+         --service=improv-backend --member='user:newuser@example.com' \
+         --role='roles/iap.httpsResourceAccessor'
+
+    7. Set up notification channels for alerting:
        https://console.cloud.google.com/monitoring/alerting/notifications?project=${var.project_id}
 
-    6. Review monitoring dashboard:
+    8. Review monitoring dashboard:
        https://console.cloud.google.com/monitoring/dashboards?project=${var.project_id}
   EOT
 }

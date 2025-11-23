@@ -6,22 +6,32 @@ Complete guide for deploying the Improv Olympics multi-agent application to Goog
 
 ```bash
 # 1. Set environment variables
-export PROJECT_ID="coherent-answer-479115-e1"
-export BILLING_ACCOUNT_ID="01A9DB-10D578-9E9D47"
+export PROJECT_ID="your-gcp-project-id"
+export BILLING_ACCOUNT_ID="your-billing-account-id"
 
 # 2. Run setup
 ./scripts/setup.sh
 
-# 3. Deploy infrastructure
+# 3. MANUAL STEP: Create OAuth consent screen (see output from setup.sh)
+# Visit: https://console.cloud.google.com/apis/credentials/consent
+# Configure: App name, support email, developer contact
+
+# 4. Configure OAuth/IAP in terraform.tfvars
+# Set: iap_support_email and iap_allowed_users
+
+# 5. Deploy infrastructure
 cd infrastructure/terraform
 terraform apply
 
-# 4. Configure DNS at your registrar
+# 6. Configure DNS at your registrar
 # (Use nameservers from: terraform output dns_nameservers)
 
-# 5. Wait for SSL certificate provisioning (15-30 minutes)
+# 7. Wait for SSL certificate provisioning (15-30 minutes)
 
-# 6. Build and deploy application
+# 8. Test OAuth flow
+# Visit: https://ai4joy.org (should redirect to Google Sign-In)
+
+# 9. Build and deploy application
 cd ../..
 ./scripts/deploy.sh
 ```
@@ -47,7 +57,14 @@ This deployment includes comprehensive documentation:
    - Incident response procedures
    - Maintenance tasks
 
-3. **[Terraform README](infrastructure/terraform/README.md)**
+3. **[IAP OAuth User Management Guide](docs/IAP_OAUTH_GUIDE.md)**
+   - OAuth consent screen setup
+   - Managing user access
+   - Testing OAuth flow
+   - Per-user rate limiting
+   - Troubleshooting authentication issues
+
+4. **[Terraform README](infrastructure/terraform/README.md)**
    - Terraform configuration guide
    - Variable documentation
    - Common operations
@@ -113,9 +130,15 @@ This deployment includes comprehensive documentation:
             ┌──────────────────────────┐
             │ Global HTTPS Load Balancer│
             │  - SSL Certificate        │
+            │  - IAP OAuth (Auth)       │ ← OAuth 2.0 Authentication
             │  - Cloud Armor (DDoS)     │
             │  - Cloud CDN (future)     │
             └──────────────┬───────────┘
+                           │
+                       ┌───┴───┐
+                       │  IAP  │  ← Identity-Aware Proxy
+                       │ Check │     - Google Sign-In
+                       └───┬───┘     - User verification
                            │
                            ▼
             ┌──────────────────────────┐
@@ -123,6 +146,7 @@ This deployment includes comprehensive documentation:
             │  - Auto-scaling (1-100)  │
             │  - 2 vCPU, 2 GiB RAM     │
             │  - Container: ADK app    │
+            │  + IAP Headers           │ ← User ID from IAP
             └──────┬──────┬────────────┘
                    │      │
          ┌─────────┘      └──────────┐
@@ -133,6 +157,7 @@ This deployment includes comprehensive documentation:
 │ - Gemini Pro   │         │ - Session state  │
 │ - Gemini Flash │         │ - Conversation   │
 └────────────────┘         │   history        │
+                           │ - user_limits    │ ← Rate limiting
                            └──────────────────┘
 ```
 
@@ -151,10 +176,13 @@ This deployment includes comprehensive documentation:
 - Point-in-time recovery
 
 ### Security
+- OAuth 2.0 authentication via Identity-Aware Proxy (IAP)
+- Google Sign-In for user authentication
+- Per-user rate limiting (10 sessions/day, 3 concurrent)
 - Workload Identity Federation (no API keys)
 - Secret Manager for credentials
 - Least privilege IAM
-- Cloud Armor rate limiting
+- Cloud Armor DDoS protection and rate limiting
 - SSL/TLS encryption
 
 ### Observability
@@ -225,38 +253,96 @@ This creates:
 - Session encryption key (.env.local)
 - Terraform configuration (terraform.tfvars)
 
-### 2. Review and Customize Configuration
+### 2. Create OAuth Consent Screen (One-Time Manual Step)
+
+**IMPORTANT:** This step must be completed before running `terraform apply`.
+
+```bash
+# Open OAuth consent screen configuration
+open "https://console.cloud.google.com/apis/credentials/consent?project=${PROJECT_ID}"
+```
+
+**Configuration Steps:**
+
+1. **User Type:**
+   - Select "Internal" (if using Google Workspace) or "External"
+   - Click "Create"
+
+2. **App Information:**
+   - App name: `Improv Olympics`
+   - Support email: Your email (will be used in terraform.tfvars)
+   - App logo: (optional)
+   - Developer contact: Your email
+
+3. **Scopes:**
+   - Skip this section (click "Save and Continue")
+
+4. **Test Users (External only):**
+   - Skip for now (click "Save and Continue")
+
+5. **Summary:**
+   - Review and click "Back to Dashboard"
+
+**Why is this manual?**
+- Google allows only ONE OAuth brand per project
+- Must be created via console before Terraform can reference it
+- See [IAP OAuth Guide](docs/IAP_OAUTH_GUIDE.md#initial-oauth-setup) for details
+
+### 3. Review and Customize Configuration
 
 ```bash
 # Review Terraform variables
 cat infrastructure/terraform/terraform.tfvars
 
-# Customize if needed
+# Customize OAuth/IAP settings (REQUIRED)
 vim infrastructure/terraform/terraform.tfvars
 ```
 
-Key customizations:
+**Required OAuth/IAP Configuration:**
+
+```terraform
+# OAuth / IAP Configuration - REQUIRED FOR MVP
+iap_support_email = "antona.jp@gmail.com"  # Must match OAuth consent screen
+
+iap_allowed_users = [
+  "user:antona.jp@gmail.com",
+  "user:jp@iqaccel.com",
+  # Add pilot testers:
+  # "user:tester@example.com",
+  # "group:improv-testers@ai4joy.org",  # Recommended
+]
+
+# Per-user rate limits (cost protection)
+user_daily_session_limit       = 10  # Max sessions per user per day
+user_concurrent_session_limit  = 3   # Max concurrent sessions per user
+```
+
+**Optional Customizations:**
 - `min_instances`: 0 for dev (slower), 1+ for prod (faster)
-- `max_instances`: Set based on expected traffic
+- `max_instances`: Set based on expected traffic (default: 100)
 - `cloud_run_cpu` / `cloud_run_memory`: Adjust for workload
 - `notification_channels`: Add after creating channels
 
-### 3. Deploy Infrastructure
+### 4. Deploy Infrastructure
 
 ```bash
 cd infrastructure/terraform
 
-# Preview changes
-terraform plan
+# Preview changes (verify IAP resources)
+terraform plan | grep -A 5 "google_iap"
 
 # Deploy (takes 10-15 minutes)
 terraform apply
 
-# Save outputs
+# Save outputs (including IAP OAuth details)
 terraform output > ../../deployment-outputs.txt
+
+# Verify IAP configuration
+terraform output iap_oauth_client_id
+terraform output iap_allowed_users
 ```
 
-### 4. Configure DNS
+### 5. Configure DNS
 
 ```bash
 # Get nameservers
@@ -274,7 +360,7 @@ terraform output dns_nameservers
 2. Update nameservers for ai4joy.org
 3. Wait for propagation (15 minutes - 48 hours)
 
-### 5. Wait for SSL Certificate
+### 6. Wait for SSL Certificate
 
 ```bash
 # Check certificate status
@@ -285,7 +371,40 @@ watch -n 30 'gcloud compute ssl-certificates describe improv-cert --global --for
 
 Expected: 15-30 minutes after DNS propagation
 
-### 6. Build and Deploy Application
+### 7. Test OAuth Authentication Flow
+
+**Before deploying the application**, verify that OAuth/IAP is working:
+
+```bash
+# Test 1: Health check (should work without auth)
+curl https://ai4joy.org/health
+# Expected: {"status": "healthy"} or connection error (if SSL not ready)
+
+# Test 2: Main application (should redirect to Google Sign-In)
+# Open in incognito browser window:
+open "https://ai4joy.org"
+
+# Expected behavior:
+# 1. Redirect to Google Sign-In page
+# 2. Sign in with authorized user (from iap_allowed_users)
+# 3. Redirect back to application
+# 4. Application loads (may show error if app not deployed yet)
+
+# Test 3: Verify IAP is enabled
+gcloud iap web get-iam-policy \
+  --resource-type=backend-services \
+  --service=improv-backend
+
+# Expected: Shows iap_allowed_users with roles/iap.httpsResourceAccessor
+```
+
+**Troubleshooting OAuth:**
+- If OAuth consent screen shows "error", verify you created OAuth brand in Step 2
+- If 403 Forbidden, check that your email is in `iap_allowed_users`
+- If redirect loop, wait for SSL certificate to be ACTIVE
+- See [IAP OAuth Guide](docs/IAP_OAUTH_GUIDE.md#troubleshooting) for detailed help
+
+### 8. Build and Deploy Application
 
 #### Option A: Cloud Build (Recommended for Production)
 
@@ -312,25 +431,84 @@ cd ../..  # Back to project root
 ./scripts/deploy.sh
 ```
 
-### 7. Verify Deployment
+### 9. Verify Deployment with OAuth
 
 ```bash
-# Test health endpoint
+# Test health endpoint (no auth required)
 curl https://ai4joy.org/health
 # Expected: {"status": "healthy"}
 
-# Test ready endpoint
+# Test ready endpoint (no auth required)
 curl https://ai4joy.org/ready
 # Expected: {"status": "ready"}
 
-# Test API (create session)
+# Test authenticated API access (requires browser session)
+# 1. Sign in via browser: https://ai4joy.org
+# 2. Open browser DevTools → Network tab
+# 3. Copy session cookie
+# 4. Use cookie in curl:
+
+curl -X POST https://ai4joy.org/api/v1/session \
+  -H "Content-Type: application/json" \
+  -H "Cookie: YOUR_SESSION_COOKIE" \
+  -d '{"user_id":"test-user","location":"Test Location"}'
+# Expected: {"session_id": "...", ...}
+
+# Test unauthenticated API (should fail)
 curl -X POST https://ai4joy.org/api/v1/session \
   -H "Content-Type: application/json" \
   -d '{"user_id":"test-user","location":"Test Location"}'
-# Expected: {"session_id": "...", ...}
+# Expected: 302 redirect to Google Sign-In
 ```
 
-### 8. Set Up Monitoring
+**OAuth-Specific Verification:**
+
+```bash
+# Check application logs for IAP headers
+gcloud run services logs read improv-olympics-app \
+  --region=us-central1 \
+  --limit=10
+
+# Look for IAP headers in logs:
+# X-Goog-Authenticated-User-Email: accounts.google.com:user@example.com
+# X-Goog-Authenticated-User-ID: accounts.google.com:1234567890
+```
+
+### 10. Manage OAuth/IAP User Access
+
+Add or remove users from IAP access:
+
+```bash
+# Add individual user
+gcloud iap web add-iam-policy-binding \
+  --resource-type=backend-services \
+  --service=improv-backend \
+  --member='user:newpilot@example.com' \
+  --role='roles/iap.httpsResourceAccessor'
+
+# Add Google Group (recommended)
+gcloud iap web add-iam-policy-binding \
+  --resource-type=backend-services \
+  --service=improv-backend \
+  --member='group:improv-testers@ai4joy.org' \
+  --role='roles/iap.httpsResourceAccessor'
+
+# Remove user
+gcloud iap web remove-iam-policy-binding \
+  --resource-type=backend-services \
+  --service=improv-backend \
+  --member='user:remove@example.com' \
+  --role='roles/iap.httpsResourceAccessor'
+
+# List current access
+gcloud iap web get-iam-policy \
+  --resource-type=backend-services \
+  --service=improv-backend
+```
+
+See [IAP OAuth Guide](docs/IAP_OAUTH_GUIDE.md) for detailed user management procedures.
+
+### 11. Set Up Monitoring
 
 ```bash
 # Create email notification channel
@@ -350,7 +528,7 @@ cd infrastructure/terraform
 terraform apply
 ```
 
-### 9. Access Dashboards
+### 12. Access Dashboards
 
 ```bash
 # Cloud Monitoring

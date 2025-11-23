@@ -33,6 +33,9 @@ pyyaml>=6.0
 dnspython>=2.4.0  # For DNS testing
 pyOpenSSL>=23.2.0  # For SSL testing
 
+# Firestore for rate limiting tests
+google-cloud-firestore>=2.11.0
+
 # Data Analysis (for metrics)
 numpy>=1.24.0
 pandas>=2.0.0  # Optional, for advanced analysis
