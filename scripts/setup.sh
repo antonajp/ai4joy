@@ -68,9 +68,10 @@ gcloud services enable \
     serviceusage.googleapis.com \
     cloudbilling.googleapis.com \
     iam.googleapis.com \
-    storage.googleapis.com
+    storage.googleapis.com \
+    iap.googleapis.com
 
-echo -e "${GREEN}✓ Essential APIs enabled${NC}"
+echo -e "${GREEN}✓ Essential APIs enabled (including IAP for OAuth)${NC}"
 echo ""
 
 # Create Terraform state bucket
@@ -161,20 +162,59 @@ echo -e "${GREEN}✓ Terraform initialized${NC}"
 cd ../..
 echo ""
 
+# IAP OAuth Brand Setup Instructions
+echo -e "${YELLOW}========================================${NC}"
+echo -e "${YELLOW}IMPORTANT: IAP OAuth Brand Setup${NC}"
+echo -e "${YELLOW}========================================${NC}"
+echo ""
+echo -e "${RED}MANUAL STEP REQUIRED:${NC} IAP OAuth Brand creation"
+echo ""
+echo "Before running 'terraform apply', you must create an OAuth consent screen:"
+echo ""
+echo "1. Visit the OAuth consent screen:"
+echo "   https://console.cloud.google.com/apis/credentials/consent?project=${PROJECT_ID}"
+echo ""
+echo "2. Configure OAuth consent screen:"
+echo "   - User Type: Internal (if using Google Workspace) or External"
+echo "   - App name: Improv Olympics"
+echo "   - Support email: (your email from terraform.tfvars)"
+echo "   - Developer contact: (your email)"
+echo "   - Click Save and Continue"
+echo ""
+echo "3. Skip Scopes section (click Save and Continue)"
+echo ""
+echo "4. Skip Test Users section if Internal (click Save and Continue)"
+echo ""
+echo "5. Review and click Back to Dashboard"
+echo ""
+echo -e "${YELLOW}This step is REQUIRED because Google only allows ONE OAuth brand per project,${NC}"
+echo -e "${YELLOW}and it must be created manually via the console first.${NC}"
+echo ""
+echo "After completing this step, you can proceed with 'terraform apply'."
+echo ""
+
 # Summary
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}Setup Complete!${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 echo "Next steps:"
-echo "1. Review and customize: infrastructure/terraform/terraform.tfvars"
-echo "2. Run: cd infrastructure/terraform && terraform plan"
-echo "3. Deploy: terraform apply"
-echo "4. Configure DNS nameservers at your domain registrar"
-echo "5. Wait for SSL certificate provisioning (15-30 minutes)"
+echo "1. Create OAuth consent screen (see instructions above)"
+echo "2. Review and customize: infrastructure/terraform/terraform.tfvars"
+echo "   - Set iap_support_email (must match OAuth consent screen email)"
+echo "   - Add pilot users to iap_allowed_users list"
+echo "3. Run: cd infrastructure/terraform && terraform plan"
+echo "4. Deploy: terraform apply"
+echo "5. Configure DNS nameservers at your domain registrar"
+echo "6. Wait for SSL certificate provisioning (15-30 minutes)"
+echo "7. Test OAuth flow by visiting https://ai4joy.org"
 echo ""
 echo -e "${YELLOW}Important files created:${NC}"
 echo "  - .env.local (session encryption key - DO NOT COMMIT)"
 echo "  - infrastructure/terraform/terraform.tfvars (Terraform config)"
 echo ""
-echo -e "${GREEN}Happy deploying! 🚀${NC}"
+echo -e "${YELLOW}OAuth/IAP Documentation:${NC}"
+echo "  - See docs/IAP_OAUTH_GUIDE.md for user management"
+echo "  - See DEPLOYMENT.md for complete deployment guide"
+echo ""
+echo -e "${GREEN}Happy deploying!${NC}"

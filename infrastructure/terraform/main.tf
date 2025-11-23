@@ -33,6 +33,11 @@ provider "google-beta" {
   region  = var.region
 }
 
+# Get project metadata (needed for IAP service account)
+data "google_project" "project" {
+  project_id = var.project_id
+}
+
 # Enable required APIs
 module "project_services" {
   source  = "terraform-google-modules/project-factory/google//modules/project_services"
@@ -55,6 +60,8 @@ module "project_services" {
     "cloudprofiler.googleapis.com",
     "vpcaccess.googleapis.com",
     "certificatemanager.googleapis.com",
+    "iap.googleapis.com",
+    "cloudscheduler.googleapis.com",
   ]
 
   disable_services_on_destroy = false
@@ -412,13 +419,17 @@ resource "google_cloud_run_v2_service" "improv_app" {
   }
 }
 
-# Cloud Run IAM - Allow Load Balancer to invoke
-resource "google_cloud_run_v2_service_iam_member" "public_invoker" {
+# Cloud Run IAM - Allow IAP to invoke (NOT allUsers - IAP handles authentication)
+# Note: When using IAP, the load balancer needs to invoke Cloud Run
+# We grant invoker role to a special service agent, not allUsers
+resource "google_cloud_run_v2_service_iam_member" "iap_invoker" {
   project  = var.project_id
   location = google_cloud_run_v2_service.improv_app.location
   name     = google_cloud_run_v2_service.improv_app.name
   role     = "roles/run.invoker"
-  member   = "allUsers"
+  member   = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-iap.iam.gserviceaccount.com"
+
+  depends_on = [google_iap_client.improv_oauth]
 }
 
 # Serverless Network Endpoint Group for Load Balancer
@@ -452,17 +463,7 @@ resource "google_iap_client" "improv_oauth" {
   depends_on = [google_iap_brand.improv_brand]
 }
 
-# IAP Web Backend Service IAM Policy (Who can access)
-resource "google_iap_web_backend_service_iam_binding" "improv_iap_access" {
-  project             = var.project_id
-  web_backend_service = google_compute_backend_service.improv_backend.name
-  role                = "roles/iap.httpsResourceAccessor"
-
-  # Grant access to pilot users (configure in variables)
-  members = var.iap_allowed_users
-}
-
-# Backend Service with Identity-Aware Proxy (IAP)
+# Backend Service with Identity-Aware Proxy (IAP) and Cloud Armor
 resource "google_compute_backend_service" "improv_backend" {
   name                  = "improv-backend"
   project               = var.project_id
@@ -488,7 +489,25 @@ resource "google_compute_backend_service" "improv_backend" {
     oauth2_client_secret = google_iap_client.improv_oauth.secret
   }
 
-  depends_on = [module.project_services]
+  # Attach Cloud Armor security policy
+  security_policy = google_compute_security_policy.improv_policy.id
+
+  depends_on = [
+    module.project_services,
+    google_compute_security_policy.improv_policy
+  ]
+}
+
+# IAP Web Backend Service IAM Policy (Who can access via IAP)
+resource "google_iap_web_backend_service_iam_binding" "improv_iap_access" {
+  project             = var.project_id
+  web_backend_service = google_compute_backend_service.improv_backend.name
+  role                = "roles/iap.httpsResourceAccessor"
+
+  # Grant access to pilot users (configure in variables)
+  members = var.iap_allowed_users
+
+  depends_on = [google_compute_backend_service.improv_backend]
 }
 
 # URL Map
@@ -582,6 +601,20 @@ resource "google_compute_security_policy" "improv_policy" {
     description = "Default rule"
   }
 
+  # Allow health check endpoints without IAP authentication
+  # Note: IAP is configured at backend service level, but we need to ensure
+  # health checks can reach these endpoints from Google's infrastructure
+  rule {
+    action   = "allow"
+    priority = "500"
+    match {
+      expr {
+        expression = "request.path.matches('/health') || request.path.matches('/ready')"
+      }
+    }
+    description = "Allow health check endpoints without authentication"
+  }
+
   # Rate limiting rule
   rule {
     action   = "rate_based_ban"
@@ -605,37 +638,19 @@ resource "google_compute_security_policy" "improv_policy" {
     description = "Rate limit: 100 requests per minute per IP"
   }
 
-  # Block requests without User-Agent
+  # Block requests without User-Agent (except health checks)
   rule {
     action   = "deny(403)"
     priority = "2000"
     match {
       expr {
-        expression = "!has(request.headers['user-agent'])"
+        expression = "!has(request.headers['user-agent']) && !request.path.matches('/health') && !request.path.matches('/ready')"
       }
     }
-    description = "Block requests without User-Agent"
+    description = "Block requests without User-Agent (except health checks)"
   }
 
   depends_on = [module.project_services]
-}
-
-# Attach Cloud Armor to backend service
-resource "google_compute_backend_service" "improv_backend_with_armor" {
-  name                  = "improv-backend"
-  project               = var.project_id
-  load_balancing_scheme = "EXTERNAL_MANAGED"
-  protocol              = "HTTP"
-  security_policy       = google_compute_security_policy.improv_policy.id
-
-  backend {
-    group = google_compute_region_network_endpoint_group.improv_neg.id
-  }
-
-  depends_on = [
-    google_compute_backend_service.improv_backend,
-    google_compute_security_policy.improv_policy
-  ]
 }
 
 # Monitoring: Budget Alert
