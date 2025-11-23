@@ -310,6 +310,127 @@ response = client.access_secret_version(request={"name": secret_name})
 encryption_key = response.payload.data.decode("UTF-8")
 ```
 
+### OAuth Authentication via Identity-Aware Proxy (IAP) - MVP
+
+**Critical Decision:** OAuth authentication is mandatory for MVP to prevent cost abuse from anonymous LLM usage.
+
+**Implementation Strategy: Identity-Aware Proxy (IAP)**
+
+Cloud IAP provides Google Sign-In authentication at the load balancer level, protecting the entire application without code changes.
+
+**IAP Configuration:**
+```
+IAP OAuth Brand:
+  Application Name: Improv Olympics
+  Support Email: support@ai4joy.org
+  OAuth Consent Screen: External (for pilot users)
+
+OAuth Client:
+  Client Type: Web application
+  Authorized Domains: ai4joy.org
+  Redirect URIs: https://ai4joy.org/_gcp_iap/secure_redirect
+
+IAP Backend Service:
+  Backend: Cloud Run service (improv-olympics-app)
+  IAM Policy: allUsers → REMOVED (no anonymous access)
+  IAP Members:
+    - user:pilot@example.com
+    - group:improv-testers@ai4joy.org
+    - domain:ai4joy.org (if using Workspace)
+```
+
+**User Flow:**
+1. User visits https://ai4joy.org
+2. IAP intercepts request, checks for OAuth token
+3. If not authenticated → Redirect to Google Sign-In consent screen
+4. User signs in with Google account
+5. IAP validates OAuth token and creates signed JWT header
+6. Request forwarded to Cloud Run with IAP headers:
+   - `X-Goog-IAP-JWT-Assertion`: Signed JWT with user identity
+   - `X-Goog-Authenticated-User-Email`: user@example.com
+   - `X-Goog-Authenticated-User-ID`: accounts.google.com:1234567890
+
+**Application Integration:**
+```python
+# Extract user identity from IAP headers
+from flask import request
+import jwt
+
+def get_authenticated_user():
+    """Extract user info from IAP JWT header"""
+    iap_jwt = request.headers.get('X-Goog-IAP-JWT-Assertion')
+    if not iap_jwt:
+        raise AuthenticationError("No IAP JWT found")
+
+    # Verify JWT signature (IAP handles this, but validate for defense-in-depth)
+    user_email = request.headers.get('X-Goog-Authenticated-User-Email', '').replace('accounts.google.com:', '')
+    user_id = request.headers.get('X-Goog-Authenticated-User-ID', '').replace('accounts.google.com:', '')
+
+    return {
+        "email": user_email,
+        "user_id": user_id,
+        "oauth_subject": user_id  # Use as primary key for rate limiting
+    }
+
+# Rate limiting per user
+@app.route('/api/sessions', methods=['POST'])
+def create_session():
+    user = get_authenticated_user()
+
+    # Check daily session limit (10 sessions/user/day)
+    daily_count = firestore_client.collection('user_limits').document(user['user_id']).get()
+    if daily_count.exists and daily_count.to_dict().get('sessions_today', 0) >= 10:
+        return jsonify({"error": "Daily session limit reached (10/10). Try again tomorrow."}), 429
+
+    # Create session tied to user
+    session = create_improv_session(user_id=user['user_id'], user_email=user['email'])
+    return jsonify(session), 201
+```
+
+**IAM Configuration for IAP:**
+```bash
+# Enable IAP for Cloud Run backend service
+gcloud iap web enable \
+    --resource-type=backend-services \
+    --service=improv-olympics-backend \
+    --project=improvOlympics
+
+# Grant IAP access to pilot users
+gcloud iap web add-iam-policy-binding \
+    --resource-type=backend-services \
+    --service=improv-olympics-backend \
+    --member='user:pilot1@example.com' \
+    --role='roles/iap.httpsResourceAccessor'
+
+# Grant access to entire group
+gcloud iap web add-iam-policy-binding \
+    --resource-type=backend-services \
+    --service=improv-olympics-backend \
+    --member='group:improv-testers@ai4joy.org' \
+    --role='roles/iap.httpsResourceAccessor'
+```
+
+**Cost Protection via Rate Limiting:**
+- **Per-User Daily Limit:** 10 sessions/user/day = ~$2/user/day max
+- **Concurrent Session Limit:** 3 active sessions/user
+- **Cost Firestore Collection:**
+  ```
+  Collection: user_limits/{user_id}
+  {
+    "user_id": "oauth_subject_id",
+    "email": "user@example.com",
+    "sessions_today": 7,
+    "last_reset": Timestamp("2025-11-23T00:00:00Z"),
+    "active_sessions": 2,
+    "total_cost_estimate": 14.50  // dollars
+  }
+  ```
+
+**Monitoring & Alerting:**
+- Track sessions per user per day (alert if >8)
+- Alert if any user exceeds $20/day in Gemini costs
+- Dashboard showing top 10 users by cost
+
 ### Network Security
 
 **VPC Configuration:**
@@ -388,7 +509,8 @@ Document ID: {session_id} (UUID)
 Schema:
 {
   "session_id": "uuid-v4",
-  "user_id": "user_123",
+  "user_id": "oauth_subject_id_from_iap",  // PRIMARY KEY for rate limiting
+  "user_email": "user@example.com",  // For support/debugging
   "created_at": Timestamp,
   "updated_at": Timestamp,
   "status": "active|completed|abandoned",

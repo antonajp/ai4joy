@@ -109,3 +109,32 @@ variable "labels" {
     managed_by  = "terraform"
   }
 }
+
+# OAuth / Identity-Aware Proxy (IAP) Variables
+variable "iap_support_email" {
+  description = "Support email for OAuth consent screen (must be project owner)"
+  type        = string
+  # Set via terraform.tfvars: iap_support_email = "support@ai4joy.org"
+}
+
+variable "iap_allowed_users" {
+  description = "List of users/groups allowed to access application via IAP"
+  type        = list(string)
+  default     = []
+  # Examples:
+  # - "user:alice@example.com"
+  # - "group:improv-testers@ai4joy.org"
+  # - "domain:ai4joy.org"
+}
+
+variable "user_daily_session_limit" {
+  description = "Maximum sessions per user per day (cost protection)"
+  type        = number
+  default     = 10
+}
+
+variable "user_concurrent_session_limit" {
+  description = "Maximum concurrent active sessions per user"
+  type        = number
+  default     = 3
+}

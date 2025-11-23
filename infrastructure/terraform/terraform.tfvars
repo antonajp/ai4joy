@@ -2,27 +2,27 @@
 # Copy this file to terraform.tfvars and fill in your values
 
 # Required: GCP Project ID
-project_id = "improvOlympics"
+project_id = "coherent-answer-479115-e1"
 
 # Required: Billing account ID for budget alerts
 # Find yours: gcloud billing accounts list
-billing_account_id = "XXXXXX-YYYYYY-ZZZZZZ"
+billing_account_id = "01A9DB-10D578-9E9D47"
 
 # Required: Session encryption key (generate with: openssl rand -base64 32)
-session_encryption_key = "REPLACE_WITH_GENERATED_KEY"
+session_encryption_key = "gmPYuhXN3dQgh7PWATlVFZ33Le01JV+N6wOMacyyYYs="
 
 # Optional: Customize region
 region = "us-central1"
 
 # Optional: Environment name
-environment = "prod"
+environment = "stage"
 
 # Optional: Domain (if different from default)
 domain = "ai4joy.org"
 
 # Optional: Cloud Run scaling
 min_instances = 1
-max_instances = 100
+max_instances = 10
 
 # Optional: Cloud Run resources
 cloud_run_cpu    = "2"
@@ -41,7 +41,7 @@ notification_channels = [
 # Optional: Resource labels
 labels = {
   app         = "improv-olympics"
-  environment = "production"
+  environment = "stage"
   managed_by  = "terraform"
   team        = "ai4joy"
 }
@@ -58,13 +58,13 @@ enable_cloud_cdn = false
 # ==============================================================================
 
 # Required: Support email for OAuth consent screen (must be project owner/editor)
-iap_support_email = "support@ai4joy.org"
+iap_support_email = "antona.jp@gmail.com"
 
 # Required: List of users/groups allowed to access the application
 # Add pilot testers here to grant access
 iap_allowed_users = [
-  "user:pilot1@example.com",
-  "user:pilot2@example.com",
+  "user:antona.jp@gmail.com",
+  "user:jp@iqaccel.com",
   # "group:improv-testers@ai4joy.org",  # Recommended: use Google Group
   # "domain:ai4joy.org",  # Grant access to entire Workspace domain
 ]

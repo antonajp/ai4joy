@@ -435,7 +435,34 @@ resource "google_compute_region_network_endpoint_group" "improv_neg" {
   depends_on = [google_cloud_run_v2_service.improv_app]
 }
 
-# Backend Service
+# IAP OAuth Brand (OAuth Consent Screen)
+resource "google_iap_brand" "improv_brand" {
+  support_email     = var.iap_support_email
+  application_title = "Improv Olympics"
+  project           = var.project_id
+
+  depends_on = [module.project_services]
+}
+
+# IAP OAuth Client for Authentication
+resource "google_iap_client" "improv_oauth" {
+  display_name = "Improv Olympics IAP Client"
+  brand        = google_iap_brand.improv_brand.name
+
+  depends_on = [google_iap_brand.improv_brand]
+}
+
+# IAP Web Backend Service IAM Policy (Who can access)
+resource "google_iap_web_backend_service_iam_binding" "improv_iap_access" {
+  project             = var.project_id
+  web_backend_service = google_compute_backend_service.improv_backend.name
+  role                = "roles/iap.httpsResourceAccessor"
+
+  # Grant access to pilot users (configure in variables)
+  members = var.iap_allowed_users
+}
+
+# Backend Service with Identity-Aware Proxy (IAP)
 resource "google_compute_backend_service" "improv_backend" {
   name                  = "improv-backend"
   project               = var.project_id
@@ -454,6 +481,12 @@ resource "google_compute_backend_service" "improv_backend" {
   }
 
   session_affinity = "GENERATED_COOKIE"
+
+  # Identity-Aware Proxy (IAP) Configuration for OAuth authentication
+  iap {
+    oauth2_client_id     = google_iap_client.improv_oauth.client_id
+    oauth2_client_secret = google_iap_client.improv_oauth.secret
+  }
 
   depends_on = [module.project_services]
 }

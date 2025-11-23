@@ -9,7 +9,7 @@
 
 ## 1. Overview
 
-Improv Olympics is an AI-powered "Social Gym" that enables users to practice improvisational comedy skills through multi-agent interactions. This PRD defines requirements for deploying the application to Google Cloud Platform (GCP), making it accessible via ai4joy.org for a pilot launch targeting 10-50 early adopters. The deployment will establish production infrastructure for a freemium business model, starting with anonymous text-based sessions and architected for future OAuth integration and premium features.
+Improv Olympics is an AI-powered "Social Gym" that enables users to practice improvisational comedy skills through multi-agent interactions. This PRD defines requirements for deploying the application to Google Cloud Platform (GCP), making it accessible via ai4joy.org for a pilot launch targeting 10-50 early adopters. The deployment will establish production infrastructure with OAuth-based authentication as MVP to control usage and prevent cost abuse from anonymous access to LLM-powered services.
 
 ---
 
@@ -32,13 +32,15 @@ Improv Olympics is an AI-powered "Social Gym" that enables users to practice imp
 - SSL certificate is valid and trusted by major browsers
 - No mixed-content warnings or certificate errors
 
-### FR-2: Anonymous Session Management
-**Requirement:** Users must start improv sessions without authentication, with session state maintained for 24 hours
+### FR-2: OAuth Authentication (MVP)
+**Requirement:** Users must authenticate via OAuth (Google Sign-In) before accessing improv sessions to prevent cost abuse
 **Acceptance:**
-- User can initiate session without login/registration
-- Session ID generated and returned to client
-- Session state persists for minimum 24 hours from last activity
-- Expired sessions gracefully handled with user-friendly message
+- User redirected to OAuth consent screen when accessing ai4joy.org unauthenticated
+- Successful OAuth flow grants access to application
+- User identity (email, user ID) captured and associated with all sessions
+- Failed authentication displays clear error message and retry option
+- Session state tied to authenticated user ID for tracking and rate limiting
+- Users can sign out and session data persists for 24 hours from last activity
 
 ### FR-3: Multi-Agent Improv Session
 **Requirement:** System must orchestrate all four agent types to deliver coherent improv game experience via text
@@ -106,8 +108,18 @@ Improv Olympics is an AI-powered "Social Gym" that enables users to practice imp
 **Acceptance:**
 - Application logs structured (JSON) and sent to Cloud Logging
 - Error rate, latency, request count metrics exported to Cloud Monitoring
-- Custom metrics tracked: sessions created, messages processed, agent failures
+- Custom metrics tracked: sessions created, messages processed, agent failures, per-user session counts
 - Alerting configured for: error rate >5%, p95 latency >10s, quota exhaustion
+
+### FR-11: Per-User Rate Limiting (OAuth-Enabled)
+**Requirement:** Authenticated users must be rate-limited to prevent cost abuse and ensure fair usage
+**Acceptance:**
+- Maximum 10 sessions per user per day during pilot phase
+- Maximum 3 concurrent active sessions per user
+- Rate limit exceeded returns HTTP 429 with clear message: "Daily session limit reached (10/10). Try again tomorrow."
+- Rate limit counters reset at midnight UTC
+- Admin interface to adjust rate limits per user (for testing/VIP users)
+- Rate limit metrics tracked per user for cost allocation
 
 ---
 
@@ -137,14 +149,17 @@ Improv Olympics is an AI-powered "Social Gym" that enables users to practice imp
 - Maximum unplanned downtime: 2 hours per incident
 - Health check endpoint (GET /health) returns 200 when system operational
 
-### NFR-4: Security - Data Protection
-**Requirement:** User session data must be protected from unauthorized access
+### NFR-4: Security - Data Protection & OAuth
+**Requirement:** User session data must be protected from unauthorized access and OAuth must enforce authentication
 **Acceptance:**
 - All external traffic uses HTTPS/TLS 1.2+
-- Session IDs are cryptographically random (UUID v4 or equivalent)
+- OAuth 2.0 with Google Sign-In enforced via Identity-Aware Proxy (Cloud IAP) or application-level middleware
+- Only authenticated users can access application endpoints (except /health, /ready)
+- User email and OAuth subject ID stored with session data for audit trail
+- Session IDs are cryptographically random (UUID v4 or equivalent) and tied to OAuth user ID
 - Session IDs not guessable or enumerable
 - Cloud Storage/Firestore configured with IAM least-privilege access
-- No sensitive data logged (session IDs, user inputs redacted in logs)
+- No sensitive data logged (PII redacted, OAuth tokens not logged)
 
 ### NFR-5: Security - GCP IAM Configuration
 **Requirement:** GCP resources must follow principle of least privilege
@@ -156,13 +171,15 @@ Improv Olympics is an AI-powered "Social Gym" that enables users to practice imp
 - No overly permissive roles (e.g., Editor, Owner) on service accounts
 
 ### NFR-6: Cost Management
-**Requirement:** Pilot deployment must operate within budget constraints
+**Requirement:** Pilot deployment must operate within budget constraints, with OAuth-based user limiting preventing runaway costs
 **Acceptance:**
-- Total monthly GCP cost <$200 for pilot phase (10-50 users)
-- Gemini API costs tracked and stay within 60% of budget
-- Infrastructure costs (compute, storage, networking) <40% of budget
-- Budget alerts configured at 50%, 75%, 90% thresholds
-- Cost allocation tags applied to all billable resources
+- Total monthly GCP cost <$200 for pilot phase (10-50 users with 10 sessions/user/day limit)
+- Per-user rate limits (FR-11) prevent individual abuse: max cost ~$2/user/day at 10 sessions
+- Gemini API costs tracked and stay within 60% of budget (~$120/month)
+- Infrastructure costs (compute, storage, networking) <40% of budget (~$80/month)
+- Budget alerts configured at 50%, 75%, 90% thresholds with auto-notifications
+- Cost allocation tags applied to all billable resources (including user_id tags on Gemini API calls)
+- Emergency circuit breaker: Disable new session creation if daily cost exceeds $250
 
 ### NFR-7: Scalability - Architecture
 **Requirement:** Infrastructure must support future growth without major redesign
