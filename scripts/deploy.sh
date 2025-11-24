@@ -11,7 +11,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Configuration
-PROJECT_ID="${PROJECT_ID:-improvOlympics}"
+PROJECT_ID="${PROJECT_ID:-coherent-answer-479115-e1}"
 REGION="${REGION:-us-central1}"
 SERVICE_NAME="improv-olympics-app"
 IMAGE_NAME="improv-olympics"
@@ -78,6 +78,7 @@ if [ "$DEPLOY_ONLY" = false ]; then
     BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
     docker build \
+        --platform linux/amd64 \
         --build-arg BUILD_DATE="${BUILD_DATE}" \
         --build-arg GIT_COMMIT="${GIT_COMMIT}" \
         --tag "${ARTIFACT_REGISTRY}/${IMAGE_NAME}:${TAG}" \
@@ -105,6 +106,7 @@ if [ "$BUILD_ONLY" = false ]; then
         --image="${ARTIFACT_REGISTRY}/${IMAGE_NAME}:${TAG}" \
         --region="${REGION}" \
         --platform=managed \
+        --set-env-vars="GCP_PROJECT_ID=${PROJECT_ID},GCP_LOCATION=${REGION}" \
         --quiet
 
     echo -e "${GREEN}✓ Deployed successfully${NC}"

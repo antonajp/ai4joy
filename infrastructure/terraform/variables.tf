@@ -3,7 +3,7 @@
 variable "project_id" {
   description = "GCP Project ID"
   type        = string
-  default     = "improvOlympics"
+  default     = "coherent-answer-479115-e1"
 }
 
 variable "region" {
