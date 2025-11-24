@@ -18,8 +18,7 @@ google-cloud-storage>=3.0.0,<4.0.0
 google-cloud-aiplatform[agent-engines]>=1.125.0
 
 # ADK (Google Agent Developer Kit)
-# Note: Install from source or internal package registry
-# google-genai-adk>=0.1.0
+google-adk>=1.19.0
 
 # HTTP and Networking
 httpx>=0.28.1,<1.0.0
