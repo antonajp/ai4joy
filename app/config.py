@@ -45,7 +45,19 @@ class Settings(BaseSettings):
         return [email.strip() for email in self.allowed_users.split(",") if email.strip()]
 
     # Authentication bypass paths (no auth required)
-    auth_bypass_paths: list = ["/health", "/ready", "/auth/login", "/auth/callback", "/auth/logout", "/"]
+    auth_bypass_paths: list = [
+        "/health",
+        "/ready",
+        "/auth/login",
+        "/auth/callback",
+        "/auth/logout",
+        "/auth/user",
+        "/",
+        "/static/index.html",
+        "/static/chat.html",
+        "/static/styles.css",
+        "/static/app.js"
+    ]
 
     # IAP Header Configuration
     # These headers are injected by Google Identity-Aware Proxy (IAP).

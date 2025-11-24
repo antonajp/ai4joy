@@ -156,6 +156,53 @@ class ADKObservability:
             return format(span.get_span_context().trace_id, '032x')
         return None
 
+    def add_span_attributes(self, **attributes):
+        """
+        Add custom attributes to the current span.
+
+        This enriches ADK's automatic spans with custom context like:
+        - agent_type: partner, coach, room, stage_manager
+        - session_id: Session identifier for correlation
+        - turn_number: Turn in the session
+        - phase: Partner phase (1 or 2)
+        - sentiment_score: Scene sentiment (-1 to 1)
+        - token_count: Tokens consumed in this request
+
+        Args:
+            **attributes: Key-value pairs to add as span attributes
+        """
+        span = trace.get_current_span()
+        if span and span.get_span_context().is_valid:
+            for key, value in attributes.items():
+                # Convert value to string for span attributes
+                span.set_attribute(key, str(value) if value is not None else "")
+            logger.debug("Added span attributes", attributes=attributes)
+
+    def record_metric_event(self, event_name: str, value: float = 1.0, **attributes):
+        """
+        Record a custom metric event.
+
+        Use this for metrics not automatically captured by ADK:
+        - Token usage per agent
+        - Sentiment scores
+        - Cache hit/miss rates
+
+        Args:
+            event_name: Metric name (e.g., "token_usage", "sentiment_score")
+            value: Metric value (default: 1.0 for counters)
+            **attributes: Additional attributes for the metric
+        """
+        if not self.enabled:
+            return
+
+        # Log the metric event so it can be extracted by log-based metrics
+        logger.info(
+            f"Metric: {event_name}",
+            event=event_name,
+            value=value,
+            **attributes
+        )
+
     def shutdown(self):
         """Shutdown providers gracefully (flush pending spans/metrics)"""
         if self._tracer_provider:
@@ -202,3 +249,101 @@ def get_current_trace_id() -> Optional[str]:
     if obs:
         return obs.get_trace_id()
     return None
+
+
+def add_agent_context(
+    agent_type: str,
+    session_id: Optional[str] = None,
+    turn_number: Optional[int] = None,
+    phase: Optional[int] = None,
+    **extra_attributes
+):
+    """
+    Add agent execution context to current span.
+
+    This enriches ADK's automatic spans with custom attributes for better
+    observability and debugging.
+
+    Args:
+        agent_type: Type of agent (partner, coach, room, stage_manager)
+        session_id: Session identifier
+        turn_number: Turn number in session
+        phase: Partner phase (1 or 2)
+        **extra_attributes: Additional custom attributes
+
+    Example:
+        add_agent_context(
+            agent_type="partner",
+            session_id="abc123",
+            turn_number=5,
+            phase=2
+        )
+    """
+    obs = get_adk_observability()
+    if obs:
+        attributes = {"agent_type": agent_type}
+        if session_id:
+            attributes["session_id"] = session_id
+        if turn_number is not None:
+            attributes["turn_number"] = turn_number
+        if phase is not None:
+            attributes["phase"] = phase
+        attributes.update(extra_attributes)
+        obs.add_span_attributes(**attributes)
+
+
+def record_token_usage(
+    token_count: int,
+    agent: str,
+    model: Optional[str] = None,
+    session_id: Optional[str] = None
+):
+    """
+    Record token usage metric.
+
+    This creates a log entry that can be extracted by the log-based metric
+    for token usage tracking and cost analysis.
+
+    Args:
+        token_count: Number of tokens consumed
+        agent: Agent that consumed tokens (partner, coach, room, stage_manager)
+        model: Model used (e.g., gemini-2.0-flash-001)
+        session_id: Session identifier for correlation
+    """
+    obs = get_adk_observability()
+    if obs:
+        obs.record_metric_event(
+            "token_usage",
+            value=token_count,
+            token_count=token_count,
+            agent=agent,
+            model=model or "unknown",
+            session_id=session_id
+        )
+
+
+def record_sentiment(
+    sentiment_score: float,
+    session_id: str,
+    turn_number: int
+):
+    """
+    Record sentiment score metric.
+
+    This creates a log entry that can be extracted by the log-based metric
+    for sentiment analysis tracking.
+
+    Args:
+        sentiment_score: Sentiment score from -1 (negative) to 1 (positive)
+        session_id: Session identifier
+        turn_number: Turn number in session
+    """
+    obs = get_adk_observability()
+    if obs:
+        obs.record_metric_event(
+            "sentiment_score",
+            value=sentiment_score,
+            sentiment_score=sentiment_score,
+            session_id=session_id,
+            turn=str(turn_number)
+        )

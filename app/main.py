@@ -22,7 +22,7 @@ from app.utils.logger import get_logger
 from app.middleware.oauth_auth import OAuthSessionMiddleware
 from app.middleware.performance import PerformanceMiddleware
 from app.services.adk_observability import initialize_adk_observability, get_adk_observability
-from app.routers import health, sessions, agent, auth
+from app.routers import health, sessions, agent, auth, static
 
 settings = get_settings()
 
@@ -72,6 +72,7 @@ app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(sessions.router)
 app.include_router(agent.router)
+app.include_router(static.router)
 
 logger.info("All routers registered")
 
@@ -118,15 +119,7 @@ async def shutdown_event():
         obs.shutdown()
 
 
-@app.get("/")
-async def root():
-    """Root endpoint"""
-    return {
-        "service": settings.app_name,
-        "version": "1.0.0",
-        "status": "running",
-        "docs": "/api/docs"
-    }
+# Root endpoint is now handled by static router to serve index.html
 
 
 if __name__ == "__main__":
