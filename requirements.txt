@@ -14,8 +14,8 @@ google-cloud-logging==3.9.0
 google-auth==2.27.0
 
 # VertexAI and Generative AI
-google-cloud-aiplatform==1.42.1
-vertexai==1.42.1
+google-cloud-aiplatform==1.71.1
+vertexai==1.71.1
 
 # ADK (Google Agent Developer Kit)
 # Note: Install from source or internal package registry

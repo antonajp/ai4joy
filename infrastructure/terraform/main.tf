@@ -17,9 +17,9 @@ terraform {
 
   # Remote state in Cloud Storage (best practice)
   backend "gcs" {
-    bucket = "improvOlympics-terraform-state"
-    prefix = "terraform/state"
-  }
+     bucket = "coherent-answer-479115-e1-terraform-state"
+     prefix = "terraform/state"
+   }
 }
 
 # Configure the Google Cloud provider
@@ -76,16 +76,8 @@ resource "google_compute_network" "improv_vpc" {
   depends_on = [module.project_services]
 }
 
-# Subnet for VPC connector
-resource "google_compute_subnetwork" "vpc_connector_subnet" {
-  name          = "vpc-connector-subnet"
-  ip_cidr_range = "10.0.1.0/28"
-  region        = var.region
-  network       = google_compute_network.improv_vpc.id
-  project       = var.project_id
-}
-
 # Serverless VPC Access Connector
+# Note: The connector will create its own /28 subnet automatically
 resource "google_vpc_access_connector" "improv_connector" {
   name          = "improv-vpc-connector"
   region        = var.region
@@ -97,8 +89,7 @@ resource "google_vpc_access_connector" "improv_connector" {
   machine_type  = "e2-micro"
 
   depends_on = [
-    module.project_services,
-    google_compute_subnetwork.vpc_connector_subnet
+    module.project_services
   ]
 }
 
@@ -165,7 +156,7 @@ resource "google_storage_bucket" "backups" {
 
 # Cloud Storage bucket for Terraform state
 resource "google_storage_bucket" "terraform_state" {
-  name          = "${var.project_id}-terraform-state"
+  name          = "coherent-answer-479115-e1-terraform-state"
   location      = var.region
   project       = var.project_id
   storage_class = "STANDARD"
@@ -419,17 +410,15 @@ resource "google_cloud_run_v2_service" "improv_app" {
   }
 }
 
-# Cloud Run IAM - Allow IAP to invoke (NOT allUsers - IAP handles authentication)
-# Note: When using IAP, the load balancer needs to invoke Cloud Run
-# We grant invoker role to a special service agent, not allUsers
-resource "google_cloud_run_v2_service_iam_member" "iap_invoker" {
+# Cloud Run IAM - Allow public access (IAP disabled for non-org projects)
+# Note: IAP requires GCP Organization, so allowing public access for now
+# You can add authentication at the application level
+resource "google_cloud_run_v2_service_iam_member" "public_invoker" {
   project  = var.project_id
   location = google_cloud_run_v2_service.improv_app.location
   name     = google_cloud_run_v2_service.improv_app.name
   role     = "roles/run.invoker"
-  member   = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-iap.iam.gserviceaccount.com"
-
-  depends_on = [google_iap_client.improv_oauth]
+  member   = "allUsers"
 }
 
 # Serverless Network Endpoint Group for Load Balancer
@@ -447,30 +436,35 @@ resource "google_compute_region_network_endpoint_group" "improv_neg" {
 }
 
 # IAP OAuth Brand (OAuth Consent Screen)
-resource "google_iap_brand" "improv_brand" {
-  support_email     = var.iap_support_email
-  application_title = "Improv Olympics"
-  project           = var.project_id
-
-  depends_on = [module.project_services]
-}
+# DISABLED: IAP requires GCP Organization which personal projects don't have
+# To enable IAP, your project must be part of a GCP Organization
+# For now, authentication can be handled at the application level
+# resource "google_iap_brand" "improv_brand" {
+#   support_email     = var.iap_support_email
+#   application_title = "Improv Olympics"
+#   project           = var.project_id
+#
+#   depends_on = [module.project_services]
+# }
 
 # IAP OAuth Client for Authentication
-resource "google_iap_client" "improv_oauth" {
-  display_name = "Improv Olympics IAP Client"
-  brand        = google_iap_brand.improv_brand.name
+# DISABLED: Requires IAP Brand which needs GCP Organization
+# resource "google_iap_client" "improv_oauth" {
+#   display_name = "Improv Olympics IAP Client"
+#   brand        = google_iap_brand.improv_brand.name
+#
+#   depends_on = [google_iap_brand.improv_brand]
+# }
 
-  depends_on = [google_iap_brand.improv_brand]
-}
-
-# Backend Service with Identity-Aware Proxy (IAP) and Cloud Armor
+# Backend Service with Cloud Armor (IAP disabled for non-org projects)
 resource "google_compute_backend_service" "improv_backend" {
   name                  = "improv-backend"
   project               = var.project_id
   load_balancing_scheme = "EXTERNAL_MANAGED"
   protocol              = "HTTP"
   port_name             = "http"
-  timeout_sec           = 300
+  # Note: timeout_sec is not supported for serverless backends
+  # Cloud Run timeout is configured on the service itself
 
   backend {
     group = google_compute_region_network_endpoint_group.improv_neg.id
@@ -483,11 +477,13 @@ resource "google_compute_backend_service" "improv_backend" {
 
   session_affinity = "GENERATED_COOKIE"
 
-  # Identity-Aware Proxy (IAP) Configuration for OAuth authentication
-  iap {
-    oauth2_client_id     = google_iap_client.improv_oauth.client_id
-    oauth2_client_secret = google_iap_client.improv_oauth.secret
-  }
+  # Identity-Aware Proxy (IAP) Configuration - DISABLED
+  # IAP requires GCP Organization, so it's disabled for personal projects
+  # Authentication should be handled at the application level
+  # iap {
+  #   oauth2_client_id     = google_iap_client.improv_oauth.client_id
+  #   oauth2_client_secret = google_iap_client.improv_oauth.secret
+  # }
 
   # Attach Cloud Armor security policy
   security_policy = google_compute_security_policy.improv_policy.id
@@ -499,16 +495,17 @@ resource "google_compute_backend_service" "improv_backend" {
 }
 
 # IAP Web Backend Service IAM Policy (Who can access via IAP)
-resource "google_iap_web_backend_service_iam_binding" "improv_iap_access" {
-  project             = var.project_id
-  web_backend_service = google_compute_backend_service.improv_backend.name
-  role                = "roles/iap.httpsResourceAccessor"
-
-  # Grant access to pilot users (configure in variables)
-  members = var.iap_allowed_users
-
-  depends_on = [google_compute_backend_service.improv_backend]
-}
+# DISABLED: IAP requires GCP Organization
+# resource "google_iap_web_backend_service_iam_binding" "improv_iap_access" {
+#   project             = var.project_id
+#   web_backend_service = google_compute_backend_service.improv_backend.name
+#   role                = "roles/iap.httpsResourceAccessor"
+#
+#   # Grant access to pilot users (configure in variables)
+#   members = var.iap_allowed_users
+#
+#   depends_on = [google_compute_backend_service.improv_backend]
+# }
 
 # URL Map
 resource "google_compute_url_map" "improv_lb" {
@@ -654,45 +651,49 @@ resource "google_compute_security_policy" "improv_policy" {
 }
 
 # Monitoring: Budget Alert
-resource "google_billing_budget" "improv_budget" {
-  billing_account = var.billing_account_id
-  display_name    = "Improv Olympics Monthly Budget"
-
-  budget_filter {
-    projects = ["projects/${var.project_id}"]
-  }
-
-  amount {
-    specified_amount {
-      currency_code = "USD"
-      units         = "150"
-    }
-  }
-
-  threshold_rules {
-    threshold_percent = 0.5
-  }
-
-  threshold_rules {
-    threshold_percent = 0.9
-  }
-
-  threshold_rules {
-    threshold_percent = 1.0
-  }
-
-  all_updates_rule {
-    pubsub_topic = google_pubsub_topic.budget_alerts.id
-  }
-}
+# DISABLED: Requires special quota project configuration
+# You can set up budgets manually in the GCP Console:
+# https://console.cloud.google.com/billing/budgets
+# resource "google_billing_budget" "improv_budget" {
+#   billing_account = var.billing_account_id
+#   display_name    = "Improv Olympics Monthly Budget"
+#
+#   budget_filter {
+#     projects = ["projects/${var.project_id}"]
+#   }
+#
+#   amount {
+#     specified_amount {
+#       currency_code = "USD"
+#       units         = "150"
+#     }
+#   }
+#
+#   threshold_rules {
+#     threshold_percent = 0.5
+#   }
+#
+#   threshold_rules {
+#     threshold_percent = 0.9
+#   }
+#
+#   threshold_rules {
+#     threshold_percent = 1.0
+#   }
+#
+#   all_updates_rule {
+#     pubsub_topic = google_pubsub_topic.budget_alerts.id
+#   }
+# }
 
 # Pub/Sub topic for budget alerts
-resource "google_pubsub_topic" "budget_alerts" {
-  name    = "budget-alerts"
-  project = var.project_id
-
-  depends_on = [module.project_services]
-}
+# DISABLED: Only needed for billing budget which is disabled
+# resource "google_pubsub_topic" "budget_alerts" {
+#   name    = "budget-alerts"
+#   project = var.project_id
+#
+#   depends_on = [module.project_services]
+# }
 
 # Cloud Scheduler job for Firestore backups
 resource "google_cloud_scheduler_job" "firestore_backup" {

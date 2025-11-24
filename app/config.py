@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     app_name: str = "Improv Olympics"
     debug: bool = False
 
-    gcp_project_id: str = os.getenv("GCP_PROJECT_ID", "improvOlympics")
+    gcp_project_id: str = os.getenv("GCP_PROJECT_ID", "coherent-answer-479115-e1")
     gcp_project_number: str = os.getenv("GCP_PROJECT_NUMBER", "")
     gcp_location: str = os.getenv("GCP_LOCATION", "us-central1")
 

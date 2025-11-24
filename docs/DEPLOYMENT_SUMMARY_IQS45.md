@@ -255,11 +255,11 @@ resource "google_compute_backend_service" "improv_backend" {
 
 ```terraform
 # OAuth / IAP Configuration - REQUIRED FOR MVP
-iap_support_email = "antona.jp@gmail.com"  # Must be project owner/editor
+iap_support_email = "your-email@example.com"  # Must be project owner/editor
 
 iap_allowed_users = [
-  "user:antona.jp@gmail.com",
-  "user:jp@iqaccel.com",
+  "user:your-email@example.com",
+  "user:pilot1@example.com",
   # Add pilot testers:
   # "group:improv-testers@ai4joy.org",  # Recommended
 ]
@@ -305,8 +305,8 @@ session_encryption_key = "<generated-key>"
 2. Configure OAuth consent screen:
    - User Type: Internal (if Google Workspace) or External
    - App name: `Improv Olympics`
-   - Support email: `antona.jp@gmail.com`
-   - Developer contact: `antona.jp@gmail.com`
+   - Support email: `your-email@example.com`
+   - Developer contact: `your-email@example.com`
 
 3. Skip Scopes section
 
@@ -698,8 +698,8 @@ gcloud run services logs read improv-olympics-app \
 
 ### Contact
 
-- Project Owner: antona.jp@gmail.com
-- Support: jp@iqaccel.com
+- Project Owner: admin@ai4joy.org
+- Support: support@ai4joy.org
 
 ---
 

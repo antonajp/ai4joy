@@ -302,11 +302,11 @@ vim infrastructure/terraform/terraform.tfvars
 
 ```terraform
 # OAuth / IAP Configuration - REQUIRED FOR MVP
-iap_support_email = "antona.jp@gmail.com"  # Must match OAuth consent screen
+iap_support_email = "your-email@example.com"  # Must match OAuth consent screen
 
 iap_allowed_users = [
-  "user:antona.jp@gmail.com",
-  "user:jp@iqaccel.com",
+  "user:your-email@example.com",
+  "user:pilot1@example.com",
   # Add pilot testers:
   # "user:tester@example.com",
   # "group:improv-testers@ai4joy.org",  # Recommended
