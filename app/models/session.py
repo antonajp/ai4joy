@@ -69,3 +69,4 @@ class TurnResponse(BaseModel):
     room_vibe: Dict[str, Any]
     current_phase: str
     timestamp: datetime
+    coach_feedback: Optional[str] = None

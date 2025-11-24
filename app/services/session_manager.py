@@ -230,6 +230,64 @@ class SessionManager:
             )
             raise
 
+    async def update_session_atomic(
+        self,
+        session_id: str,
+        turn_data: Dict[str, Any],
+        new_phase: Optional[str] = None,
+        new_status: Optional[SessionStatus] = None
+    ) -> None:
+        """
+        Atomically update session with turn data, phase, and status using Firestore transaction.
+
+        This ensures consistency when multiple fields need to be updated together.
+
+        Args:
+            session_id: Session identifier
+            turn_data: Turn information to append to history
+            new_phase: Optional new phase value
+            new_status: Optional new status value
+        """
+        try:
+            @firestore.transactional
+            def update_in_transaction(transaction, doc_ref):
+                # Build update dict
+                updates = {
+                    "conversation_history": firestore.ArrayUnion([turn_data]),
+                    "turn_count": firestore.Increment(1),
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }
+
+                if new_phase is not None:
+                    updates["current_phase"] = new_phase
+
+                if new_status is not None:
+                    updates["status"] = new_status.value
+
+                # Atomic update
+                transaction.update(doc_ref, updates)
+
+            # Execute transaction
+            doc_ref = self.collection.document(session_id)
+            transaction = self.db.transaction()
+            update_in_transaction(transaction, doc_ref)
+
+            logger.info(
+                "Session updated atomically",
+                session_id=session_id,
+                turn_number=turn_data.get("turn_number"),
+                phase_updated=new_phase is not None,
+                status_updated=new_status is not None
+            )
+
+        except Exception as e:
+            logger.error(
+                "Failed to update session atomically",
+                session_id=session_id,
+                error=str(e)
+            )
+            raise
+
     async def close_session(self, session_id: str) -> None:
         """
         Close session and mark as complete.

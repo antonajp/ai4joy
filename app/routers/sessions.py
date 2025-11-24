@@ -1,4 +1,5 @@
 """Session Management API Endpoints"""
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from datetime import datetime, timezone
 from typing import Dict, Any
@@ -6,6 +7,7 @@ from typing import Dict, Any
 from app.models.session import SessionCreate, SessionResponse, TurnInput, TurnResponse
 from app.services.session_manager import SessionManager, get_session_manager
 from app.services.rate_limiter import RateLimiter, get_rate_limiter, RateLimitExceeded
+from app.services.turn_orchestrator import TurnOrchestrator, get_turn_orchestrator
 from app.middleware.iap_auth import get_authenticated_user
 from app.utils.logger import get_logger
 
@@ -122,6 +124,106 @@ async def get_session_info(
         expires_at=session.expires_at,
         turn_count=session.turn_count
     )
+
+
+@router.post("/session/{session_id}/turn", response_model=TurnResponse)
+async def execute_turn(
+    session_id: str,
+    turn_input: TurnInput,
+    request: Request,
+    session_manager: SessionManager = Depends(get_session_manager)
+) -> TurnResponse:
+    """
+    Execute a turn in the improv session.
+
+    Coordinates Stage Manager and sub-agents (Partner, Room, Coach) to:
+    1. Generate Partner response to user input
+    2. Provide Room audience vibe analysis
+    3. Offer Coach feedback (if turn >= 15)
+    4. Update session state and conversation history
+    """
+    user_info = get_authenticated_user(request)
+    user_id = user_info["user_id"]
+
+    # Retrieve session
+    session = await session_manager.get_session(session_id)
+
+    if not session:
+        logger.warning("Turn requested for non-existent session", session_id=session_id, user_id=user_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found or expired"
+        )
+
+    # Verify ownership
+    if session.user_id != user_id:
+        logger.warning(
+            "Unauthorized turn attempt",
+            session_id=session_id,
+            requesting_user=user_id,
+            session_owner=session.user_id
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this session"
+        )
+
+    # Validate turn number matches session state
+    expected_turn = session.turn_count + 1
+    if turn_input.turn_number != expected_turn:
+        logger.warning(
+            "Turn number mismatch",
+            session_id=session_id,
+            expected=expected_turn,
+            received=turn_input.turn_number
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Expected turn {expected_turn}, got {turn_input.turn_number}"
+        )
+
+    # Execute turn with orchestrator
+    orchestrator = get_turn_orchestrator(session_manager)
+
+    try:
+        turn_response_data = await orchestrator.execute_turn(
+            session=session,
+            user_input=turn_input.user_input,
+            turn_number=turn_input.turn_number
+        )
+
+        logger.info(
+            "Turn completed successfully",
+            session_id=session_id,
+            turn_number=turn_input.turn_number,
+            user_id=user_id
+        )
+
+        return TurnResponse(**turn_response_data)
+
+    except asyncio.TimeoutError:
+        logger.error(
+            "Turn execution timed out",
+            session_id=session_id,
+            turn_number=turn_input.turn_number
+        )
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Agent execution timed out. Please try again."
+        )
+    except Exception as e:
+        logger.error(
+            "Turn execution failed",
+            session_id=session_id,
+            turn_number=turn_input.turn_number,
+            error=str(e),
+            error_type=type(e).__name__
+        )
+        # Sanitize error message - don't leak internal details
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while executing the turn. Please try again or contact support."
+        )
 
 
 @router.post("/session/{session_id}/close")

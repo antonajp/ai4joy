@@ -1,4 +1,16 @@
-"""ADK Agent Skeleton with Gemini Integration"""
+"""
+Gemini VertexAI Test Service
+
+IMPORTANT: This is a test/diagnostic service for validating Gemini API connectivity.
+It is NOT the actual ADK multi-agent system implementation.
+
+For the real ADK agents, see:
+- app/agents/mc_agent.py
+- app/agents/room_agent.py
+- app/agents/stage_manager.py
+
+These use the actual google-adk framework with multi-agent orchestration.
+"""
 from typing import Dict, Any, Optional
 import vertexai
 from vertexai.generative_models import GenerativeModel, ChatSession
