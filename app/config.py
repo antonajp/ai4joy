@@ -27,15 +27,30 @@ class Settings(BaseSettings):
 
     session_timeout_minutes: int = 60
 
-    iap_header_email: str = "X-Goog-Authenticated-User-Email"
-    iap_header_user_id: str = "X-Goog-Authenticated-User-ID"
+    # OAuth Configuration
+    oauth_client_id: str = os.getenv("OAUTH_CLIENT_ID", "")
+    oauth_client_secret: str = os.getenv("OAUTH_CLIENT_SECRET", "")
+    oauth_redirect_uri: str = os.getenv("OAUTH_REDIRECT_URI", "http://localhost:8080/auth/callback")
+    session_secret_key: str = os.getenv("SESSION_SECRET_KEY", "")
 
-    health_check_bypass_paths: list = ["/health", "/ready"]
+    # Access Control - Comma-separated list of allowed email addresses
+    # Example: "user1@example.com,user2@example.com"
+    allowed_users: str = os.getenv("ALLOWED_USERS", "")
+
+    @property
+    def allowed_users_list(self) -> list[str]:
+        """Parse comma-separated allowed users into a list"""
+        if not self.allowed_users:
+            return []
+        return [email.strip() for email in self.allowed_users.split(",") if email.strip()]
+
+    # Authentication bypass paths (no auth required)
+    auth_bypass_paths: list = ["/health", "/ready", "/auth/login", "/auth/callback", "/auth/logout", "/"]
 
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
 
     class Config:
-        env_file = ".env"
+        env_file = ".env.local"  # Use .env.local for local dev
         case_sensitive = False
 
 

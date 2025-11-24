@@ -48,12 +48,14 @@ variable "cloud_run_memory" {
   default     = "2Gi"
 }
 
-variable "session_encryption_key" {
-  description = "Encryption key for session data (should be passed securely)"
+# OAuth secrets are managed via Secret Manager (created via gcloud)
+# No variables needed here - referenced as data sources in main.tf
+
+variable "allowed_users" {
+  description = "Comma-separated list of email addresses allowed to access the application (leave empty to allow all - not recommended)"
   type        = string
-  sensitive   = true
-  # Generate with: openssl rand -base64 32
-  # Pass via: TF_VAR_session_encryption_key or terraform.tfvars
+  default     = ""
+  # Example: "user1@example.com,user2@example.com,user3@example.com"
 }
 
 variable "notification_channels" {
@@ -110,23 +112,7 @@ variable "labels" {
   }
 }
 
-# OAuth / Identity-Aware Proxy (IAP) Variables
-variable "iap_support_email" {
-  description = "Support email for OAuth consent screen (must be project owner)"
-  type        = string
-  # Set via terraform.tfvars: iap_support_email = "support@ai4joy.org"
-}
-
-variable "iap_allowed_users" {
-  description = "List of users/groups allowed to access application via IAP"
-  type        = list(string)
-  default     = []
-  # Examples:
-  # - "user:alice@example.com"
-  # - "group:improv-testers@ai4joy.org"
-  # - "domain:ai4joy.org"
-}
-
+# Rate Limiting Variables
 variable "user_daily_session_limit" {
   description = "Maximum sessions per user per day (cost protection)"
   type        = number

@@ -1,5 +1,7 @@
 # Improv Olympics - GCP Deployment Architecture
 
+> **Note:** This project uses **Application-Level OAuth 2.0** for authentication. See [OAUTH_IMPLEMENTATION_CHANGE.md](OAUTH_IMPLEMENTATION_CHANGE.md) for details on why we chose application-level OAuth over IAP.
+
 ## Executive Summary
 
 This document provides a production-ready GCP deployment strategy for the Improv Olympics multi-agent application built with Google Agent Development Kit (ADK). The architecture prioritizes serverless auto-scaling, cost efficiency, and operational simplicity while supporting future WebSocket integration for real-time voice interaction.
@@ -310,104 +312,105 @@ response = client.access_secret_version(request={"name": secret_name})
 encryption_key = response.payload.data.decode("UTF-8")
 ```
 
-### OAuth Authentication via Identity-Aware Proxy (IAP) - MVP
+### OAuth Authentication via Application-Level OAuth 2.0 - MVP
 
 **Critical Decision:** OAuth authentication is mandatory for MVP to prevent cost abuse from anonymous LLM usage.
 
-**Implementation Strategy: Identity-Aware Proxy (IAP)**
+**Implementation Strategy: Application-Level OAuth 2.0**
 
-Cloud IAP provides Google Sign-In authentication at the load balancer level, protecting the entire application without code changes.
+Application-level OAuth 2.0 provides Google Sign-In authentication at the application layer using secure session cookies. This approach was chosen over IAP because IAP requires a GCP Organization, which personal projects don't have.
 
-**IAP Configuration:**
+**OAuth Configuration:**
 ```
-IAP OAuth Brand:
+OAuth Consent Screen:
   Application Name: Improv Olympics
   Support Email: support@ai4joy.org
-  OAuth Consent Screen: External (for pilot users)
+  Authorized Domains: ai4joy.org
+  Scopes: email, profile, openid
 
 OAuth Client:
   Client Type: Web application
-  Authorized Domains: ai4joy.org
-  Redirect URIs: https://ai4joy.org/_gcp_iap/secure_redirect
+  Authorized Redirect URIs: https://ai4joy.org/auth/callback
 
-IAP Backend Service:
-  Backend: Cloud Run service (improv-olympics-app)
-  IAM Policy: allUsers → REMOVED (no anonymous access)
-  IAP Members:
-    - user:pilot@example.com
-    - group:improv-testers@ai4joy.org
-    - domain:ai4joy.org (if using Workspace)
+Secret Manager Secrets:
+  - oauth-client-id: OAuth 2.0 client ID
+  - oauth-client-secret: OAuth 2.0 client secret
+  - session-secret-key: Secret key for signing session cookies
+
+Environment Variables:
+  - ALLOWED_USERS: Comma-separated list of authorized emails
 ```
 
 **User Flow:**
-1. User visits https://ai4joy.org
-2. IAP intercepts request, checks for OAuth token
-3. If not authenticated → Redirect to Google Sign-In consent screen
-4. User signs in with Google account
-5. IAP validates OAuth token and creates signed JWT header
-6. Request forwarded to Cloud Run with IAP headers:
-   - `X-Goog-IAP-JWT-Assertion`: Signed JWT with user identity
-   - `X-Goog-Authenticated-User-Email`: user@example.com
-   - `X-Goog-Authenticated-User-ID`: accounts.google.com:1234567890
+1. User visits https://ai4joy.org (protected endpoint)
+2. OAuthSessionMiddleware checks for valid session cookie
+3. If not authenticated → Redirect to /auth/login
+4. User is redirected to Google Sign-In consent screen
+5. User signs in with Google account
+6. Google redirects to /auth/callback with authorization code
+7. Application exchanges code for user info (email, id)
+8. Application checks if user email is in ALLOWED_USERS whitelist
+9. If authorized → Create signed session cookie and redirect to app
+10. Session cookie sent with subsequent requests
 
 **Application Integration:**
 ```python
-# Extract user identity from IAP headers
-from flask import request
-import jwt
+# OAuth middleware extracts user from session cookie
+from fastapi import FastAPI, Request
+from authlib.integrations.starlette_client import OAuth
+from itsdangerous import URLSafeSerializer
 
-def get_authenticated_user():
-    """Extract user info from IAP JWT header"""
-    iap_jwt = request.headers.get('X-Goog-IAP-JWT-Assertion')
-    if not iap_jwt:
-        raise AuthenticationError("No IAP JWT found")
+app = FastAPI()
+oauth = OAuth()
 
-    # Verify JWT signature (IAP handles this, but validate for defense-in-depth)
-    user_email = request.headers.get('X-Goog-Authenticated-User-Email', '').replace('accounts.google.com:', '')
-    user_id = request.headers.get('X-Goog-Authenticated-User-ID', '').replace('accounts.google.com:', '')
+oauth.register(
+    name='google',
+    client_id=os.getenv('OAUTH_CLIENT_ID'),
+    client_secret=os.getenv('OAUTH_CLIENT_SECRET'),
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={'scope': 'openid email profile'}
+)
 
-    return {
-        "email": user_email,
-        "user_id": user_id,
-        "oauth_subject": user_id  # Use as primary key for rate limiting
-    }
+# Middleware to check session
+@app.middleware("http")
+async def oauth_session_middleware(request: Request, call_next):
+    session_cookie = request.cookies.get('session')
+    if session_cookie:
+        try:
+            serializer = URLSafeSerializer(os.getenv('SESSION_SECRET_KEY'))
+            user_data = serializer.loads(session_cookie)
+            request.state.user_email = user_data['email']
+            request.state.user_id = user_data['id']
+        except:
+            pass
+    return await call_next(request)
 
 # Rate limiting per user
-@app.route('/api/sessions', methods=['POST'])
-def create_session():
-    user = get_authenticated_user()
+@app.post('/api/v1/session/start')
+async def create_session(request: Request):
+    if not hasattr(request.state, 'user_email'):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    user_email = request.state.user_email
+    user_id = request.state.user_id
 
     # Check daily session limit (10 sessions/user/day)
-    daily_count = firestore_client.collection('user_limits').document(user['user_id']).get()
+    daily_count = firestore_client.collection('user_limits').document(user_id).get()
     if daily_count.exists and daily_count.to_dict().get('sessions_today', 0) >= 10:
-        return jsonify({"error": "Daily session limit reached (10/10). Try again tomorrow."}), 429
+        raise HTTPException(status_code=429, detail="Daily session limit reached (10/10). Try again tomorrow.")
 
     # Create session tied to user
-    session = create_improv_session(user_id=user['user_id'], user_email=user['email'])
-    return jsonify(session), 201
+    session = create_improv_session(user_id=user_id, user_email=user_email)
+    return session
 ```
 
-**IAM Configuration for IAP:**
+**Access Control Configuration:**
 ```bash
-# Enable IAP for Cloud Run backend service
-gcloud iap web enable \
-    --resource-type=backend-services \
-    --service=improv-olympics-backend \
-    --project=improvOlympics
+# Set allowed users via Terraform or environment variable
+export ALLOWED_USERS="user1@example.com,user2@example.com,pilot@example.com"
 
-# Grant IAP access to pilot users
-gcloud iap web add-iam-policy-binding \
-    --resource-type=backend-services \
-    --service=improv-olympics-backend \
-    --member='user:pilot1@example.com' \
-    --role='roles/iap.httpsResourceAccessor'
-
-# Grant access to entire group
-gcloud iap web add-iam-policy-binding \
-    --resource-type=backend-services \
-    --service=improv-olympics-backend \
-    --member='group:improv-testers@ai4joy.org' \
-    --role='roles/iap.httpsResourceAccessor'
+# Or in terraform.tfvars:
+allowed_users = "user1@example.com,user2@example.com,pilot@example.com"
 ```
 
 **Cost Protection via Rate Limiting:**

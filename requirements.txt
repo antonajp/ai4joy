@@ -2,29 +2,34 @@
 # ADK Application with IAP, Rate Limiting, and VertexAI Integration
 
 # Web Framework
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
-pydantic==2.5.3
-pydantic-settings==2.1.0
+fastapi>=0.118.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.5.3
+pydantic-settings>=2.1.0
 
 # Google Cloud Platform
-google-cloud-firestore==2.14.0
-google-cloud-secret-manager==2.17.0
-google-cloud-logging==3.9.0
-google-auth==2.27.0
+google-cloud-firestore>=2.14.0
+google-cloud-secret-manager>=2.22.0,<3.0.0
+google-cloud-logging>=3.9.0
+google-auth>=2.27.0
+google-cloud-storage>=3.0.0,<4.0.0
 
 # VertexAI and Generative AI
-google-cloud-aiplatform==1.71.1
-vertexai==1.71.1
+google-cloud-aiplatform[agent-engines]>=1.125.0
 
 # ADK (Google Agent Developer Kit)
 # Note: Install from source or internal package registry
 # google-genai-adk>=0.1.0
 
 # HTTP and Networking
-httpx==0.26.0
-requests==2.31.0
+httpx>=0.28.1,<1.0.0
+requests>=2.32.4,<3.0.0
 
 # Utilities
-python-multipart==0.0.6
-python-dotenv==1.0.0
+python-multipart>=0.0.9
+python-dotenv>=1.0.0
+
+# OAuth and Session Management
+authlib>=1.5.1,<2.0.0
+itsdangerous==2.1.2
+starlette>=0.46.2,<1.0.0

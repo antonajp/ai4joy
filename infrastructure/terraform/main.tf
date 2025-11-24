@@ -252,22 +252,20 @@ resource "google_project_iam_member" "cloud_build_storage_viewer" {
   member  = "serviceAccount:${google_service_account.cloud_build.email}"
 }
 
-# Secret Manager secrets
-resource "google_secret_manager_secret" "session_encryption_key" {
-  secret_id = "session-encryption-key"
+# OAuth and Session secrets (created via gcloud, referenced here)
+data "google_secret_manager_secret" "oauth_client_id" {
+  secret_id = "oauth-client-id"
   project   = var.project_id
-
-  replication {
-    auto {}
-  }
-
-  depends_on = [module.project_services]
 }
 
-# Secret version (you'll need to add the actual value manually or via script)
-resource "google_secret_manager_secret_version" "session_encryption_key_v1" {
-  secret      = google_secret_manager_secret.session_encryption_key.id
-  secret_data = var.session_encryption_key # Pass via variable or generate
+data "google_secret_manager_secret" "oauth_client_secret" {
+  secret_id = "oauth-client-secret"
+  project   = var.project_id
+}
+
+data "google_secret_manager_secret" "session_secret_key" {
+  secret_id = "session-secret-key"
+  project   = var.project_id
 }
 
 # Reserve global static IP address
@@ -354,13 +352,43 @@ resource "google_cloud_run_v2_service" "improv_app" {
       }
 
       env {
-        name = "SESSION_ENCRYPTION_KEY"
+        name = "OAUTH_CLIENT_ID"
         value_source {
           secret_key_ref {
-            secret  = google_secret_manager_secret.session_encryption_key.secret_id
+            secret  = data.google_secret_manager_secret.oauth_client_id.secret_id
             version = "latest"
           }
         }
+      }
+
+      env {
+        name = "OAUTH_CLIENT_SECRET"
+        value_source {
+          secret_key_ref {
+            secret  = data.google_secret_manager_secret.oauth_client_secret.secret_id
+            version = "latest"
+          }
+        }
+      }
+
+      env {
+        name = "SESSION_SECRET_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = data.google_secret_manager_secret.session_secret_key.secret_id
+            version = "latest"
+          }
+        }
+      }
+
+      env {
+        name  = "OAUTH_REDIRECT_URI"
+        value = "https://ai4joy.org/auth/callback"
+      }
+
+      env {
+        name  = "ALLOWED_USERS"
+        value = var.allowed_users
       }
 
       ports {

@@ -2,7 +2,9 @@
 
 **An AI-Powered Social Gym for Improvisational Comedy Practice**
 
-Improv Olympics is a multi-agent AI application that enables users to practice improvisational comedy skills through interactive text-based sessions with specialized AI agents. Built on Google Cloud Platform with OAuth authentication and per-user rate limiting to support a pilot launch for 10-50 early adopters.
+> **Note:** This project uses **Application-Level OAuth 2.0** for authentication. See [OAUTH_IMPLEMENTATION_CHANGE.md](docs/OAUTH_IMPLEMENTATION_CHANGE.md) for details on why we chose application-level OAuth over IAP.
+
+Improv Olympics is a multi-agent AI application that enables users to practice improvisational comedy skills through interactive text-based sessions with specialized AI agents. Built on Google Cloud Platform with Application-Level OAuth 2.0 authentication and per-user rate limiting to support a pilot launch for 10-50 early adopters.
 
 ## Table of Contents
 
@@ -36,7 +38,7 @@ Improv Olympics provides an interactive learning environment where users practic
 - **Agent Framework**: Google Agent Developer Toolkit (ADK)
 - **Database**: Google Cloud Firestore
 - **Hosting**: Google Cloud Run (serverless containers)
-- **Authentication**: Identity-Aware Proxy (IAP) with OAuth 2.0
+- **Authentication**: Application-Level OAuth 2.0 with Google Sign-In (authlib, itsdangerous)
 - **Infrastructure**: Terraform
 - **CI/CD**: Cloud Build
 - **Monitoring**: Cloud Logging, Cloud Monitoring
@@ -55,7 +57,6 @@ Improv Olympics provides an interactive learning environment where users practic
 ┌──────────────────┐
 │  Cloud Load      │
 │  Balancer        │◄─── Google-managed SSL
-│  + IAP (OAuth)   │◄─── OAuth consent screen
 └────────┬─────────┘
          │
          ▼
@@ -63,9 +64,9 @@ Improv Olympics provides an interactive learning environment where users practic
 │   Cloud Run         │
 │   (FastAPI App)     │
 │   ┌───────────────┐ │
-│   │ IAP Header    │ │
-│   │ Validation    │ │
-│   ├───────────────┤ │
+│   │ OAuth Session │ │
+│   │ Middleware    │ │◄─── Application-Level OAuth 2.0
+│   ├───────────────┤ │     (session cookies)
 │   │ Rate Limiter  │ │
 │   ├───────────────┤ │
 │   │ Session Mgr   │ │
@@ -101,7 +102,7 @@ User Input
 
 ### Production-Ready Infrastructure
 
-- **OAuth Authentication**: Google Sign-In via Identity-Aware Proxy
+- **Application-Level OAuth 2.0**: Google Sign-In with secure httponly cookies (no IAP required)
 - **Per-User Rate Limiting**: 10 sessions/day, 3 concurrent sessions
 - **Session Persistence**: Firestore-backed session management
 - **Health Checks**: Load balancer integration with readiness probes
@@ -118,7 +119,7 @@ User Input
 
 ### Reliability Features
 
-- **JWT Validation**: Defense-in-depth IAP header verification
+- **Secure Session Management**: Signed, httponly session cookies with 24-hour expiration
 - **Transactional Updates**: Race-condition-safe Firestore operations
 - **Retry Logic**: Exponential backoff for VertexAI calls
 - **Graceful Degradation**: Clear error messages for quota/timeout issues
@@ -147,9 +148,10 @@ export BILLING_ACCOUNT_ID="your-billing-account-id"
 # 3. Run setup script
 ./scripts/setup.sh
 
-# 4. Create OAuth consent screen (manual step)
-# Follow instructions output by setup.sh
-# Visit: https://console.cloud.google.com/apis/credentials/consent
+# 4. Create OAuth 2.0 credentials and secrets (manual step)
+# Visit: https://console.cloud.google.com/apis/credentials
+# Create OAuth client ID, add credentials to Secret Manager
+# See docs/OAUTH_GUIDE.md for detailed instructions
 
 # 5. Configure Terraform variables
 cd infrastructure/terraform
@@ -189,8 +191,9 @@ gcloud emulators firestore start
 cd app
 uvicorn main:app --reload --port 8080
 
-# 6. Test with mock IAP headers
-curl http://localhost:8080/health
+# 6. Test authentication flow
+# Visit http://localhost:8080/auth/login to test OAuth
+curl http://localhost:8080/health  # No auth required for health
 ```
 
 ## Project Structure
@@ -200,9 +203,12 @@ ai4joy/
 ├── app/                        # FastAPI application
 │   ├── main.py                 # Application entry point
 │   ├── config.py               # Configuration management
-│   ├── middleware/             # IAP authentication middleware
+│   ├── middleware/             # OAuth session middleware
+│   │   └── oauth_auth.py       # OAuthSessionMiddleware
 │   ├── models/                 # Pydantic data models
 │   ├── routers/                # API endpoints
+│   │   ├── auth.py             # OAuth endpoints (/auth/login, /callback, /logout)
+│   │   └── sessions.py         # Session management
 │   ├── services/               # Business logic
 │   │   ├── rate_limiter.py     # Per-user rate limiting
 │   │   ├── session_manager.py  # Session persistence
@@ -216,7 +222,7 @@ ai4joy/
 │       └── outputs.tf          # Output values
 │
 ├── tests/                      # Test suites
-│   ├── test_oauth.py           # OAuth integration tests
+│   ├── test_oauth.py           # Application-level OAuth tests
 │   ├── test_rate_limiting.py   # Rate limit tests
 │   └── test_infrastructure.py  # Infrastructure validation
 │
@@ -229,7 +235,8 @@ ai4joy/
 │   ├── gcp-deployment-architecture.md
 │   ├── deployment-runbook.md
 │   ├── FIRESTORE_SCHEMA.md
-│   └── IAP_OAUTH_GUIDE.md
+│   ├── OAUTH_GUIDE.md
+│   └── OAUTH_IMPLEMENTATION_CHANGE.md
 │
 ├── .claude/                    # Claude Code configuration
 │   ├── agents/                 # Specialized agents
@@ -248,7 +255,8 @@ ai4joy/
 - **[Application README](app/README.md)** - Detailed API documentation, local development setup
 - **[GCP Deployment Architecture](docs/gcp-deployment-architecture.md)** - Infrastructure design and rationale
 - **[Deployment Runbook](docs/deployment-runbook.md)** - Step-by-step deployment procedures
-- **[IAP OAuth Guide](docs/IAP_OAUTH_GUIDE.md)** - OAuth setup and user management
+- **[OAuth Guide](docs/OAUTH_GUIDE.md)** - OAuth 2.0 setup and user management
+- **[OAuth Implementation Change](docs/OAUTH_IMPLEMENTATION_CHANGE.md)** - Why we changed from IAP to app-level OAuth
 - **[Firestore Schema](docs/FIRESTORE_SCHEMA.md)** - Database schema documentation
 - **[Terraform README](infrastructure/terraform/README.md)** - Infrastructure configuration
 
@@ -270,12 +278,13 @@ ai4joy/
 
 The application is deployed to Google Cloud Run with the following components:
 
-1. **Cloud Load Balancer** - HTTPS termination, IAP integration
-2. **Cloud Run** - Serverless container hosting
+1. **Cloud Load Balancer** - HTTPS termination and routing
+2. **Cloud Run** - Serverless container hosting with OAuth middleware
 3. **Cloud Firestore** - Session and rate limit storage
 4. **VertexAI** - Gemini model access
 5. **Cloud DNS** - Domain management
 6. **Cloud Armor** - Security policies
+7. **Secret Manager** - OAuth credentials and session secrets
 
 ### CI/CD Pipeline
 
@@ -303,7 +312,8 @@ gcloud run deploy improv-olympics \
   --image gcr.io/${PROJECT_ID}/improv-olympics:latest \
   --platform managed \
   --region us-central1 \
-  --allow-unauthenticated  # IAP handles auth at LB level
+  --allow-unauthenticated \  # OAuth handled by application middleware
+  --set-secrets OAUTH_CLIENT_ID=oauth-client-id:latest,OAUTH_CLIENT_SECRET=oauth-client-secret:latest
 ```
 
 ## Development
@@ -337,6 +347,10 @@ Required environment variables (see `.env.example`):
 - `MODEL_NAME` - Default Gemini model (gemini-1.5-flash)
 - `RATE_LIMIT_DAILY` - Daily session limit per user (default: 10)
 - `RATE_LIMIT_CONCURRENT` - Concurrent session limit (default: 3)
+- `OAUTH_CLIENT_ID` - Google OAuth 2.0 client ID (from Secret Manager)
+- `OAUTH_CLIENT_SECRET` - Google OAuth 2.0 client secret (from Secret Manager)
+- `SESSION_SECRET_KEY` - Secret key for signing session cookies (from Secret Manager)
+- `ALLOWED_USERS` - Comma-separated list of allowed user emails
 
 ### API Endpoints
 
@@ -344,10 +358,14 @@ Key endpoints:
 
 - `GET /health` - Health check (no auth required)
 - `GET /ready` - Readiness check (validates dependencies)
-- `POST /api/v1/session/start` - Create new session
-- `POST /api/v1/session/{id}/message` - Send message to agent
-- `GET /api/v1/session/{id}` - Retrieve session state
-- `POST /api/v1/session/{id}/close` - Close session
+- `GET /auth/login` - Initiate OAuth login flow
+- `GET /auth/callback` - OAuth callback endpoint
+- `GET /auth/logout` - Clear session and logout
+- `GET /auth/user` - Get current user info (protected)
+- `POST /api/v1/session/start` - Create new session (protected)
+- `POST /api/v1/session/{id}/message` - Send message to agent (protected)
+- `GET /api/v1/session/{id}` - Retrieve session state (protected)
+- `POST /api/v1/session/{id}/close` - Close session (protected)
 
 See [app/README.md](app/README.md) for complete API documentation.
 
@@ -376,22 +394,28 @@ pytest --cov=app tests/
 ### Testing OAuth Locally
 
 ```bash
-# Mock IAP headers for local testing
+# Test OAuth login flow
+open http://localhost:8080/auth/login
+
+# After authenticating, test protected endpoint with session cookie
 curl http://localhost:8080/api/v1/session/start \
-  -H "X-Goog-Authenticated-User-Email: accounts.google.com:test@example.com" \
-  -H "X-Goog-Authenticated-User-ID: accounts.google.com:123456789" \
+  -H "Cookie: session=<your-session-cookie>" \
   -H "Content-Type: application/json" \
   -d '{"location": "Mars Colony"}'
+
+# Get current user info
+curl http://localhost:8080/auth/user \
+  -H "Cookie: session=<your-session-cookie>"
 ```
 
 ## Current Status
 
 ### Completed Features (IQS-45)
 
-- OAuth/IAP authentication at load balancer
-- JWT signature validation in application
+- Application-Level OAuth 2.0 authentication with Google Sign-In
+- Secure session management with httponly cookies and Secret Manager
 - Per-user rate limiting (10 sessions/day, 3 concurrent)
-- Session management with Firestore persistence
+- Session persistence with Firestore
 - ADK agent skeleton with Gemini integration
 - Health check endpoints
 - Structured JSON logging

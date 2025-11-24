@@ -4,7 +4,7 @@ Improv Olympics - Main FastAPI Application
 This application provides the backend infrastructure for the Improv Olympics
 AI-powered social gym, featuring:
 
-- Identity-Aware Proxy (IAP) authentication
+- Google OAuth 2.0 authentication
 - Per-user rate limiting (10 sessions/day, 3 concurrent)
 - Session management with Firestore persistence
 - ADK agent integration with Gemini models
@@ -13,12 +13,13 @@ AI-powered social gym, featuring:
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 import sys
 
 from app.config import get_settings
 from app.utils.logger import get_logger
-from app.middleware.iap_auth import IAPAuthMiddleware
-from app.routers import health, sessions, agent
+from app.middleware.oauth_auth import OAuthSessionMiddleware
+from app.routers import health, sessions, agent, auth
 
 settings = get_settings()
 logger = get_logger(__name__, level=settings.log_level)
@@ -40,17 +41,25 @@ logger.info(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://ai4joy.org", "https://www.ai4joy.org"],
+    allow_origins=["https://ai4joy.org", "https://www.ai4joy.org", "http://localhost:8080"],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
 
-app.add_middleware(IAPAuthMiddleware)
+# Starlette SessionMiddleware for OAuth state management
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.session_secret_key or "dev-secret-key-change-in-production",
+    max_age=3600  # 1 hour for OAuth state
+)
 
-logger.info("IAP authentication middleware registered")
+app.add_middleware(OAuthSessionMiddleware)
+
+logger.info("OAuth session authentication middleware registered")
 
 app.include_router(health.router)
+app.include_router(auth.router)
 app.include_router(sessions.router)
 app.include_router(agent.router)
 
