@@ -1,15 +1,17 @@
 # OAuth Integration - Complete Implementation Summary
 
-**Date:** 2025-11-23
+> **Note:** This project uses **Application-Level OAuth 2.0** for authentication. See [OAUTH_IMPLEMENTATION_CHANGE.md](OAUTH_IMPLEMENTATION_CHANGE.md) for details on why we chose application-level OAuth over IAP.
+
+**Date:** 2025-11-24
 **Decision:** OAuth authentication is **mandatory for MVP** to prevent cost abuse from anonymous LLM usage
 
 ---
 
 ## Executive Summary
 
-All project documentation, infrastructure code, Linear tickets, and test plans have been updated to reflect OAuth authentication as a core MVP requirement using Google Cloud Identity-Aware Proxy (IAP).
+All project documentation, infrastructure code, Linear tickets, and test plans have been updated to reflect OAuth authentication as a core MVP requirement using **Application-Level Google OAuth 2.0**.
 
-**Key Decision:** Cloud IAP provides Google Sign-In at the load balancer level, requiring **zero application code changes** for authentication while enabling per-user rate limiting and cost tracking.
+**Key Decision:** Application-Level OAuth 2.0 provides Google Sign-In at the application layer using secure session cookies. This approach was chosen over IAP because IAP requires a GCP Organization, which personal projects don't have.
 
 ---
 
@@ -92,34 +94,68 @@ All project documentation, infrastructure code, Linear tickets, and test plans h
 **Changes to main.tf:**
 
 ```terraform
-# IAP OAuth Brand (OAuth Consent Screen)
-resource "google_iap_brand" "improv_brand" {
-  support_email     = var.iap_support_email
-  application_title = "Improv Olympics"
-  project           = var.project_id
+# Secret Manager secrets for OAuth
+resource "google_secret_manager_secret" "oauth_client_id" {
+  secret_id = "oauth-client-id"
+  replication {
+    automatic = true
+  }
 }
 
-# IAP OAuth Client for Authentication
-resource "google_iap_client" "improv_oauth" {
-  display_name = "Improv Olympics IAP Client"
-  brand        = google_iap_brand.improv_brand.name
+resource "google_secret_manager_secret" "oauth_client_secret" {
+  secret_id = "oauth-client-secret"
+  replication {
+    automatic = true
+  }
 }
 
-# IAP Web Backend Service IAM Policy
-resource "google_iap_web_backend_service_iam_binding" "improv_iap_access" {
-  project             = var.project_id
-  web_backend_service = google_compute_backend_service.improv_backend.name
-  role                = "roles/iap.httpsResourceAccessor"
-  members             = var.iap_allowed_users
+resource "google_secret_manager_secret" "session_secret_key" {
+  secret_id = "session-secret-key"
+  replication {
+    automatic = true
+  }
 }
 
-# Backend Service with IAP enabled
-resource "google_compute_backend_service" "improv_backend" {
+# Cloud Run service with OAuth secrets
+resource "google_cloud_run_service" "improv_app" {
   # ... existing config ...
 
-  iap {
-    oauth2_client_id     = google_iap_client.improv_oauth.client_id
-    oauth2_client_secret = google_iap_client.improv_oauth.secret
+  template {
+    spec {
+      containers {
+        env {
+          name = "ALLOWED_USERS"
+          value = var.allowed_users
+        }
+        env {
+          name = "OAUTH_CLIENT_ID"
+          value_from {
+            secret_key_ref {
+              name = google_secret_manager_secret.oauth_client_id.secret_id
+              key  = "latest"
+            }
+          }
+        }
+        env {
+          name = "OAUTH_CLIENT_SECRET"
+          value_from {
+            secret_key_ref {
+              name = google_secret_manager_secret.oauth_client_secret.secret_id
+              key  = "latest"
+            }
+          }
+        }
+        env {
+          name = "SESSION_SECRET_KEY"
+          value_from {
+            secret_key_ref {
+              name = google_secret_manager_secret.session_secret_key.secret_id
+              key  = "latest"
+            }
+          }
+        }
+      }
+    }
   }
 }
 ```
@@ -127,15 +163,9 @@ resource "google_compute_backend_service" "improv_backend" {
 **New Variables Added:**
 
 ```terraform
-variable "iap_support_email" {
-  description = "Support email for OAuth consent screen (must be project owner)"
+variable "allowed_users" {
+  description = "Comma-separated list of email addresses allowed to access the application"
   type        = string
-}
-
-variable "iap_allowed_users" {
-  description = "List of users/groups allowed to access application via IAP"
-  type        = list(string)
-  default     = []
 }
 
 variable "user_daily_session_limit" {
@@ -154,14 +184,8 @@ variable "user_concurrent_session_limit" {
 **Configuration Example (terraform.tfvars.example):**
 
 ```terraform
-# OAuth / IAP Configuration - REQUIRED FOR MVP
-iap_support_email = "support@ai4joy.org"
-
-iap_allowed_users = [
-  "user:pilot1@example.com",
-  "user:pilot2@example.com",
-  # "group:improv-testers@ai4joy.org",  # Recommended
-]
+# OAuth Configuration - REQUIRED FOR MVP
+allowed_users = "pilot1@example.com,pilot2@example.com,admin@ai4joy.org"
 
 user_daily_session_limit      = 10
 user_concurrent_session_limit = 3
@@ -177,7 +201,7 @@ user_concurrent_session_limit = 3
 ```json
 {
   "session_id": "uuid-v4",
-  "user_id": "oauth_subject_id_from_iap",      // NEW: PRIMARY KEY for rate limiting
+  "user_id": "google-oauth2|1234567890",       // NEW: PRIMARY KEY for rate limiting
   "user_email": "user@example.com",            // NEW: For support/debugging
   "created_at": "Timestamp",
   "updated_at": "Timestamp",
@@ -192,7 +216,7 @@ user_concurrent_session_limit = 3
 **user_limits collection (NEW):**
 ```json
 {
-  "user_id": "oauth_subject_id",
+  "user_id": "google-oauth2|1234567890",
   "email": "user@example.com",
   "sessions_today": 7,
   "last_reset": "Timestamp(2025-11-23T00:00:00Z)",
@@ -209,21 +233,21 @@ user_concurrent_session_limit = 3
 
 **Updates:**
 - Added "OAuth Authentication" as critical MVP requirement in business context
-- Added 6 new acceptance criteria for OAuth/IAP setup:
-  - [ ] IAP OAuth Brand created
-  - [ ] IAP OAuth Client created and configured
-  - [ ] IAP enabled on backend service
-  - [ ] IAM policy granting IAP access to pilot users
+- Added 6 new acceptance criteria for Application-Level OAuth setup:
+  - [ ] OAuth consent screen created
+  - [ ] OAuth 2.0 Client ID created and stored in Secret Manager
+  - [ ] Session secret key generated and stored in Secret Manager
+  - [ ] ALLOWED_USERS environment variable configured
   - [ ] Firestore user_limits collection created
   - [ ] OAuth flow tested (unauthenticated → sign-in → access granted)
 
 - New OAuth validation section:
-  - [ ] Unauthenticated requests redirect to Google Sign-In
-  - [ ] IAP headers present in Cloud Run requests
-  - [ ] Only authorized users can access
+  - [ ] Unauthenticated requests return 401 or redirect to /auth/login
+  - [ ] Session cookies present after successful login
+  - [ ] Only authorized users (in ALLOWED_USERS) can access
   - [ ] User rate limit test (11th session returns 429)
 
-- Added OAuth user management commands (gcloud iap add/remove)
+- Added OAuth user management via ALLOWED_USERS environment variable
 - Updated implementation notes with OAuth setup in Week 1
 
 #### IQS-46: Multi-Agent Implementation
@@ -231,8 +255,8 @@ user_concurrent_session_limit = 3
 **Updates:**
 - Added "OAuth Integration Required" to business context
 - New section: "OAuth Integration & Authentication (Must Have)"
-  - [ ] Authentication middleware extracting IAP headers
-  - [ ] `get_authenticated_user()` function
+  - [ ] OAuthSessionMiddleware extracting user from session cookies
+  - [ ] Auth router with /auth/login, /auth/callback, /auth/logout endpoints
   - [ ] All API endpoints protected (except health checks)
   - [ ] Unauthenticated requests return 401
   - [ ] User identity logged with all operations
@@ -245,7 +269,7 @@ user_concurrent_session_limit = 3
   - [ ] Admin override capability for testing
 
 - New integration tests:
-  - [ ] OAuth test: Request without IAP headers returns 401
+  - [ ] OAuth test: Request without session cookie returns 401
   - [ ] Rate limit test: 11th session returns 429
   - [ ] Concurrent session test: 4th session returns 429
   - [ ] User isolation test: User A cannot access User B's session
@@ -313,18 +337,21 @@ user_concurrent_session_limit = 3
 
 ### Phase 1: Infrastructure (IQS-45)
 
-- [ ] Enable IAP API in GCP project
-- [ ] Create IAP OAuth Brand via GCP Console (one-time, cannot be done via Terraform)
-- [ ] Configure Terraform variables (`iap_support_email`, `iap_allowed_users`)
-- [ ] Deploy Terraform (creates IAP client, enables IAP on backend)
-- [ ] Test OAuth flow: Visit ai4joy.org → Sign in → Access granted
-- [ ] Add pilot users to IAP access via gcloud or Terraform
+- [ ] Create OAuth consent screen via GCP Console
+- [ ] Create OAuth 2.0 Client ID via GCP Console
+- [ ] Store OAuth credentials in Secret Manager (oauth-client-id, oauth-client-secret)
+- [ ] Generate and store session secret key in Secret Manager
+- [ ] Configure Terraform variables (`allowed_users`)
+- [ ] Deploy Terraform (creates Cloud Run service with secrets)
+- [ ] Test OAuth flow: Visit ai4joy.org/auth/login → Sign in → Access granted
+- [ ] Add pilot users to ALLOWED_USERS environment variable
 - [ ] Create Firestore `user_limits` collection
 
 ### Phase 2: Application (IQS-46)
 
-- [ ] Implement authentication middleware (`get_authenticated_user()`)
-- [ ] Protect all API endpoints with auth decorator
+- [ ] Implement OAuthSessionMiddleware (checks session cookies)
+- [ ] Implement auth router (/auth/login, /auth/callback, /auth/logout)
+- [ ] Protect all API endpoints (check request.state.user_email)
 - [ ] Implement `RateLimiter` class
 - [ ] Check rate limits before session creation
 - [ ] Return 429 when limits exceeded
@@ -360,31 +387,39 @@ user_concurrent_session_limit = 3
 
 ## OAuth User Management
 
-### Add Individual User
+### Add Users to Whitelist
+
+**Via Terraform (Recommended):**
 ```bash
-gcloud iap web add-iam-policy-binding \
-  --resource-type=backend-services \
-  --service=improv-olympics-backend \
-  --member='user:newpilot@example.com' \
-  --role='roles/iap.httpsResourceAccessor'
+# Edit terraform.tfvars
+vim infrastructure/terraform/terraform.tfvars
+
+# Update allowed_users:
+allowed_users = "user1@example.com,user2@example.com,newuser@example.com"
+
+# Apply changes
+terraform apply
 ```
 
-### Add Group (Recommended)
+**Via Direct Cloud Run Update:**
 ```bash
-gcloud iap web add-iam-policy-binding \
-  --resource-type=backend-services \
-  --service=improv-olympics-backend \
-  --member='group:improv-testers@ai4joy.org' \
-  --role='roles/iap.httpsResourceAccessor'
+gcloud run services update improv-olympics-app \
+  --region=us-central1 \
+  --set-env-vars ALLOWED_USERS="user1@example.com,user2@example.com,newuser@example.com"
 ```
 
-### Remove User
+### Remove Users from Whitelist
+Simply remove the email from the ALLOWED_USERS list and redeploy:
 ```bash
-gcloud iap web remove-iam-policy-binding \
-  --resource-type=backend-services \
-  --service=improv-olympics-backend \
-  --member='user:remove@example.com' \
-  --role='roles/iap.httpsResourceAccessor'
+# Via Terraform
+vim infrastructure/terraform/terraform.tfvars
+# Remove email from allowed_users
+terraform apply
+
+# Or via direct update
+gcloud run services update improv-olympics-app \
+  --region=us-central1 \
+  --set-env-vars ALLOWED_USERS="user1@example.com,user2@example.com"
 ```
 
 ---
@@ -397,12 +432,13 @@ gcloud iap web remove-iam-policy-binding \
    - [IQS-47: Production Launch](https://linear.app/iqsubagents/issue/IQS-47)
 
 2. **Configure OAuth settings:**
-   - Update `infrastructure/terraform/terraform.tfvars` with pilot user emails
-   - Set `iap_support_email` (must be project owner/editor)
+   - Create OAuth consent screen and client ID in GCP Console
+   - Store credentials in Secret Manager
+   - Update `infrastructure/terraform/terraform.tfvars` with pilot user emails in `allowed_users`
 
 3. **Begin implementation:**
    - Start with IQS-45 (Infrastructure + OAuth setup)
-   - Proceed to IQS-46 once IAP is operational
+   - Proceed to IQS-46 once Application-Level OAuth is operational
    - Launch with IQS-47 after full testing
 
 ---

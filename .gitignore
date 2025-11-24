@@ -50,6 +50,7 @@ Thumbs.db
 .env
 .env.local
 service-account-key.json
+client_secret_*.json
 
 # Logs
 *.log
