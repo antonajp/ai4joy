@@ -111,7 +111,7 @@ class IAPAuthMiddleware:
     def _should_bypass_auth(self, path: str) -> bool:
         """Check if path should bypass authentication with normalized path matching"""
         clean_path = path.split('?')[0].rstrip('/')
-        bypass_paths = [p.rstrip('/') for p in settings.health_check_bypass_paths]
+        bypass_paths = [p.rstrip('/') for p in settings.auth_bypass_paths]
         return clean_path in bypass_paths
 
     def _validate_iap_jwt(self, request: Request) -> bool:
@@ -121,7 +121,7 @@ class IAPAuthMiddleware:
         This provides defense-in-depth by verifying the JWT even though
         GCP IAP already validates at the load balancer level.
         """
-        jwt_token = request.headers.get("X-Goog-IAP-JWT-Assertion")
+        jwt_token = request.headers.get("x-goog-iap-jwt-assertion")
         if not jwt_token:
             logger.warning("IAP JWT token missing from request")
             return False

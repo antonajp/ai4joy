@@ -55,3 +55,6 @@ client_secret_*.json
 # Logs
 *.log
 logs/
+
+# Claude Code local config
+.claude/

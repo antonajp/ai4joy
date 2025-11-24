@@ -9,6 +9,7 @@ AI-powered social gym, featuring:
 - Session management with Firestore persistence
 - ADK agent integration with Gemini models
 - Workload Identity for secure API access
+- OpenTelemetry observability with Cloud Trace integration
 """
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -19,9 +20,15 @@ import sys
 from app.config import get_settings
 from app.utils.logger import get_logger
 from app.middleware.oauth_auth import OAuthSessionMiddleware
+from app.middleware.performance import PerformanceMiddleware
+from app.services.adk_observability import initialize_adk_observability, get_adk_observability
 from app.routers import health, sessions, agent, auth
 
 settings = get_settings()
+
+# Initialize OpenTelemetry BEFORE creating logger so trace context is available
+adk_obs = initialize_adk_observability(enabled=settings.otel_enabled)
+
 logger = get_logger(__name__, level=settings.log_level)
 
 app = FastAPI(
@@ -56,7 +63,10 @@ app.add_middleware(
 
 app.add_middleware(OAuthSessionMiddleware)
 
-logger.info("OAuth session authentication middleware registered")
+# Add performance tracking middleware (includes trace ID propagation)
+app.add_middleware(PerformanceMiddleware, slow_request_threshold=5.0)
+
+logger.info("OAuth session authentication and performance middleware registered")
 
 app.include_router(health.router)
 app.include_router(auth.router)
@@ -99,8 +109,13 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """Application shutdown event"""
+    """Application shutdown event - flush OpenTelemetry data"""
     logger.info("Application shutting down")
+
+    # Flush OpenTelemetry data before shutdown
+    obs = get_adk_observability()
+    if obs:
+        obs.shutdown()
 
 
 @app.get("/")

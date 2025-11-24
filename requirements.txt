@@ -32,3 +32,18 @@ python-dotenv>=1.0.0
 authlib>=1.5.1,<2.0.0
 itsdangerous==2.1.2
 starlette>=0.46.2,<1.0.0
+
+# Load Testing
+locust>=2.15.0
+
+# OpenTelemetry - Observability and Tracing
+opentelemetry-api>=1.20.0
+opentelemetry-sdk>=1.20.0
+opentelemetry-instrumentation-fastapi>=0.41b0
+opentelemetry-instrumentation-google-genai>=0.4b0
+opentelemetry-instrumentation-sqlite3>=0.41b0
+opentelemetry-exporter-gcp-trace>=1.6.0
+opentelemetry-exporter-gcp-monitoring>=1.6.0
+opentelemetry-exporter-otlp-proto-grpc>=1.20.0
+opentelemetry-resourcedetector-gcp>=1.6.0
+opentelemetry-instrumentation-vertexai>=2.0b0

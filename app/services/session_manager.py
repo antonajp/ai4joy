@@ -1,12 +1,14 @@
-"""Session Management Service with Firestore Persistence"""
+"""Session Management Service with Firestore Persistence and ADK Integration"""
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
 import uuid
 from google.cloud import firestore
+from google.adk.sessions.session import Session as ADKSession
 
 from app.config import get_settings
 from app.utils.logger import get_logger
 from app.models.session import Session, SessionStatus, SessionCreate
+from app.services.adk_session_bridge import get_adk_session_bridge
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -14,7 +16,12 @@ settings = get_settings()
 
 class SessionManager:
     """
-    Manages user sessions with Firestore persistence.
+    Manages user sessions with Firestore persistence and ADK session integration.
+
+    Architecture:
+    - ADK InMemorySessionService: Runtime performance, automatic context management
+    - Firestore: Persistence, rate limiting, session metadata
+    - ADKSessionBridge: Syncs between ADK and Firestore
 
     All sessions are associated with authenticated user IDs from IAP.
 
@@ -36,12 +43,14 @@ class SessionManager:
     }
     """
 
-    def __init__(self):
+    def __init__(self, use_adk_sessions: bool = True):
         self.db = firestore.Client(
             project=settings.gcp_project_id,
             database=settings.firestore_database
         )
         self.collection = self.db.collection(settings.firestore_sessions_collection)
+        self.use_adk_sessions = use_adk_sessions
+        self.adk_bridge = get_adk_session_bridge() if use_adk_sessions else None
 
     async def create_session(
         self,
@@ -91,6 +100,9 @@ class SessionManager:
                 user_email=user_email,
                 location=session_data.location
             )
+
+            if self.use_adk_sessions and self.adk_bridge:
+                await self.adk_bridge.create_session(session)
 
             return session
 
@@ -329,7 +341,49 @@ class SessionManager:
             logger.error("Failed to count active sessions", user_id=user_id, error=str(e))
             return 0
 
+    async def get_adk_session(
+        self,
+        session_id: str
+    ) -> Optional[ADKSession]:
+        """
+        Get ADK session for runtime agent execution.
 
-def get_session_manager() -> SessionManager:
-    """Get session manager instance"""
-    return SessionManager()
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            ADK Session if found and ADK sessions enabled, None otherwise
+        """
+        if not self.use_adk_sessions or not self.adk_bridge:
+            return None
+
+        firestore_session = await self.get_session(session_id)
+        if not firestore_session:
+            return None
+
+        return await self.adk_bridge.get_or_create_adk_session(firestore_session)
+
+    async def sync_adk_session_to_firestore(
+        self,
+        adk_session: ADKSession,
+        session_id: str
+    ) -> None:
+        """
+        Sync ADK session state to Firestore for persistence.
+
+        Args:
+            adk_session: ADK session with updated state
+            session_id: Firestore session ID
+        """
+        if not self.use_adk_sessions or not self.adk_bridge:
+            return
+
+        await self.adk_bridge.sync_adk_session_to_firestore(
+            adk_session=adk_session,
+            session_id=session_id
+        )
+
+
+def get_session_manager(use_adk_sessions: bool = True) -> SessionManager:
+    """Get session manager instance with optional ADK session integration"""
+    return SessionManager(use_adk_sessions=use_adk_sessions)

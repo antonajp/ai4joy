@@ -1,6 +1,6 @@
 """Turn Orchestration Service - Coordinates ADK Agents for Session Turns"""
 from datetime import datetime, timezone
-from typing import Dict, Any
+from typing import Dict, Any, Optional, Tuple
 import asyncio
 
 from google.adk import Runner
@@ -8,6 +8,8 @@ from google.adk import Runner
 from app.agents import create_stage_manager, determine_partner_phase
 from app.models.session import Session, SessionStatus
 from app.services.session_manager import SessionManager
+from app.services.agent_cache import get_agent_cache
+from app.services.context_manager import get_context_manager
 from app.utils.logger import get_logger
 from app.config import get_settings
 
@@ -27,8 +29,17 @@ class TurnOrchestrator:
     - Track conversation history
     """
 
-    def __init__(self, session_manager: SessionManager):
+    def __init__(
+        self,
+        session_manager: SessionManager,
+        use_cache: bool = True,
+        use_parallel: bool = True
+    ):
         self.session_manager = session_manager
+        self.use_cache = use_cache
+        self.use_parallel = use_parallel
+        self.agent_cache = get_agent_cache() if use_cache else None
+        self.context_manager = get_context_manager()
 
     async def execute_turn(
         self,
@@ -62,26 +73,28 @@ class TurnOrchestrator:
         )
 
         try:
-            # Create Stage Manager with current turn count (0-indexed)
-            stage_manager = create_stage_manager(turn_count=turn_number - 1)
+            if self.use_cache:
+                stage_manager = self.agent_cache.get_stage_manager(turn_count=turn_number - 1)
+                logger.debug("Using cached Stage Manager", turn_number=turn_number)
+            else:
+                stage_manager = create_stage_manager(turn_count=turn_number - 1)
 
-            # Build context from conversation history
-            context = self._build_context(session, user_input, turn_number)
+            context = self.context_manager.build_optimized_context(
+                session=session,
+                user_input=user_input,
+                turn_number=turn_number
+            )
 
-            # Execute agent with ADK Runner
             runner = Runner(stage_manager)
 
-            # Construct scene prompt for Stage Manager
             scene_prompt = self._construct_scene_prompt(
                 session=session,
                 user_input=user_input,
                 turn_number=turn_number
             )
 
-            # Run the agent
             response = await self._run_agent_async(runner, scene_prompt)
 
-            # Parse agent response
             turn_response = self._parse_agent_response(
                 response=response,
                 turn_number=turn_number
@@ -340,6 +353,25 @@ ROOM: [Audience vibe analysis]
             )
 
 
-def get_turn_orchestrator(session_manager: SessionManager) -> TurnOrchestrator:
+    def get_cache_stats(self) -> Optional[Dict[str, Any]]:
+        if not self.use_cache or not self.agent_cache:
+            return None
+        return self.agent_cache.get_cache_stats()
+
+    def invalidate_cache(self, agent_type: Optional[str] = None):
+        if self.use_cache and self.agent_cache:
+            self.agent_cache.invalidate_cache(agent_type=agent_type)
+            logger.info("Agent cache invalidated", agent_type=agent_type or "all")
+
+
+def get_turn_orchestrator(
+    session_manager: SessionManager,
+    use_cache: bool = True,
+    use_parallel: bool = True
+) -> TurnOrchestrator:
     """Factory function for TurnOrchestrator"""
-    return TurnOrchestrator(session_manager)
+    return TurnOrchestrator(
+        session_manager=session_manager,
+        use_cache=use_cache,
+        use_parallel=use_parallel
+    )
