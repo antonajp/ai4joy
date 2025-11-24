@@ -73,11 +73,11 @@ open "https://console.cloud.google.com/apis/credentials/consent?project=YOUR_PRO
 
 2. **App Information:**
    - App name: `Improv Olympics`
-   - Support email: `antona.jp@gmail.com` (or your email)
+   - Support email: `your-email@example.com` (or your email)
    - App logo: (optional)
 
 3. **Developer Contact:**
-   - Email addresses: `antona.jp@gmail.com`
+   - Email addresses: `your-email@example.com`
 
 4. **Scopes:**
    - Skip this section (click "Save and Continue")
@@ -95,11 +95,11 @@ Edit `/Users/jpantona/Documents/code/ai4joy/infrastructure/terraform/terraform.t
 
 ```terraform
 # OAuth / IAP Configuration - REQUIRED FOR MVP
-iap_support_email = "antona.jp@gmail.com"  # Must match OAuth consent screen
+iap_support_email = "your-email@example.com"  # Must match OAuth consent screen
 
 iap_allowed_users = [
-  "user:antona.jp@gmail.com",
-  "user:jp@iqaccel.com",
+  "user:your-email@example.com",
+  "user:pilot1@example.com",
   # Add more pilot testers:
   # "user:tester1@example.com",
   # "user:tester2@example.com",
@@ -231,8 +231,8 @@ Add users to `/Users/jpantona/Documents/code/ai4joy/infrastructure/terraform/ter
 
 ```terraform
 iap_allowed_users = [
-  "user:antona.jp@gmail.com",
-  "user:jp@iqaccel.com",
+  "user:your-email@example.com",
+  "user:pilot1@example.com",
   "user:newuser@example.com",           # Add new user
   "group:improv-testers@ai4joy.org",    # Add group
 ]

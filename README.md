@@ -430,7 +430,7 @@ For issues or questions:
 
 - **Documentation**: See the [docs/](docs/) directory
 - **Issues**: Create a GitHub issue (when repository is public)
-- **Contact**: antona.jp@gmail.com
+- **Contact**: support@ai4joy.org
 
 ## License
 

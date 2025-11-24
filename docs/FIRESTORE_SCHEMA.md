@@ -243,7 +243,7 @@ gcloud config set project $PROJECT_ID
 cat <<'EOF' > /tmp/admin_limits.json
 {
   "user_id": "accounts.google.com:ADMIN_USER_ID",
-  "email": "antona.jp@gmail.com",
+  "email": "admin@ai4joy.org",
   "sessions_today": 0,
   "last_reset": "2025-11-23T00:00:00Z",
   "active_sessions": 0,
