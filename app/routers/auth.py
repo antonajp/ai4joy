@@ -184,9 +184,17 @@ async def auth_callback(request: Request):
         # Use secure cookies only in production (HTTPS)
         is_production = request.url.hostname != "localhost"
 
+        # Determine the domain for the cookie
+        # For ai4joy.org, use the base domain so cookie works across subdomains
+        cookie_domain = None
+        if request.url.hostname == "ai4joy.org" or request.url.hostname.endswith(".ai4joy.org"):
+            cookie_domain = "ai4joy.org"
+
         response.set_cookie(
             key="session",
             value=session_cookie,
+            domain=cookie_domain,  # Set explicit domain for ai4joy.org
+            path="/",  # Make cookie valid for entire site
             httponly=True,  # Prevent JavaScript access
             secure=is_production,  # HTTPS only in production
             samesite="lax", # CSRF protection
@@ -220,8 +228,12 @@ async def logout(request: Request):
 
     response = RedirectResponse(url="/", status_code=302)
 
-    # Delete the session cookie
-    response.delete_cookie(key="session")
+    # Delete the session cookie (must match path and domain used when setting it)
+    # Delete with domain specified for ai4joy.org
+    if request.url.hostname == "ai4joy.org" or request.url.hostname.endswith(".ai4joy.org"):
+        response.delete_cookie(key="session", path="/", domain="ai4joy.org")
+    # Also delete without domain to clear any legacy cookies
+    response.delete_cookie(key="session", path="/")
 
     logger.info("Session cleared - user logged out")
 
