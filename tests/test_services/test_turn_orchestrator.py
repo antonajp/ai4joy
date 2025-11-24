@@ -358,6 +358,7 @@ class TestTurnOrchestratorSessionStateUpdates:
         manager.add_conversation_turn = AsyncMock()
         manager.update_session_phase = AsyncMock()
         manager.update_session_status = AsyncMock()
+        manager.update_session_atomic = AsyncMock()
         return manager
 
     @pytest.fixture
@@ -405,9 +406,8 @@ class TestTurnOrchestratorSessionStateUpdates:
             turn_number=3
         )
 
-        # Verify add_conversation_turn was called
-        session_manager.add_conversation_turn.assert_called_once()
-        call_args = session_manager.add_conversation_turn.call_args
+        session_manager.update_session_atomic.assert_called_once()
+        call_args = session_manager.update_session_atomic.call_args
 
         assert call_args[1]["session_id"] == "test-session-123"
         turn_data = call_args[1]["turn_data"]
@@ -442,11 +442,9 @@ class TestTurnOrchestratorSessionStateUpdates:
             turn_number=4
         )
 
-        # Verify phase update was called
-        session_manager.update_session_phase.assert_called_once_with(
-            session_id="test-session-123",
-            phase="PHASE_2"
-        )
+        session_manager.update_session_atomic.assert_called_once()
+        call_args = session_manager.update_session_atomic.call_args
+        assert call_args[1]["new_phase"] == "PHASE_2"
 
     @pytest.mark.asyncio
     async def test_tc_turn_05c_status_transitions_turn_1(
@@ -474,11 +472,9 @@ class TestTurnOrchestratorSessionStateUpdates:
             turn_number=1
         )
 
-        # Verify status update to ACTIVE
-        session_manager.update_session_status.assert_called_once_with(
-            "test-session-123",
-            SessionStatus.ACTIVE
-        )
+        session_manager.update_session_atomic.assert_called_once()
+        call_args = session_manager.update_session_atomic.call_args
+        assert call_args[1]["new_status"] == SessionStatus.ACTIVE
 
     @pytest.mark.asyncio
     async def test_tc_turn_05d_status_transitions_turn_15(
@@ -507,11 +503,9 @@ class TestTurnOrchestratorSessionStateUpdates:
             turn_number=15
         )
 
-        # Verify status update to SCENE_COMPLETE
-        session_manager.update_session_status.assert_called_once_with(
-            "test-session-123",
-            SessionStatus.SCENE_COMPLETE
-        )
+        session_manager.update_session_atomic.assert_called_once()
+        call_args = session_manager.update_session_atomic.call_args
+        assert call_args[1]["new_status"] == SessionStatus.SCENE_COMPLETE
 
     @pytest.mark.asyncio
     async def test_tc_turn_05e_coach_feedback_included_when_present(
@@ -538,7 +532,8 @@ class TestTurnOrchestratorSessionStateUpdates:
             turn_number=15
         )
 
-        call_args = session_manager.add_conversation_turn.call_args
+        session_manager.update_session_atomic.assert_called_once()
+        call_args = session_manager.update_session_atomic.call_args
         turn_data = call_args[1]["turn_data"]
 
         assert "coach_feedback" in turn_data
@@ -554,6 +549,7 @@ class TestTurnOrchestratorErrorHandling:
         manager.add_conversation_turn = AsyncMock()
         manager.update_session_phase = AsyncMock()
         manager.update_session_status = AsyncMock()
+        manager.update_session_atomic = AsyncMock()
         return manager
 
     @pytest.fixture
@@ -610,17 +606,14 @@ class TestTurnOrchestratorErrorHandling:
         TC-TURN-06b: Malformed Response Handled Gracefully
 
         If agent returns unexpected format, parser should use fallbacks
-        without crashing.
+        without crashing. Empty responses raise ValueError.
         """
-        # Empty response
-        parsed = orchestrator._parse_agent_response(
-            response="",
-            turn_number=5
-        )
-        assert parsed["partner_response"] == ""
-        assert "room_vibe" in parsed
+        with pytest.raises(ValueError, match="Partner response cannot be empty"):
+            orchestrator._parse_agent_response(
+                response="",
+                turn_number=5
+            )
 
-        # Gibberish response
         parsed = orchestrator._parse_agent_response(
             response="###INVALID_FORMAT###",
             turn_number=5
@@ -637,7 +630,7 @@ class TestTurnOrchestratorErrorHandling:
 
         If session update fails, error should be propagated.
         """
-        session_manager.add_conversation_turn.side_effect = Exception("Firestore error")
+        session_manager.update_session_atomic.side_effect = Exception("Firestore error")
 
         turn_response = {
             "turn_number": 5,
@@ -678,13 +671,14 @@ class TestTurnOrchestratorPhaseIntegration:
             turn_count=0
         )
 
-    def test_tc_turn_07a_phase_1_for_turns_1_to_3(self, orchestrator, base_session):
+    def test_tc_turn_07a_phase_1_for_turns_1_to_4(self, orchestrator, base_session):
         """
-        TC-TURN-07a: Phase 1 for Turns 1-3
+        TC-TURN-07a: Phase 1 for Turns 1-4
 
-        Turns 1, 2, 3 should use Phase 1 (Supportive).
+        User turns 1, 2, 3, 4 should use Phase 1 (Supportive).
+        Internal turn_count is turn_number - 1, so turns 0-3 are Phase 1.
         """
-        for turn in [1, 2, 3]:
+        for turn in [1, 2, 3, 4]:
             prompt = orchestrator._construct_scene_prompt(
                 session=base_session,
                 user_input="Test",
@@ -698,13 +692,14 @@ class TestTurnOrchestratorPhaseIntegration:
             )
             assert parsed["current_phase"] == 1
 
-    def test_tc_turn_07b_phase_2_from_turn_4_onwards(self, orchestrator, base_session):
+    def test_tc_turn_07b_phase_2_from_turn_5_onwards(self, orchestrator, base_session):
         """
-        TC-TURN-07b: Phase 2 from Turn 4 Onwards
+        TC-TURN-07b: Phase 2 from Turn 5 Onwards
 
-        Turn 4 and beyond should use Phase 2 (Fallible).
+        User turn 5 and beyond should use Phase 2 (Fallible).
+        Internal turn_count is turn_number - 1, so turn_count 4+ is Phase 2.
         """
-        for turn in [4, 5, 10, 15]:
+        for turn in [5, 6, 10, 15]:
             prompt = orchestrator._construct_scene_prompt(
                 session=base_session,
                 user_input="Test",

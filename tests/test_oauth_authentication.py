@@ -10,13 +10,21 @@ These tests validate that:
 5. Health checks work without auth
 """
 
+import os
 import pytest
 import requests
 import time
 from typing import Dict, Optional
 from urllib.parse import urlparse
 
+# Skip production OAuth tests by default unless explicitly enabled
+INTEGRATION_TESTS_ENABLED = os.getenv("ENABLE_INTEGRATION_TESTS", "false").lower() == "true"
 
+
+@pytest.mark.skipif(
+    not INTEGRATION_TESTS_ENABLED,
+    reason="OAuth integration tests require running server. Set ENABLE_INTEGRATION_TESTS=true to run."
+)
 class TestOAuthAuthentication:
     """
     Test suite for Identity-Aware Proxy (IAP) OAuth authentication.
@@ -327,6 +335,10 @@ class TestIAPHeaderExtraction:
             print(f"✓ Should reject invalid IAP header: '{invalid_header}'")
 
 
+@pytest.mark.skipif(
+    not INTEGRATION_TESTS_ENABLED,
+    reason="OAuth sign-out tests require running server. Set ENABLE_INTEGRATION_TESTS=true to run."
+)
 class TestOAuthSignOut:
     """Tests for OAuth sign-out functionality."""
 

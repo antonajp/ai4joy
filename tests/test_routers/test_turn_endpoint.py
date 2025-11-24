@@ -110,7 +110,7 @@ class TestTurnEndpointValidInputs:
                 assert isinstance(response, TurnResponse)
                 assert response.turn_number == 4
                 assert response.partner_response == "Great idea! I'll grab the scanner."
-                assert response.current_phase == 2
+                assert "Phase 2" in response.current_phase
                 assert "room_vibe" in response.model_dump()
 
     @pytest.mark.asyncio
@@ -605,7 +605,7 @@ class TestTurnEndpointHTTPStatusCodes:
                     )
 
                 assert exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-                assert "Failed to execute turn" in exc_info.value.detail
+                assert "error occurred" in exc_info.value.detail.lower()
 
 
 class TestTurnEndpointRequestValidation:
@@ -784,8 +784,5 @@ class TestTurnEndpointErrorMessages:
                         session_manager=mock_session_manager
                     )
 
-                # Error detail should include generic message but preserve error info
-                # Note: Current implementation includes str(e), which may leak info
-                # This is a POTENTIAL SECURITY ISSUE to flag
-                error_detail = exc_info.value.detail
-                assert "Failed to execute turn" in error_detail
+                error_detail = exc_info.value.detail.lower()
+                assert "error occurred" in error_detail

@@ -32,11 +32,12 @@ class TestEndToEndTurnFlow:
         manager.add_conversation_turn = AsyncMock()
         manager.update_session_phase = AsyncMock()
         manager.update_session_status = AsyncMock()
+        manager.update_session_atomic = AsyncMock()
         return manager
 
     @pytest.fixture
     def orchestrator(self, session_manager_mock):
-        return TurnOrchestrator(session_manager_mock)
+        return TurnOrchestrator(session_manager_mock, use_cache=False)
 
     @pytest.fixture
     def initial_session(self):
@@ -104,9 +105,7 @@ ROOM: The audience is buzzing with anticipation. Energy: High."""
                 assert "room_vibe" in result
                 assert result["current_phase"] == 1  # Turn 1 is Phase 1
 
-                # Verify session updates were called
-                session_manager_mock.add_conversation_turn.assert_called_once()
-                session_manager_mock.update_session_status.assert_called_once()
+                session_manager_mock.update_session_atomic.assert_called_once()
 
 
 class TestStageManagerTurnCount:
@@ -118,7 +117,8 @@ class TestStageManagerTurnCount:
         manager.add_conversation_turn = AsyncMock()
         manager.update_session_phase = AsyncMock()
         manager.update_session_status = AsyncMock()
-        return TurnOrchestrator(manager)
+        manager.update_session_atomic = AsyncMock()
+        return TurnOrchestrator(manager, use_cache=False)
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -176,22 +176,24 @@ class TestPhaseTransitionsAtTurnFour:
         manager.add_conversation_turn = AsyncMock()
         manager.update_session_phase = AsyncMock()
         manager.update_session_status = AsyncMock()
+        manager.update_session_atomic = AsyncMock()
         return manager
 
     @pytest.fixture
     def orchestrator(self, session_manager_mock):
-        return TurnOrchestrator(session_manager_mock)
+        return TurnOrchestrator(session_manager_mock, use_cache=False)
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_tc_int_03a_phase_transition_logged_at_turn_4(
+    async def test_tc_int_03a_phase_transition_logged_at_turn_5(
         self, orchestrator, session_manager_mock
     ):
         """
-        TC-INT-03a: Phase Transition Logged at Turn 4
+        TC-INT-03a: Phase Transition Logged at Turn 5
 
-        When executing turn 4, phase should transition from 1 to 2,
-        and update_session_phase should be called.
+        When executing turn 5, phase should transition from 1 to 2,
+        and update_session_atomic should be called with new_phase.
+        Phase 1 is for turns 1-4, Phase 2 is for turns 5+.
         """
         session = Session(
             session_id="phase-test-session",
@@ -203,31 +205,28 @@ class TestPhaseTransitionsAtTurnFour:
             updated_at=datetime.now(timezone.utc),
             expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
             conversation_history=[],
-            turn_count=3,
+            turn_count=4,  # 4 turns completed, turn 5 will be Phase 2
             current_phase="PHASE_1"  # Currently Phase 1
         )
 
         with patch('app.services.turn_orchestrator.create_stage_manager'):
             with patch('app.services.turn_orchestrator.Runner'):
                 async def mock_run(*args, **kwargs):
-                    return "PARTNER: Turn 4 response\nROOM: Energy shift detected"
+                    return "PARTNER: Turn 5 response\nROOM: Energy shift detected"
 
                 orchestrator._run_agent_async = mock_run
 
                 result = await orchestrator.execute_turn(
                     session=session,
-                    user_input="Turn 4 input",
-                    turn_number=4
+                    user_input="Turn 5 input",
+                    turn_number=5
                 )
 
-                # Verify phase in result
                 assert result["current_phase"] == 2
 
-                # Verify phase update was called
-                session_manager_mock.update_session_phase.assert_called_once_with(
-                    session_id="phase-test-session",
-                    phase="PHASE_2"
-                )
+                session_manager_mock.update_session_atomic.assert_called_once()
+                call_args = session_manager_mock.update_session_atomic.call_args
+                assert call_args[1]["new_phase"] == "PHASE_2"
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -267,8 +266,9 @@ class TestPhaseTransitionsAtTurnFour:
                     turn_number=5
                 )
 
-                # Phase update should NOT be called
-                session_manager_mock.update_session_phase.assert_not_called()
+                session_manager_mock.update_session_atomic.assert_called_once()
+                call_args = session_manager_mock.update_session_atomic.call_args
+                assert call_args[1]["new_phase"] is None
 
 
 class TestConversationHistoryAccumulation:
@@ -280,11 +280,12 @@ class TestConversationHistoryAccumulation:
         manager.add_conversation_turn = AsyncMock()
         manager.update_session_phase = AsyncMock()
         manager.update_session_status = AsyncMock()
+        manager.update_session_atomic = AsyncMock()
         return manager
 
     @pytest.fixture
     def orchestrator(self, session_manager_mock):
-        return TurnOrchestrator(session_manager_mock)
+        return TurnOrchestrator(session_manager_mock, use_cache=False)
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -324,9 +325,13 @@ class TestConversationHistoryAccumulation:
                     )
 
                     # Add the turn to mock history (simulate Firestore behavior)
-                    call_args = session_manager_mock.add_conversation_turn.call_args
+                    # update_session_atomic is now called instead of add_conversation_turn
+                    call_args = session_manager_mock.update_session_atomic.call_args
                     turn_data = call_args[1]["turn_data"]
                     session.conversation_history.append(turn_data)
+
+                    # Reset mock for next iteration
+                    session_manager_mock.update_session_atomic.reset_mock()
 
         # Verify 5 turns were added
         assert len(session.conversation_history) == 5
@@ -406,11 +411,12 @@ class TestSessionStatusTransitions:
         manager.add_conversation_turn = AsyncMock()
         manager.update_session_phase = AsyncMock()
         manager.update_session_status = AsyncMock()
+        manager.update_session_atomic = AsyncMock()
         return manager
 
     @pytest.fixture
     def orchestrator(self, session_manager_mock):
-        return TurnOrchestrator(session_manager_mock)
+        return TurnOrchestrator(session_manager_mock, use_cache=False)
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -448,11 +454,10 @@ class TestSessionStatusTransitions:
                     turn_number=1
                 )
 
-                # Verify status update to ACTIVE
-                session_manager_mock.update_session_status.assert_called_once_with(
-                    "status-test-session",
-                    SessionStatus.ACTIVE
-                )
+                # Verify status update to ACTIVE via atomic update
+                session_manager_mock.update_session_atomic.assert_called_once()
+                call_args = session_manager_mock.update_session_atomic.call_args
+                assert call_args[1]["new_status"] == SessionStatus.ACTIVE
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -490,11 +495,10 @@ class TestSessionStatusTransitions:
                     turn_number=15
                 )
 
-                # Verify status update to SCENE_COMPLETE
-                session_manager_mock.update_session_status.assert_called_once_with(
-                    "status-test-session",
-                    SessionStatus.SCENE_COMPLETE
-                )
+                # Verify status update to SCENE_COMPLETE via atomic update
+                session_manager_mock.update_session_atomic.assert_called_once()
+                call_args = session_manager_mock.update_session_atomic.call_args
+                assert call_args[1]["new_status"] == SessionStatus.SCENE_COMPLETE
 
 
 class TestMultiTurnSessionSimulation:
@@ -506,11 +510,12 @@ class TestMultiTurnSessionSimulation:
         manager.add_conversation_turn = AsyncMock()
         manager.update_session_phase = AsyncMock()
         manager.update_session_status = AsyncMock()
+        manager.update_session_atomic = AsyncMock()
         return manager
 
     @pytest.fixture
     def orchestrator(self, session_manager_mock):
-        return TurnOrchestrator(session_manager_mock)
+        return TurnOrchestrator(session_manager_mock, use_cache=False)
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -522,10 +527,10 @@ class TestMultiTurnSessionSimulation:
         TC-INT-07a: Simulate Complete 15-Turn Session
 
         Execute 15 consecutive turns and verify:
-        - Phase transition at turn 4
+        - Phase transition at turn 5 (Phase 1 for turns 1-4, Phase 2 for 5+)
         - Status transitions at turns 1 and 15
         - Coach feedback at turn 15
-        - All turns recorded
+        - All turns recorded via update_session_atomic
         """
         session = Session(
             session_id="full-session-test",
@@ -541,17 +546,12 @@ class TestMultiTurnSessionSimulation:
             current_phase=None
         )
 
-        phase_updates = []
-        status_updates = []
+        atomic_updates = []
 
-        def record_phase_update(*args, **kwargs):
-            phase_updates.append((args, kwargs))
+        def record_atomic_update(*args, **kwargs):
+            atomic_updates.append(kwargs)
 
-        def record_status_update(*args, **kwargs):
-            status_updates.append((args, kwargs))
-
-        session_manager_mock.update_session_phase.side_effect = record_phase_update
-        session_manager_mock.update_session_status.side_effect = record_status_update
+        session_manager_mock.update_session_atomic.side_effect = record_atomic_update
 
         with patch('app.services.turn_orchestrator.create_stage_manager'):
             with patch('app.services.turn_orchestrator.Runner'):
@@ -578,8 +578,8 @@ class TestMultiTurnSessionSimulation:
                     if result["current_phase"] == 2:
                         session.current_phase = "PHASE_2"
 
-                    # Verify phase
-                    if turn_num <= 3:
+                    # Verify phase: Phase 1 for turns 1-4, Phase 2 for turns 5+
+                    if turn_num <= 4:
                         assert result["current_phase"] == 1
                     else:
                         assert result["current_phase"] == 2
@@ -590,18 +590,18 @@ class TestMultiTurnSessionSimulation:
                     else:
                         assert result.get("coach_feedback") is None
 
-        # Verify phase update happened (at turn 4)
-        assert len(phase_updates) == 1
-        phase_call = phase_updates[0]
-        assert phase_call[1]["phase"] == "PHASE_2"
+        # Verify all 15 turns were recorded via update_session_atomic
+        assert len(atomic_updates) == 15
 
-        # Verify status updates (turns 1 and 15)
-        assert len(status_updates) == 2
-        assert status_updates[0][0][1] == SessionStatus.ACTIVE
-        assert status_updates[1][0][1] == SessionStatus.SCENE_COMPLETE
+        # Verify phase transition happened at turn 5
+        phase_2_updates = [u for u in atomic_updates if u.get("new_phase") == "PHASE_2"]
+        assert len(phase_2_updates) == 1
 
-        # Verify 15 conversation turns were added
-        assert session_manager_mock.add_conversation_turn.call_count == 15
+        # Verify status transitions (ACTIVE at turn 1, SCENE_COMPLETE at turn 15)
+        active_updates = [u for u in atomic_updates if u.get("new_status") == SessionStatus.ACTIVE]
+        complete_updates = [u for u in atomic_updates if u.get("new_status") == SessionStatus.SCENE_COMPLETE]
+        assert len(active_updates) == 1
+        assert len(complete_updates) == 1
 
 
 class TestPerformanceAndLatency:
@@ -613,7 +613,8 @@ class TestPerformanceAndLatency:
         manager.add_conversation_turn = AsyncMock()
         manager.update_session_phase = AsyncMock()
         manager.update_session_status = AsyncMock()
-        return TurnOrchestrator(manager)
+        manager.update_session_atomic = AsyncMock()
+        return TurnOrchestrator(manager, use_cache=False)
 
     @pytest.mark.asyncio
     @pytest.mark.integration

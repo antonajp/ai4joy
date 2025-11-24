@@ -47,7 +47,29 @@ class Settings(BaseSettings):
     # Authentication bypass paths (no auth required)
     auth_bypass_paths: list = ["/health", "/ready", "/auth/login", "/auth/callback", "/auth/logout", "/"]
 
+    # IAP Header Configuration
+    # These headers are injected by Google Identity-Aware Proxy (IAP).
+    # FastAPI/Starlette normalizes all headers to lowercase, so we use lowercase here.
+    # IAP JWT validation provides defense-in-depth to prevent header spoofing.
+    # See: https://cloud.google.com/iap/docs/signed-headers-howto
+    iap_header_email: str = "x-goog-authenticated-user-email"
+    iap_header_user_id: str = "x-goog-authenticated-user-id"
+
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
+
+    # Monitoring and Observability
+    otel_enabled: bool = os.getenv("OTEL_ENABLED", "true").lower() == "true"
+    alert_latency_threshold: float = float(os.getenv("ALERT_LATENCY_THRESHOLD", "8.0"))
+    alert_error_rate_threshold: float = float(os.getenv("ALERT_ERROR_RATE_THRESHOLD", "0.05"))
+    alert_cache_hit_rate_threshold: float = float(os.getenv("ALERT_CACHE_HIT_RATE_THRESHOLD", "0.50"))
+
+    # Performance Tuning Configuration
+    perf_agent_timeout: int = int(os.getenv("PERF_AGENT_TIMEOUT", "30"))
+    perf_cache_ttl: int = int(os.getenv("PERF_CACHE_TTL", "300"))
+    perf_max_context_tokens: int = int(os.getenv("PERF_MAX_CONTEXT_TOKENS", "4000"))
+    perf_batch_write_threshold: int = int(os.getenv("PERF_BATCH_WRITE_THRESHOLD", "5"))
+    perf_max_concurrent_sessions: int = int(os.getenv("PERF_MAX_CONCURRENT_SESSIONS", "10"))
+    perf_firestore_batch_size: int = int(os.getenv("PERF_FIRESTORE_BATCH_SIZE", "500"))
 
     class Config:
         env_file = ".env.local"  # Use .env.local for local dev
@@ -58,3 +80,19 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Get cached settings instance"""
     return Settings()
+
+
+@lru_cache()
+def get_performance_config():
+    """Get performance configuration from settings"""
+    from app.services.performance_tuning import PerformanceConfig
+
+    settings = get_settings()
+    return PerformanceConfig(
+        agent_timeout_seconds=settings.perf_agent_timeout,
+        cache_ttl_seconds=settings.perf_cache_ttl,
+        max_context_tokens=settings.perf_max_context_tokens,
+        batch_write_threshold=settings.perf_batch_write_threshold,
+        max_concurrent_sessions_per_instance=settings.perf_max_concurrent_sessions,
+        firestore_batch_size=settings.perf_firestore_batch_size
+    )

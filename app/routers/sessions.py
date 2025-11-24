@@ -8,6 +8,9 @@ from app.models.session import SessionCreate, SessionResponse, TurnInput, TurnRe
 from app.services.session_manager import SessionManager, get_session_manager
 from app.services.rate_limiter import RateLimiter, get_rate_limiter, RateLimitExceeded
 from app.services.turn_orchestrator import TurnOrchestrator, get_turn_orchestrator
+from app.services.content_filter import get_content_filter
+from app.services.pii_detector import get_pii_detector
+from app.services.prompt_injection_guard import get_prompt_injection_guard
 from app.middleware.iap_auth import get_authenticated_user
 from app.utils.logger import get_logger
 
@@ -145,6 +148,53 @@ async def execute_turn(
     user_info = get_authenticated_user(request)
     user_id = user_info["user_id"]
 
+    # Security checks on user input
+    content_filter = get_content_filter()
+    pii_detector = get_pii_detector()
+    injection_guard = get_prompt_injection_guard()
+
+    # Check for prompt injection attempts
+    injection_result = injection_guard.check_injection(turn_input.user_input)
+    if not injection_result.is_safe:
+        logger.warning(
+            "Prompt injection attempt blocked",
+            session_id=session_id,
+            user_id=user_id,
+            threat_level=injection_result.threat_level,
+            detections=injection_result.detections
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Input contains patterns that violate content policy. Please rephrase your input."
+        )
+
+    # Check for offensive content
+    content_result = content_filter.filter_input(turn_input.user_input)
+    if not content_result.is_allowed:
+        logger.warning(
+            "Offensive content blocked",
+            session_id=session_id,
+            user_id=user_id,
+            severity=content_result.severity
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Input contains inappropriate content. Please keep the scene collaborative and respectful."
+        )
+
+    # Detect and redact PII for logging
+    pii_result = pii_detector.detect_pii(turn_input.user_input)
+    if pii_result.has_pii:
+        logger.warning(
+            "PII detected in user input",
+            session_id=session_id,
+            user_id=user_id,
+            pii_types=[d.pii_type for d in pii_result.detections]
+        )
+
+    # Use redacted version for all logging from this point forward
+    sanitized_input = pii_result.redacted_text
+
     # Retrieve session
     session = await session_manager.get_session(session_id)
 
@@ -186,6 +236,7 @@ async def execute_turn(
     orchestrator = get_turn_orchestrator(session_manager)
 
     try:
+        # Use original input for agent execution, sanitized for logging
         turn_response_data = await orchestrator.execute_turn(
             session=session,
             user_input=turn_input.user_input,
@@ -198,6 +249,9 @@ async def execute_turn(
             turn_number=turn_input.turn_number,
             user_id=user_id
         )
+
+        phase_int = turn_response_data["current_phase"]
+        turn_response_data["current_phase"] = f"Phase {phase_int} ({'Supportive' if phase_int == 1 else 'Fallible'})"
 
         return TurnResponse(**turn_response_data)
 

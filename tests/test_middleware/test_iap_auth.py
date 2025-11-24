@@ -21,11 +21,11 @@ class TestIAPAuthMiddleware:
 
     @pytest.fixture
     def valid_iap_headers(self):
-        """Valid IAP headers for testing"""
+        """Valid IAP headers for testing (lowercase to match config)"""
         return {
-            "X-Goog-Authenticated-User-Email": "accounts.google.com:testuser@example.com",
-            "X-Goog-Authenticated-User-ID": "accounts.google.com:1234567890",
-            "X-Goog-IAP-JWT-Assertion": "mock.jwt.token.here"
+            "x-goog-authenticated-user-email": "accounts.google.com:testuser@example.com",
+            "x-goog-authenticated-user-id": "accounts.google.com:1234567890",
+            "x-goog-iap-jwt-assertion": "mock.jwt.token.here"
         }
 
     @pytest.fixture
@@ -72,7 +72,7 @@ class TestIAPAuthMiddleware:
         Verify that requests without email header are rejected.
         """
         headers = valid_iap_headers.copy()
-        del headers["X-Goog-Authenticated-User-Email"]
+        del headers["x-goog-authenticated-user-email"]
 
         request = mock_request(path="/api/sessions", headers=headers)
         middleware = IAPAuthMiddleware(app=None)
@@ -92,7 +92,7 @@ class TestIAPAuthMiddleware:
         Verify that requests without user ID header are rejected.
         """
         headers = valid_iap_headers.copy()
-        del headers["X-Goog-Authenticated-User-ID"]
+        del headers["x-goog-authenticated-user-id"]
 
         request = mock_request(path="/api/sessions", headers=headers)
         middleware = IAPAuthMiddleware(app=None)
@@ -113,8 +113,8 @@ class TestIAPAuthMiddleware:
         """
         # Test direct email without prefix
         headers_no_prefix = {
-            "X-Goog-Authenticated-User-Email": "directemail@example.com",
-            "X-Goog-Authenticated-User-ID": "9876543210"
+            "x-goog-authenticated-user-email": "directemail@example.com",
+            "x-goog-authenticated-user-id": "9876543210"
         }
 
         request = mock_request(path="/api/sessions", headers=headers_no_prefix)
@@ -163,7 +163,7 @@ class TestIAPAuthMiddleware:
             "/api/sessions",
             "/api/sessions/123",
             "/api/agent/test",
-            "/",
+            # Note: "/" is intentionally in bypass paths for landing page access
             "/admin"
         ]
 
@@ -237,8 +237,8 @@ class TestIAPAuthMiddleware:
         Verify that requests without JWT assertion fail validation.
         """
         headers_no_jwt = {
-            "X-Goog-Authenticated-User-Email": "accounts.google.com:test@example.com",
-            "X-Goog-Authenticated-User-ID": "accounts.google.com:1234567890"
+            "x-goog-authenticated-user-email": "accounts.google.com:test@example.com",
+            "x-goog-authenticated-user-id": "accounts.google.com:1234567890"
         }
 
         request = mock_request(path="/api/sessions", headers=headers_no_jwt)
@@ -276,8 +276,8 @@ class TestGetAuthenticatedUser:
         Test that missing authentication state raises HTTPException.
         """
         mock_request = Mock(spec=Request)
-        mock_request.state = Mock()
-        # Don't set user_email or user_id
+        # Use spec to prevent auto-creation of attributes
+        mock_request.state = Mock(spec=[])  # Empty spec means no attributes
 
         with pytest.raises(HTTPException) as exc_info:
             get_authenticated_user(mock_request)
@@ -290,6 +290,15 @@ class TestGetAuthenticatedUser:
 
 class TestIAPAuthMiddlewareIntegration:
     """Integration tests for IAP auth middleware in request flow."""
+
+    @pytest.fixture
+    def valid_iap_headers(self):
+        """Valid IAP headers for testing (lowercase to match config)"""
+        return {
+            "x-goog-authenticated-user-email": "accounts.google.com:testuser@example.com",
+            "x-goog-authenticated-user-id": "accounts.google.com:1234567890",
+            "x-goog-iap-jwt-assertion": "mock.jwt.token.here"
+        }
 
     @pytest.mark.asyncio
     async def test_full_auth_flow_with_valid_headers(self, valid_iap_headers):
