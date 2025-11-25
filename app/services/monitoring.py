@@ -12,7 +12,7 @@ application-specific operations not covered by ADK.
 """
 import time
 import functools
-from typing import Callable, Any, Optional
+from typing import Callable, Optional
 from contextlib import contextmanager
 
 from opentelemetry import metrics, trace

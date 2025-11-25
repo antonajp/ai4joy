@@ -7,7 +7,6 @@ Test Coverage:
 - TC-W11-007: OAuth Flow with Frontend
 """
 import pytest
-import asyncio
 from playwright.sync_api import Page, expect
 
 

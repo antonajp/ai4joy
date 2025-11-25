@@ -1,6 +1,6 @@
 """Google OAuth 2.0 Authentication Middleware"""
 from fastapi import Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from typing import Optional
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 import time

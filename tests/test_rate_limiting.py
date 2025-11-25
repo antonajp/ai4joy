@@ -12,7 +12,6 @@ These tests validate that:
 
 import pytest
 import requests
-import time
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional
 from google.cloud import firestore

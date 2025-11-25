@@ -10,7 +10,6 @@ Focuses on:
 """
 
 import pytest
-from google.adk.agents import Agent
 
 
 class TestPartnerAgentEdgeCases:

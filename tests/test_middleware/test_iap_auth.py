@@ -6,9 +6,8 @@ Covers successful authentication, missing headers, malformed headers, and JWT va
 """
 
 import pytest
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import Mock, patch
 from fastapi import Request, HTTPException
-from fastapi.responses import JSONResponse
 
 from app.middleware.iap_auth import IAPAuthMiddleware, get_authenticated_user
 from app.config import get_settings

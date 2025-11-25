@@ -2,7 +2,6 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from pathlib import Path
-import os
 
 from app.utils.logger import get_logger
 

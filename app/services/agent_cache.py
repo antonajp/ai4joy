@@ -1,7 +1,6 @@
 """Agent Instance Caching Service for Performance Optimization"""
 from typing import Optional, Dict, Any
-from datetime import datetime, timezone, timedelta
-from functools import lru_cache
+from datetime import datetime, timezone
 from threading import Lock
 
 from google.adk.agents import Agent

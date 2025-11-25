@@ -20,7 +20,6 @@ from datetime import datetime, timezone, timedelta
 from app.routers.sessions import execute_turn
 from app.models.session import Session, SessionStatus, TurnInput, TurnResponse
 from app.services.session_manager import SessionManager
-from app.services.turn_orchestrator import TurnOrchestrator
 
 
 class TestTurnEndpointValidInputs:

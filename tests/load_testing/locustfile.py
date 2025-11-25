@@ -9,7 +9,6 @@ Configuration:
     - Wait time: 1-3 seconds between requests
     - Scenarios: session creation, turn execution, full session flow
 """
-import os
 import random
 from locust import HttpUser, TaskSet, task, between, events
 from typing import Optional

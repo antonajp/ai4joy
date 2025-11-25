@@ -1,5 +1,4 @@
 """Improv Expert Tools - Async Functions for Core Improv Principles"""
-from typing import Optional
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)

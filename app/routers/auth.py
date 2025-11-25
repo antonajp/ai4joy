@@ -1,6 +1,6 @@
 """OAuth Authentication Endpoints"""
 from fastapi import APIRouter, Request, HTTPException, status
-from fastapi.responses import RedirectResponse, Response, HTMLResponse
+from fastapi.responses import RedirectResponse, HTMLResponse
 from authlib.integrations.starlette_client import OAuth
 from starlette.config import Config as StarletteConfig
 

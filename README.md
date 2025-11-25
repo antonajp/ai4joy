@@ -24,24 +24,29 @@ Improv Olympics is a multi-agent AI application that enables users to practice i
 
 ### What is Improv Olympics?
 
-Improv Olympics provides an interactive learning environment where users practice improvisational comedy through AI-powered sessions. Four specialized agents orchestrate the experience:
+Improv Olympics provides an interactive learning environment where users practice improvisational comedy through AI-powered sessions. Five specialized agents orchestrate the experience using Google's Agent Development Kit (ADK):
 
-- **MC Agent** - Introduces games, provides context, and guides the session flow
-- **The Room Agent** - Simulates audience reactions and feedback
-- **Dynamic Scene Partner Agent** - Responds contextually as a scene partner
-- **Coach Agent** - Delivers actionable feedback and coaching insights
+- **Stage Manager Agent** - Orchestrates the multi-agent experience across all sub-agents
+- **Partner Agent** - Phase-aware scene partner that adapts behavior based on user skill level
+- **Room Agent** - Simulates audience reactions and collective vibe using sentiment analysis
+- **Coach Agent** - Delivers actionable feedback using improv principles database
+- **MC Agent** - (Future) Introduces games and guides session flow
 
 ### Technology Stack
 
 - **Backend**: FastAPI (Python)
-- **AI Models**: Google Gemini 1.5 Pro/Flash via VertexAI
+- **AI Models**: Google Gemini 2.0 Flash Exp via VertexAI
 - **Agent Framework**: Google Agent Developer Toolkit (ADK)
-- **Database**: Google Cloud Firestore
+  - `DatabaseSessionService` for session persistence (SQLite)
+  - `VertexAiRagMemoryService` for cross-session learning
+  - `CloudTraceCallback` for native observability
+  - `InMemoryRunner` singleton pattern for efficient execution
+- **Database**: Google Cloud Firestore (rate limits), SQLite (ADK sessions)
 - **Hosting**: Google Cloud Run (serverless containers)
 - **Authentication**: Application-Level OAuth 2.0 with Google Sign-In (authlib, itsdangerous)
 - **Infrastructure**: Terraform
 - **CI/CD**: Cloud Build
-- **Monitoring**: Cloud Logging, Cloud Monitoring
+- **Monitoring**: Cloud Logging, Cloud Monitoring, Cloud Trace
 
 ## Architecture
 
@@ -80,22 +85,34 @@ Improv Olympics provides an interactive learning environment where users practic
          └──────────► VertexAI (Gemini models)
 ```
 
-### Multi-Agent Orchestration
+### ADK-First Multi-Agent Orchestration
 
 ```
 User Input
     │
     ▼
-┌─────────────┐
-│ MC Agent    │ (Gemini 1.5 Flash)
-│ Orchestrator│
-└──────┬──────┘
-       │
-       ├────► The Room (audience feedback)
-       │
-       ├────► Dynamic Scene Partner (scene interaction)
-       │
-       └────► Coach (feedback & analysis)
+┌──────────────────┐
+│ Stage Manager    │ (Gemini 2.0 Flash Exp)
+│ (ADK LlmAgent)   │ [Orchestrates 3 sub-agents]
+└────────┬─────────┘
+         │
+         ├────► Partner Agent (Phase-aware improv partner)
+         │      - Phase 1: Supportive "Yes, and..."
+         │      - Phase 2: Fallible, realistic friction
+         │
+         ├────► Room Agent (Audience sentiment & vibe)
+         │      - Sentiment analysis tools
+         │      - Demographic simulation
+         │
+         └────► Coach Agent (Expert feedback)
+                - Improv principles database
+                - Constructive coaching
+
+All agents backed by:
+- ADK DatabaseSessionService (session persistence)
+- ADK MemoryService (cross-session learning)
+- ADK CloudTraceCallback (observability)
+- Singleton InMemoryRunner (efficient execution)
 ```
 
 ## Key Features
@@ -104,7 +121,10 @@ User Input
 
 - **Application-Level OAuth 2.0**: Google Sign-In with secure httponly cookies (no IAP required)
 - **Per-User Rate Limiting**: 10 sessions/day, 3 concurrent sessions
-- **Session Persistence**: Firestore-backed session management
+- **ADK Session Persistence**: `DatabaseSessionService` with SQLite backend
+- **Cross-Session Memory**: `VertexAiRagMemoryService` for personalized learning
+- **Native Observability**: ADK `CloudTraceCallback` auto-instrumentation
+- **Efficient Agent Execution**: Singleton `InMemoryRunner` pattern
 - **Health Checks**: Load balancer integration with readiness probes
 - **Structured Logging**: Cloud Logging-compatible JSON logs
 - **Auto-Scaling**: Serverless Cloud Run with automatic scaling
@@ -410,39 +430,60 @@ curl http://localhost:8080/auth/user \
 
 ## Current Status
 
-### Completed Features (IQS-45)
+### Completed Features
 
+**Authentication & Infrastructure (IQS-45)**
 - Application-Level OAuth 2.0 authentication with Google Sign-In
 - Secure session management with httponly cookies and Secret Manager
 - Per-user rate limiting (10 sessions/day, 3 concurrent)
-- Session persistence with Firestore
-- ADK agent skeleton with Gemini integration
 - Health check endpoints
 - Structured JSON logging
-- Comprehensive documentation
-- Automated testing suite
 - Complete Terraform infrastructure
+- Automated testing suite
+
+**Multi-Agent System (IQS-46 to IQS-48)**
+- 5 specialized ADK agents (Stage Manager, Partner, Room, Coach, MC)
+- Phase-aware Partner Agent behavior
+- Multi-agent orchestration via Stage Manager
+- Sentiment analysis and audience simulation
+- Improv coaching with principles database
+
+**ADK-First Architecture (IQS-49 to IQS-54)**
+- ADK `DatabaseSessionService` for session persistence
+- ADK `VertexAiRagMemoryService` for cross-session learning
+- ADK `CloudTraceCallback` native observability
+- Singleton `InMemoryRunner` pattern for efficiency
+- ADK evaluation framework for agent quality testing
+- All agents using `google.adk.agents.Agent`
+- Comprehensive documentation updates
 
 ### Roadmap
 
-**Phase 1: MVP Launch** (Completed)
+**Phase 1: MVP Launch** (Completed - IQS-45)
 - OAuth authentication and rate limiting
-- Single-agent skeleton deployment
 - Infrastructure automation
+- Single-agent skeleton deployment
 
-**Phase 2: Multi-Agent Implementation** (Planned)
-- MC agent (session orchestrator)
-- The Room agent (audience simulation)
-- Dynamic Scene Partner agent
-- Coach agent (feedback & analysis)
-- LLM-based agent routing
+**Phase 2: Multi-Agent Implementation** (Completed - IQS-46 to IQS-48)
+- Stage Manager (multi-agent orchestrator)
+- Partner Agent (phase-aware scene partner)
+- Room Agent (audience simulation with sentiment tools)
+- Coach Agent (feedback with improv principles)
+- MC Agent (game introduction and context)
 
-**Phase 3: Production Optimization** (Future)
-- Custom tools (GameDatabase, SentimentGauge)
-- Streaming responses
+**Phase 3: ADK-First Architecture** (Completed - IQS-49 to IQS-54)
+- ADK `DatabaseSessionService` for session persistence
+- ADK `MemoryService` for cross-session learning
+- ADK `CloudTraceCallback` for native observability
+- Singleton `InMemoryRunner` pattern
+- ADK evaluation framework for agent quality testing
+
+**Phase 4: Production Optimization** (Future)
+- Streaming responses for real-time feedback
 - Context compaction for long sessions
-- Performance optimization
-- Advanced monitoring and alerting
+- Performance optimization and caching
+- Advanced coaching features
+- Mid-scene coaching options
 
 ## Contributing
 
@@ -462,6 +503,6 @@ Copyright 2025 JP Antona. All rights reserved.
 
 ---
 
-**Project Status**: 🟢 Production Ready (MVP)
-**Last Updated**: 2025-11-23
-**Version**: 1.0.0
+**Project Status**: 🟢 Production Ready (ADK-First Architecture Complete)
+**Last Updated**: 2025-11-25
+**Version**: 2.0.0 (ADK-First)

@@ -25,11 +25,12 @@ This application implements the foundational infrastructure for Improv Olympics:
    - Conversation history tracking
    - Phase transition management
 
-4. **ADK Agent Skeleton** (`services/adk_agent.py`)
-   - VertexAI Gemini integration (Flash and Pro models)
-   - Workload Identity authentication (no API keys)
-   - Async execution with retry logic
-   - Chat session management
+4. **ADK Multi-Agent System** (`agents/`)
+   - Stage Manager (LLM Orchestrator with 4 sub-agents)
+   - Partner Agent (Phase-aware improv scene partner)
+   - Room Agent (Audience simulation)
+   - Coach Agent (Improv expert with knowledge base tools)
+   - ADK-first architecture using DatabaseSessionService and InMemoryRunner
 
 ## Application Structure
 
@@ -43,12 +44,19 @@ app/
 │   └── session.py              # Data models (Session, Turn, etc.)
 ├── routers/
 │   ├── health.py               # Health check endpoints
-│   ├── sessions.py             # Session management API
-│   └── agent.py                # ADK agent test endpoints
+│   └── sessions.py             # Session management API
+├── agents/
+│   ├── stage_manager.py        # LLM Orchestrator agent
+│   ├── partner_agent.py        # Phase-aware scene partner
+│   ├── room_agent.py           # Audience simulation
+│   ├── coach_agent.py          # Improv expert coach
+│   └── mc_agent.py             # MC agent
 ├── services/
 │   ├── rate_limiter.py         # Per-user rate limiting
 │   ├── session_manager.py      # Session persistence
-│   └── adk_agent.py            # ADK agent integration
+│   ├── adk_session_service.py  # ADK DatabaseSessionService integration
+│   ├── adk_memory_service.py   # ADK MemoryService for RAG
+│   └── turn_orchestrator.py    # Turn execution with ADK Runner
 └── utils/
     └── logger.py               # Structured logging
 ```
@@ -67,11 +75,9 @@ app/
 - `POST /api/v1/session/{session_id}/close` - Close session
 - `GET /api/v1/user/limits` - Get current rate limit status
 
-### Agent Testing (IAP Auth Required)
+### Turn Execution (IAP Auth Required)
 
-- `GET /api/v1/agent/test` - Test VertexAI connectivity
-- `GET /api/v1/agent/info` - Get agent configuration
-- `POST /api/v1/agent/generate` - Test generation endpoint
+- `POST /api/v1/session/{session_id}/turn` - Execute a turn in the improv scene
 
 ## Environment Variables
 
@@ -202,18 +208,15 @@ done
 # }
 ```
 
-### Testing Gemini Integration
+### Testing Turn Execution
 
 ```bash
-# Test VertexAI connectivity
-curl http://localhost:8080/api/v1/agent/test \
+# Execute a turn (requires active session)
+curl -X POST "http://localhost:8080/api/v1/session/{session_id}/turn" \
+  -H "Content-Type: application/json" \
   -H "X-Goog-Authenticated-User-Email: accounts.google.com:test@example.com" \
-  -H "X-Goog-Authenticated-User-ID: accounts.google.com:123456789"
-
-# Test generation
-curl -X POST "http://localhost:8080/api/v1/agent/generate?prompt=Hello%20World" \
-  -H "X-Goog-Authenticated-User-Email: accounts.google.com:test@example.com" \
-  -H "X-Goog-Authenticated-User-ID: accounts.google.com:123456789"
+  -H "X-Goog-Authenticated-User-ID: accounts.google.com:123456789" \
+  -d '{"user_input": "Yes and... I love this spaceship!", "turn_number": 1}'
 ```
 
 ## Docker Build and Test
@@ -388,25 +391,30 @@ severity>=WARNING
 **Cause**: Firestore API not enabled or network issue
 **Solution**: Enable Firestore API, check VPC connector
 
-## Next Steps
+## Current Architecture
 
-### Phase 2: Multi-Agent Orchestration
+### ADK-First Implementation (Complete)
 
-- Implement MC, TheRoom, DynamicScenePartner, and Coach agents
-- Add LLM orchestrator pattern for agent routing
-- Implement sequential and parallel workflows
+The application uses Google's Agent Development Kit (ADK) for all agent functionality:
 
-### Phase 3: Custom Tools
+- **DatabaseSessionService**: Persistent sessions via Firestore
+- **MemoryService**: RAG-based cross-session learning via VertexAI
+- **CloudTraceCallback**: Native observability integration
+- **InMemoryRunner**: Singleton pattern for efficient agent execution
+- **Evaluation Framework**: Agent quality testing with ADK evaluators
 
-- GameDatabase tool for improv games
-- SentimentGauge for real-time engagement analysis
-- DemographicGenerator for audience personas
+### Multi-Agent Orchestration (Complete)
 
-### Phase 4: Performance Optimization
+- **Stage Manager**: LLM Orchestrator routing to specialized sub-agents
+- **Partner Agent**: Phase-aware improv scene partner (supportive→fallible)
+- **Room Agent**: Audience simulation with reactions and suggestions
+- **Coach Agent**: Improv expert with knowledge base tools
+
+### Future Enhancements
 
 - Streaming responses for lower perceived latency
-- Parallel agent execution where possible
-- Context compaction for long sessions
+- Enhanced memory retrieval patterns
+- Additional game types and scenarios
 
 ## Contributing
 
@@ -424,6 +432,6 @@ See LICENSE file for details.
 
 ---
 
-**Application Version**: 1.0.0
-**Last Updated**: 2025-11-23
+**Application Version**: 2.0.0 (ADK-First Architecture)
+**Last Updated**: 2025-11-25
 **Maintained by**: ai4joy.org team
