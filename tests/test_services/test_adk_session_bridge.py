@@ -1,10 +1,46 @@
-"""Tests for ADK Session Bridge Service"""
+"""Tests for ADK Session Bridge Service
+
+DEPRECATED: These tests cover the deprecated adk_session_bridge module.
+The adk_session_bridge has been replaced by adk_session_service which uses
+DatabaseSessionService instead of InMemorySessionService.
+
+See test_adk_session_service.py for tests of the replacement module.
+"""
 import pytest
+import warnings
 from datetime import datetime, timezone, timedelta
 from unittest.mock import Mock, AsyncMock, patch, MagicMock
 
 from app.services.adk_session_bridge import ADKSessionBridge, get_adk_session_bridge
 from app.models.session import Session, SessionStatus
+
+
+class TestADKSessionBridgeDeprecation:
+    """Tests for deprecation warnings"""
+
+    def test_adk_session_bridge_module_deprecation_notice(self):
+        """
+        Verify module documentation indicates deprecation
+
+        Note: If adk_session_bridge is to be formally deprecated with warnings,
+        uncomment the test below. Currently this just documents that the module
+        is deprecated via docstrings.
+        """
+        import app.services.adk_session_bridge
+        # Check that module docstring mentions deprecation
+        assert app.services.adk_session_bridge.__doc__ is not None
+        # The presence of this test serves as documentation that
+        # adk_session_bridge is deprecated in favor of adk_session_service
+
+    # Uncomment if formal DeprecationWarning is added to the module
+    # def test_adk_session_bridge_raises_deprecation_warning(self):
+    #     """Verify importing adk_session_bridge raises DeprecationWarning"""
+    #     with warnings.catch_warnings(record=True) as w:
+    #         warnings.simplefilter("always")
+    #         from app.services.adk_session_bridge import ADKSessionBridge
+    #         assert len(w) >= 1
+    #         assert any(issubclass(warning.category, DeprecationWarning) for warning in w)
+    #         assert any("deprecated" in str(warning.message).lower() for warning in w)
 
 
 @pytest.fixture

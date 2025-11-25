@@ -1,9 +1,36 @@
-"""ADK Session Bridge - Syncs ADK Sessions with Firestore for Persistence"""
+"""ADK Session Bridge - Syncs ADK Sessions with Firestore for Persistence
+
+DEPRECATED: This module is deprecated as of IQS-49.
+Use app.services.adk_session_service instead.
+
+The ADK DatabaseSessionService now handles session persistence directly using
+SQLite with async support, eliminating the need for this bridge pattern.
+
+This file is retained for reference during the migration period and will be
+removed in a future release once all dependent code has been updated.
+
+Migration Guide:
+- Old: get_adk_session_bridge().create_session(session)
+- New: get_adk_session_service().create_session(app_name, user_id, session_id, state)
+
+- Old: get_adk_session_bridge().get_or_create_adk_session(session)
+- New: get_adk_session_service().get_session(app_name, user_id, session_id)
+
+See: app/services/adk_session_service.py for the new implementation.
+"""
+import warnings
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from google.adk.sessions import InMemorySessionService
 from google.adk.sessions.session import Session as ADKSession
 from google.cloud import firestore
+
+warnings.warn(
+    "adk_session_bridge is deprecated. Use adk_session_service instead. "
+    "See app/services/adk_session_service.py for the new implementation.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 from app.models.session import Session, SessionStatus
 from app.utils.logger import get_logger

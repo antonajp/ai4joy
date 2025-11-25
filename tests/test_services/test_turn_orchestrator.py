@@ -722,22 +722,99 @@ class TestTurnOrchestratorAsyncExecution:
         return TurnOrchestrator(Mock())
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Test needs to be rewritten for new ADK run_async API")
-    async def test_tc_turn_03a_async_runner_execution(self, orchestrator):
+    async def test_tc_turn_03a_uses_shared_session_service(self, orchestrator):
         """
-        TC-TURN-03a: ADK Runner Runs in Async Executor
+        TC-TURN-03a: Turn Orchestrator Uses Shared Session Service
 
-        Note: The ADK Runner API has changed. Runner now uses run_async()
-        which is an async generator yielding events, not a synchronous run().
-        This test needs to mock the new async event-based API.
+        The orchestrator should use the shared DatabaseSessionService singleton
+        via get_adk_session_service(), not create a new InMemorySessionService
+        per request.
+
+        This ensures sessions persist across Cloud Run instance restarts.
         """
-        pass
+        with patch('app.services.turn_orchestrator.get_adk_session_service') as mock_get_service:
+            with patch('app.services.turn_orchestrator.Runner') as mock_runner_class:
+                with patch('app.services.turn_orchestrator.create_stage_manager') as mock_create_stage:
+                    # Mock the shared session service
+                    mock_session_service = Mock()
+                    mock_get_service.return_value = mock_session_service
+
+                    # Mock stage manager and runner
+                    mock_stage_manager = Mock()
+                    mock_create_stage.return_value = mock_stage_manager
+
+                    mock_runner_instance = Mock()
+                    mock_runner_class.return_value = mock_runner_instance
+
+                    # Mock the async run_async method
+                    async def mock_run_async(*args, **kwargs):
+                        # Yield a final event with response
+                        yield {
+                            "type": "final",
+                            "content": "PARTNER: Test response"
+                        }
+
+                    mock_runner_instance.run_async = mock_run_async
+
+                    # Create test session
+                    session = Session(
+                        session_id="test-session",
+                        user_id="user-123",
+                        user_email="test@example.com",
+                        location="Test Location",
+                        status=SessionStatus.ACTIVE,
+                        created_at=datetime.now(timezone.utc),
+                        updated_at=datetime.now(timezone.utc),
+                        expires_at=datetime.now(timezone.utc),
+                        conversation_history=[],
+                        turn_count=0
+                    )
+
+                    # Execute turn
+                    try:
+                        await orchestrator.execute_turn(
+                            session=session,
+                            user_input="Test input",
+                            turn_number=1
+                        )
+                    except Exception:
+                        # Execution may fail due to mocking, but we're testing service usage
+                        pass
+
+                    # Verify get_adk_session_service was called
+                    mock_get_service.assert_called()
+
+                    # Verify Runner was initialized with the shared session service
+                    mock_runner_class.assert_called()
+                    runner_call = mock_runner_class.call_args
+
+                    # session_service should be the mock_session_service
+                    assert runner_call[1]['session_service'] is mock_session_service
+
+    @pytest.mark.asyncio
+    async def test_tc_turn_03b_session_service_not_created_per_request(self):
+        """
+        TC-TURN-03b: Session Service is NOT Created Per Request
+
+        The old implementation created a new InMemorySessionService in __init__.
+        The new implementation should NOT create any session service - it should
+        only use the shared singleton.
+        """
+        session_manager = Mock()
+        session_manager.add_conversation_turn = AsyncMock()
+        session_manager.update_session_atomic = AsyncMock()
+
+        orchestrator = TurnOrchestrator(session_manager)
+
+        # The orchestrator should NOT have created its own session service
+        # It should only reference the shared one via get_adk_session_service()
+        assert not hasattr(orchestrator, 'adk_session_service') or orchestrator.adk_session_service is None
 
     @pytest.mark.asyncio
     @pytest.mark.skip(reason="Test needs to be rewritten for new ADK run_async API")
-    async def test_tc_turn_03b_runner_timeout_handling(self, orchestrator):
+    async def test_tc_turn_03c_runner_timeout_handling(self, orchestrator):
         """
-        TC-TURN-03b: Long-Running Agent Execution
+        TC-TURN-03c: Long-Running Agent Execution
 
         Note: The ADK Runner API has changed to use async run_async().
         Timeout handling is now done by wrapping the async generator iteration.

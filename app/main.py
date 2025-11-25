@@ -110,8 +110,12 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """Application shutdown event - flush OpenTelemetry data"""
+    """Application shutdown event - flush OpenTelemetry data and close connections"""
     logger.info("Application shutting down")
+
+    # Close ADK DatabaseSessionService connections
+    from app.services.adk_session_service import close_adk_session_service
+    await close_adk_session_service()
 
     # Flush OpenTelemetry data before shutdown
     obs = get_adk_observability()
