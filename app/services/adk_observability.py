@@ -1,14 +1,21 @@
 """
 ADK Native OpenTelemetry Integration
 
-This module configures OpenTelemetry to leverage ADK's built-in instrumentation.
-ADK automatically creates spans for:
+This module configures OpenTelemetry exporters for ADK's built-in instrumentation.
+
+ADK v1.19.0+ automatically creates spans for:
 - invocation: Overall agent invocation
 - agent_run: Individual agent execution
 - call_llm: LLM API calls
 - execute_tool: Tool executions
 
-We configure the exporters to send telemetry to Google Cloud Platform.
+Our role is to:
+1. Set environment variables to enable ADK instrumentation
+2. Configure Cloud Trace exporter so ADK spans are sent to GCP
+3. Provide custom metrics (token usage, sentiment) not included in ADK
+4. Provide helper functions for trace context access
+
+We do NOT manually create spans for ADK operations - ADK does that automatically.
 """
 import os
 from typing import Optional
@@ -31,13 +38,14 @@ logger = get_logger(__name__)
 
 class ADKObservability:
     """
-    OpenTelemetry configuration for ADK native instrumentation.
+    OpenTelemetry exporter configuration for ADK native instrumentation.
 
-    Sets up:
-    - Cloud Trace exporter for distributed tracing
-    - Cloud Monitoring exporter for metrics
-    - Resource detection for GCP metadata
-    - Environment variables for ADK instrumentation
+    This class DOES NOT create agent spans - ADK does that automatically.
+    Instead, it:
+    - Sets environment variables to enable ADK's auto-instrumentation
+    - Configures Cloud Trace exporter to receive ADK's spans
+    - Provides custom metrics beyond ADK's built-ins
+    - Exposes trace context helpers for logging correlation
     """
 
     def __init__(self, enabled: bool = None):
@@ -55,17 +63,33 @@ class ADKObservability:
             logger.info("ADK OpenTelemetry disabled")
 
     def _setup_environment(self):
-        """Set environment variables for ADK OpenTelemetry instrumentation"""
+        """
+        Set environment variables for ADK OpenTelemetry instrumentation.
+
+        These variables must be set BEFORE ADK imports to enable auto-instrumentation:
+        - OTEL_SERVICE_NAME: Service identifier in traces
+        - OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: Correlate logs with traces
+        - OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: Capture LLM prompts/responses
+
+        ADK will automatically create spans when these are set.
+        """
         os.environ.setdefault("OTEL_SERVICE_NAME", "improv-olympics-agent")
         os.environ.setdefault("OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED", "true")
         os.environ.setdefault("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT", "true")
 
-        logger.debug("OpenTelemetry environment configured",
+        logger.debug("OpenTelemetry environment configured for ADK auto-instrumentation",
                     service_name=os.environ.get("OTEL_SERVICE_NAME"),
                     logging_enabled=os.environ.get("OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED"))
 
     def _initialize_providers(self):
-        """Initialize OpenTelemetry providers with GCP exporters"""
+        """
+        Initialize OpenTelemetry providers with GCP exporters.
+
+        This sets up the TracerProvider with Cloud Trace exporter so that
+        ADK's automatically-generated spans are sent to Google Cloud Trace.
+
+        We do NOT create spans here - we just configure WHERE spans go.
+        """
         # Detect GCP resources (project ID, instance ID, etc.)
         resource = Resource.create({
             "service.name": settings.app_name,
@@ -81,10 +105,11 @@ class ADKObservability:
             logger.warning("GCP resource detection failed, using basic resource", error=str(e))
 
         # Setup Trace Provider with Cloud Trace exporter
+        # This receives ADK's auto-generated spans and exports them to Cloud Trace
         try:
             self._tracer_provider = TracerProvider(resource=resource)
 
-            # Cloud Trace exporter
+            # Cloud Trace exporter - sends ADK spans to GCP
             cloud_trace_exporter = CloudTraceSpanExporter(
                 project_id=settings.gcp_project_id
             )
@@ -100,7 +125,7 @@ class ADKObservability:
             self._tracer_provider.add_span_processor(span_processor)
             trace.set_tracer_provider(self._tracer_provider)
 
-            logger.info("Cloud Trace exporter configured", project_id=settings.gcp_project_id)
+            logger.info("Cloud Trace exporter configured for ADK spans", project_id=settings.gcp_project_id)
 
         except Exception as e:
             logger.error("Failed to initialize Cloud Trace exporter", error=str(e))
@@ -130,11 +155,21 @@ class ADKObservability:
             logger.error("Failed to initialize metrics provider", error=str(e))
 
     def get_tracer(self, name: str) -> trace.Tracer:
-        """Get a tracer for creating custom spans"""
+        """
+        Get a tracer for creating custom spans.
+
+        Note: You typically don't need this for ADK operations - ADK creates
+        spans automatically. Use this only for non-ADK custom instrumentation.
+        """
         return trace.get_tracer(name)
 
     def get_meter(self, name: str) -> metrics.Meter:
-        """Get a meter for creating custom metrics"""
+        """
+        Get a meter for creating custom metrics.
+
+        Use this for app-specific metrics not covered by ADK's built-ins
+        (e.g., token usage, sentiment scores, cache metrics).
+        """
         return metrics.get_meter(name)
 
     def get_current_trace_context(self) -> Optional[str]:
