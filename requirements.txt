@@ -20,6 +20,10 @@ google-cloud-aiplatform[agent-engines]>=1.125.0
 # ADK (Google Agent Developer Kit)
 google-adk>=1.19.0
 
+# Async SQLite for ADK DatabaseSessionService
+aiosqlite>=0.19.0
+greenlet>=3.0.0
+
 # HTTP and Networking
 httpx>=0.28.1,<1.0.0
 requests>=2.32.4,<3.0.0

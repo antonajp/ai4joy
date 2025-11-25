@@ -75,6 +75,10 @@ class Settings(BaseSettings):
     alert_error_rate_threshold: float = float(os.getenv("ALERT_ERROR_RATE_THRESHOLD", "0.05"))
     alert_cache_hit_rate_threshold: float = float(os.getenv("ALERT_CACHE_HIT_RATE_THRESHOLD", "0.50"))
 
+    # ADK Session Database Configuration
+    # SQLite file path for ADK session persistence
+    adk_database_url: str = os.getenv("ADK_DATABASE_URL", "sqlite+aiosqlite:///./adk_sessions.db")
+
     # Performance Tuning Configuration
     perf_agent_timeout: int = int(os.getenv("PERF_AGENT_TIMEOUT", "30"))
     perf_cache_ttl: int = int(os.getenv("PERF_CACHE_TTL", "300"))

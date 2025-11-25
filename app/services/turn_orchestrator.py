@@ -4,7 +4,6 @@ from typing import Dict, Any, Optional, Tuple
 import asyncio
 
 from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
 from app.agents import create_stage_manager, determine_partner_phase
@@ -12,6 +11,7 @@ from app.models.session import Session, SessionStatus
 from app.services.session_manager import SessionManager
 from app.services.agent_cache import get_agent_cache
 from app.services.context_manager import get_context_manager
+from app.services.adk_session_service import get_adk_session_service
 from app.utils.logger import get_logger
 from app.config import get_settings
 
@@ -42,7 +42,7 @@ class TurnOrchestrator:
         self.use_parallel = use_parallel
         self.agent_cache = get_agent_cache() if use_cache else None
         self.context_manager = get_context_manager()
-        self.adk_session_service = InMemorySessionService()
+        # Use shared DatabaseSessionService instead of per-request InMemorySessionService
 
     async def execute_turn(
         self,
@@ -92,7 +92,7 @@ class TurnOrchestrator:
                 agent=stage_manager,
                 app_name=settings.app_name,
                 artifact_service=None,
-                session_service=self.adk_session_service
+                session_service=get_adk_session_service()
             )
 
             scene_prompt = self._construct_scene_prompt(
@@ -217,14 +217,17 @@ ROOM: [Audience vibe analysis]
             asyncio.TimeoutError: If agent execution exceeds timeout
         """
         try:
+            # Get shared session service
+            session_service = get_adk_session_service()
+
             # Create or get session for this user/session
-            adk_session = await self.adk_session_service.get_session(
+            adk_session = await session_service.get_session(
                 app_name=settings.app_name,
                 user_id=user_id,
                 session_id=session_id
             )
             if not adk_session:
-                adk_session = await self.adk_session_service.create_session(
+                adk_session = await session_service.create_session(
                     app_name=settings.app_name,
                     user_id=user_id,
                     session_id=session_id,

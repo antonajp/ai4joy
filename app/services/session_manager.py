@@ -8,7 +8,7 @@ from google.adk.sessions.session import Session as ADKSession
 from app.config import get_settings
 from app.utils.logger import get_logger
 from app.models.session import Session, SessionStatus, SessionCreate
-from app.services.adk_session_bridge import get_adk_session_bridge
+from app.services.adk_session_service import get_adk_session_service
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -19,9 +19,9 @@ class SessionManager:
     Manages user sessions with Firestore persistence and ADK session integration.
 
     Architecture:
-    - ADK InMemorySessionService: Runtime performance, automatic context management
-    - Firestore: Persistence, rate limiting, session metadata
-    - ADKSessionBridge: Syncs between ADK and Firestore
+    - ADK DatabaseSessionService: SQLite-backed session persistence across restarts
+    - Firestore: Rate limiting, session metadata, conversation history
+    - Shared session service: Single DatabaseSessionService singleton for all requests
 
     All sessions are associated with authenticated user IDs from IAP.
 
@@ -50,7 +50,8 @@ class SessionManager:
         )
         self.collection = self.db.collection(settings.firestore_sessions_collection)
         self.use_adk_sessions = use_adk_sessions
-        self.adk_bridge = get_adk_session_bridge() if use_adk_sessions else None
+        # Use shared DatabaseSessionService singleton
+        self.adk_session_service = get_adk_session_service() if use_adk_sessions else None
 
     async def create_session(
         self,
@@ -101,8 +102,26 @@ class SessionManager:
                 location=session_data.location
             )
 
-            if self.use_adk_sessions and self.adk_bridge:
-                await self.adk_bridge.create_session(session)
+            # Create ADK session with DatabaseSessionService
+            if self.use_adk_sessions and self.adk_session_service:
+                status_value = session.status if isinstance(session.status, str) else session.status.value
+                await self.adk_session_service.create_session(
+                    app_name=settings.app_name,
+                    user_id=session.user_id,
+                    session_id=session.session_id,
+                    state={
+                        "location": session.location,
+                        "user_email": session.user_email,
+                        "user_name": session.user_name,
+                        "current_phase": session.current_phase or "PHASE_1",
+                        "turn_count": session.turn_count,
+                        "status": status_value
+                    }
+                )
+                logger.info(
+                    "ADK session created in DatabaseSessionService",
+                    session_id=session_id
+                )
 
             return session
 
@@ -354,14 +373,50 @@ class SessionManager:
         Returns:
             ADK Session if found and ADK sessions enabled, None otherwise
         """
-        if not self.use_adk_sessions or not self.adk_bridge:
+        if not self.use_adk_sessions or not self.adk_session_service:
             return None
 
         firestore_session = await self.get_session(session_id)
         if not firestore_session:
             return None
 
-        return await self.adk_bridge.get_or_create_adk_session(firestore_session)
+        # Get or create ADK session using DatabaseSessionService
+        adk_session = await self.adk_session_service.get_session(
+            app_name=settings.app_name,
+            user_id=firestore_session.user_id,
+            session_id=firestore_session.session_id
+        )
+
+        if adk_session:
+            logger.debug(
+                "ADK session retrieved from DatabaseSessionService",
+                session_id=session_id,
+                events_count=len(adk_session.events)
+            )
+            return adk_session
+
+        # Create new ADK session if not found
+        status_value = firestore_session.status if isinstance(firestore_session.status, str) else firestore_session.status.value
+        adk_session = await self.adk_session_service.create_session(
+            app_name=settings.app_name,
+            user_id=firestore_session.user_id,
+            session_id=firestore_session.session_id,
+            state={
+                "location": firestore_session.location,
+                "user_email": firestore_session.user_email,
+                "user_name": firestore_session.user_name,
+                "current_phase": firestore_session.current_phase or "PHASE_1",
+                "turn_count": firestore_session.turn_count,
+                "status": status_value
+            }
+        )
+
+        logger.info(
+            "ADK session created in DatabaseSessionService",
+            session_id=session_id
+        )
+
+        return adk_session
 
     async def sync_adk_session_to_firestore(
         self,
@@ -369,19 +424,49 @@ class SessionManager:
         session_id: str
     ) -> None:
         """
-        Sync ADK session state to Firestore for persistence.
+        Sync ADK session state to Firestore for audit and metadata.
+
+        Note: With DatabaseSessionService, ADK session state is automatically
+        persisted to SQLite. This method syncs essential state to Firestore
+        for rate limiting and session metadata purposes.
 
         Args:
             adk_session: ADK session with updated state
             session_id: Firestore session ID
         """
-        if not self.use_adk_sessions or not self.adk_bridge:
+        if not self.use_adk_sessions or not self.adk_session_service:
             return
 
-        await self.adk_bridge.sync_adk_session_to_firestore(
-            adk_session=adk_session,
-            session_id=session_id
-        )
+        try:
+            doc_ref = self.collection.document(session_id)
+
+            updates = {
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "turn_count": adk_session.state.get("turn_count", 0)
+            }
+
+            if "current_phase" in adk_session.state:
+                updates["current_phase"] = adk_session.state["current_phase"]
+
+            if "status" in adk_session.state:
+                updates["status"] = adk_session.state["status"]
+
+            doc_ref.update(updates)
+
+            logger.debug(
+                "ADK session state synced to Firestore",
+                session_id=session_id,
+                turn_count=updates["turn_count"],
+                events_count=len(adk_session.events)
+            )
+
+        except Exception as e:
+            logger.error(
+                "Failed to sync ADK session to Firestore",
+                session_id=session_id,
+                error=str(e)
+            )
+            raise
 
 
 def get_session_manager(use_adk_sessions: bool = True) -> SessionManager:
