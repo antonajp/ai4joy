@@ -9,7 +9,7 @@ async def test_a_import_and_create_agents():
     print("\n=== Test A: Import and Create Agents ===")
 
     from app.agents import create_mc_agent, create_room_agent, create_stage_manager
-    from google.adk import Agent
+    from google.adk.agents import Agent
 
     mc = create_mc_agent()
     room = create_room_agent()
@@ -55,14 +55,16 @@ async def test_c_verify_sub_agent_orchestration():
 
     stage = create_stage_manager()
 
-    assert len(stage.sub_agents) == 2, f"Expected 2 sub-agents, got {len(stage.sub_agents)}"
-    assert stage.sub_agents[0].name == "mc_agent", f"First sub-agent is {stage.sub_agents[0].name}, not mc_agent"
-    assert stage.sub_agents[1].name == "room_agent", f"Second sub-agent is {stage.sub_agents[1].name}, not room_agent"
+    assert len(stage.sub_agents) == 4, f"Expected 4 sub-agents, got {len(stage.sub_agents)}"
+    sub_agent_names = [agent.name for agent in stage.sub_agents]
+    assert "mc_agent" in sub_agent_names, "mc_agent not found in sub-agents"
+    assert "room_agent" in sub_agent_names, "room_agent not found in sub-agents"
+    assert "partner_agent" in sub_agent_names, "partner_agent not found in sub-agents"
+    assert "coach_agent" in sub_agent_names, "coach_agent not found in sub-agents"
 
     print("✅ Stage Manager has correct sub-agent orchestration")
     print(f"   - Sub-agent count: {len(stage.sub_agents)}")
-    print(f"   - Sub-agent 1: {stage.sub_agents[0].name}")
-    print(f"   - Sub-agent 2: {stage.sub_agents[1].name}")
+    print(f"   - Sub-agents: {', '.join(sub_agent_names)}")
 
     return True
 
@@ -81,9 +83,9 @@ async def test_d_verify_no_custom_wrappers():
     assert "BaseImprovAgent" not in source_mc, "MC Agent still uses BaseImprovAgent"
     assert "BaseImprovAgent" not in source_room, "Room Agent still uses BaseImprovAgent"
 
-    # Check that google.adk imports ARE present
-    assert "from google.adk import Agent" in source_mc, "MC Agent doesn't import from google.adk"
-    assert "from google.adk import Agent" in source_room, "Room Agent doesn't import from google.adk"
+    # Check that google.adk.agents imports ARE present
+    assert "from google.adk.agents import Agent" in source_mc, "MC Agent doesn't import from google.adk.agents"
+    assert "from google.adk.agents import Agent" in source_room, "Room Agent doesn't import from google.adk.agents"
 
     print("✅ No custom wrappers detected - using pure ADK")
     print("   - No BaseImprovAgent imports found")

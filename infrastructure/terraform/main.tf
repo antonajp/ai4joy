@@ -17,9 +17,9 @@ terraform {
 
   # Remote state in Cloud Storage (best practice)
   backend "gcs" {
-     bucket = "coherent-answer-479115-e1-terraform-state"
-     prefix = "terraform/state"
-   }
+    bucket = "coherent-answer-479115-e1-terraform-state"
+    prefix = "terraform/state"
+  }
 }
 
 # Configure the Google Cloud provider
@@ -758,9 +758,9 @@ resource "google_logging_metric" "scene_turn_latency" {
   filter  = "jsonPayload.event=\"scene_turn\""
 
   metric_descriptor {
-    metric_kind = "DELTA"
-    value_type  = "DISTRIBUTION"
-    unit        = "ms"
+    metric_kind  = "DELTA"
+    value_type   = "DISTRIBUTION"
+    unit         = "ms"
     display_name = "Scene Turn Latency"
 
     labels {
@@ -877,3 +877,513 @@ resource "google_monitoring_alert_policy" "service_unavailable" {
     google_monitoring_uptime_check_config.service_health
   ]
 }
+
+# ============================================================================
+# WEEK 9: PRODUCTION OBSERVABILITY - LOG-BASED METRICS & DASHBOARD
+# ============================================================================
+
+# Log-based metric for token usage per request
+resource "google_logging_metric" "token_usage" {
+  name    = "token_usage"
+  project = var.project_id
+  filter  = "jsonPayload.token_count != null"
+
+  metric_descriptor {
+    metric_kind  = "DELTA"
+    value_type   = "DISTRIBUTION"
+    unit         = "1"
+    display_name = "Token Usage Per Request"
+
+    labels {
+      key         = "agent"
+      value_type  = "STRING"
+      description = "Agent type that consumed tokens"
+    }
+
+    labels {
+      key         = "model"
+      value_type  = "STRING"
+      description = "Model used (e.g., gemini-2.0-flash-001)"
+    }
+  }
+
+  value_extractor = "EXTRACT(jsonPayload.token_count)"
+
+  label_extractors = {
+    agent = "EXTRACT(jsonPayload.agent)"
+    model = "EXTRACT(jsonPayload.model)"
+  }
+
+  bucket_options {
+    exponential_buckets {
+      num_finite_buckets = 64
+      growth_factor      = 2
+      scale              = 1
+    }
+  }
+
+  depends_on = [module.project_services]
+}
+
+# Log-based metric for sentiment scores
+# Uses DISTRIBUTION to extract actual sentiment values from logs
+resource "google_logging_metric" "sentiment_score" {
+  name    = "sentiment_score"
+  project = var.project_id
+  filter  = "jsonPayload.sentiment_score != null"
+
+  metric_descriptor {
+    metric_kind  = "DELTA"
+    value_type   = "DISTRIBUTION"
+    unit         = "1"
+    display_name = "Sentiment Score"
+
+    labels {
+      key         = "session_id"
+      value_type  = "STRING"
+      description = "Session identifier"
+    }
+  }
+
+  value_extractor = "EXTRACT(jsonPayload.sentiment_score)"
+
+  label_extractors = {
+    session_id = "EXTRACT(jsonPayload.session_id)"
+  }
+
+  bucket_options {
+    linear_buckets {
+      num_finite_buckets = 10
+      width              = 0.1
+      offset             = 0
+    }
+  }
+
+  depends_on = [module.project_services]
+}
+
+# Log-based metric for agent type distribution
+# Counts agent invocations by type - no value_extractor needed for counters
+resource "google_logging_metric" "agent_invocations" {
+  name    = "agent_invocations"
+  project = var.project_id
+  filter  = "jsonPayload.agent != null AND jsonPayload.operation=\"generate_response\""
+
+  metric_descriptor {
+    metric_kind  = "DELTA"
+    value_type   = "INT64"
+    unit         = "1"
+    display_name = "Agent Invocations"
+
+    labels {
+      key         = "agent"
+      value_type  = "STRING"
+      description = "Agent type (partner, coach, room, stage_manager)"
+    }
+
+    labels {
+      key         = "success"
+      value_type  = "STRING"
+      description = "Whether agent execution succeeded"
+    }
+  }
+
+  label_extractors = {
+    agent   = "EXTRACT(jsonPayload.agent)"
+    success = "EXTRACT(jsonPayload.success)"
+  }
+
+  depends_on = [module.project_services]
+}
+
+# Cloud Monitoring Dashboard
+resource "google_monitoring_dashboard" "improv_dashboard" {
+  dashboard_json = jsonencode({
+    displayName = "Improv Olympics - Production Monitoring"
+    mosaicLayout = {
+      columns = 12
+      tiles = [
+        # Widget 1: Request Rate
+        {
+          width  = 6
+          height = 4
+          widget = {
+            title = "Request Rate (requests/second)"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "resource.type=\"cloud_run_revision\" AND metric.type=\"run.googleapis.com/request_count\""
+                    aggregation = {
+                      alignmentPeriod  = "60s"
+                      perSeriesAligner = "ALIGN_RATE"
+                    }
+                  }
+                }
+                plotType = "LINE"
+              }]
+              timeshiftDuration = "0s"
+              yAxis = {
+                label = "Requests/s"
+                scale = "LINEAR"
+              }
+            }
+          }
+        },
+        # Widget 2: Latency Percentiles (p50, p95, p99)
+        {
+          xPos   = 6
+          width  = 6
+          height = 4
+          widget = {
+            title = "Request Latency Percentiles"
+            xyChart = {
+              dataSets = [
+                {
+                  timeSeriesQuery = {
+                    timeSeriesFilter = {
+                      filter = "resource.type=\"cloud_run_revision\" AND metric.type=\"run.googleapis.com/request_latencies\""
+                      aggregation = {
+                        alignmentPeriod    = "60s"
+                        perSeriesAligner   = "ALIGN_DELTA"
+                        crossSeriesReducer = "REDUCE_PERCENTILE_50"
+                      }
+                    }
+                  }
+                  plotType       = "LINE"
+                  targetAxis     = "Y1"
+                  legendTemplate = "p50"
+                },
+                {
+                  timeSeriesQuery = {
+                    timeSeriesFilter = {
+                      filter = "resource.type=\"cloud_run_revision\" AND metric.type=\"run.googleapis.com/request_latencies\""
+                      aggregation = {
+                        alignmentPeriod    = "60s"
+                        perSeriesAligner   = "ALIGN_DELTA"
+                        crossSeriesReducer = "REDUCE_PERCENTILE_95"
+                      }
+                    }
+                  }
+                  plotType       = "LINE"
+                  targetAxis     = "Y1"
+                  legendTemplate = "p95"
+                },
+                {
+                  timeSeriesQuery = {
+                    timeSeriesFilter = {
+                      filter = "resource.type=\"cloud_run_revision\" AND metric.type=\"run.googleapis.com/request_latencies\""
+                      aggregation = {
+                        alignmentPeriod    = "60s"
+                        perSeriesAligner   = "ALIGN_DELTA"
+                        crossSeriesReducer = "REDUCE_PERCENTILE_99"
+                      }
+                    }
+                  }
+                  plotType       = "LINE"
+                  targetAxis     = "Y1"
+                  legendTemplate = "p99"
+                }
+              ]
+              yAxis = {
+                label = "Latency (ms)"
+                scale = "LINEAR"
+              }
+            }
+          }
+        },
+        # Widget 3: Error Rate (5xx responses)
+        {
+          yPos   = 4
+          width  = 6
+          height = 4
+          widget = {
+            title = "Error Rate (5xx responses)"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "resource.type=\"cloud_run_revision\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.label.response_code_class=\"5xx\""
+                    aggregation = {
+                      alignmentPeriod  = "60s"
+                      perSeriesAligner = "ALIGN_RATE"
+                    }
+                  }
+                }
+                plotType = "LINE"
+              }]
+              yAxis = {
+                label = "Errors/s"
+                scale = "LINEAR"
+              }
+            }
+          }
+        },
+        # Widget 4: Agent Execution Time (scene_turn_latency)
+        {
+          xPos   = 6
+          yPos   = 4
+          width  = 6
+          height = 4
+          widget = {
+            title = "Agent Execution Time by Type"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "metric.type=\"logging.googleapis.com/user/scene_turn_latency\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_DELTA"
+                      crossSeriesReducer = "REDUCE_PERCENTILE_95"
+                      groupByFields      = ["metric.label.agent"]
+                    }
+                  }
+                }
+                plotType = "LINE"
+              }]
+              yAxis = {
+                label = "Latency (ms)"
+                scale = "LINEAR"
+              }
+            }
+          }
+        },
+        # Widget 5: Token Usage Distribution
+        {
+          yPos   = 8
+          width  = 6
+          height = 4
+          widget = {
+            title = "Token Usage by Agent"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "metric.type=\"logging.googleapis.com/user/token_usage\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_DELTA"
+                      crossSeriesReducer = "REDUCE_SUM"
+                      groupByFields      = ["metric.label.agent"]
+                    }
+                  }
+                }
+                plotType = "STACKED_AREA"
+              }]
+              yAxis = {
+                label = "Tokens"
+                scale = "LINEAR"
+              }
+            }
+          }
+        },
+        # Widget 6: Sentiment Score Distribution
+        {
+          xPos   = 6
+          yPos   = 8
+          width  = 6
+          height = 4
+          widget = {
+            title = "Sentiment Score Over Time"
+            xyChart = {
+              dataSets = [{
+                timeSeriesQuery = {
+                  timeSeriesFilter = {
+                    filter = "metric.type=\"logging.googleapis.com/user/sentiment_score\""
+                    aggregation = {
+                      alignmentPeriod    = "60s"
+                      perSeriesAligner   = "ALIGN_MEAN"
+                      crossSeriesReducer = "REDUCE_MEAN"
+                    }
+                  }
+                }
+                plotType = "LINE"
+              }]
+              yAxis = {
+                label = "Sentiment (-1 to 1)"
+                scale = "LINEAR"
+              }
+            }
+          }
+        }
+      ]
+    }
+  })
+
+  project = var.project_id
+
+  depends_on = [
+    module.project_services,
+    google_logging_metric.scene_turn_latency,
+    google_logging_metric.token_usage,
+    google_logging_metric.sentiment_score,
+    google_logging_metric.agent_invocations
+  ]
+}
+
+# ============================================================================
+# WEEK 9: ADDITIONAL ALERT POLICIES
+# ============================================================================
+
+# Alert: High p95 latency (> 10s for 5 minutes)
+resource "google_monitoring_alert_policy" "high_latency_p95" {
+  display_name = "High P95 Latency"
+  project      = var.project_id
+  combiner     = "OR"
+
+  conditions {
+    display_name = "P95 latency > 10 seconds for 5 minutes"
+
+    condition_threshold {
+      filter          = "resource.type=\"cloud_run_revision\" AND metric.type=\"run.googleapis.com/request_latencies\""
+      duration        = "300s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 10000 # milliseconds
+
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_DELTA"
+        cross_series_reducer = "REDUCE_PERCENTILE_95"
+      }
+    }
+  }
+
+  notification_channels = var.notification_channels
+
+  alert_strategy {
+    auto_close = "1800s"
+  }
+
+  documentation {
+    content   = "P95 request latency has exceeded 10 seconds for 5 consecutive minutes. This may indicate performance degradation. Check Cloud Trace for slow requests and review agent execution times in the dashboard."
+    mime_type = "text/markdown"
+  }
+
+  depends_on = [module.project_services]
+}
+
+# Alert: Session spike (> 100 new sessions per hour)
+resource "google_monitoring_alert_policy" "session_spike" {
+  display_name = "High Session Creation Rate"
+  project      = var.project_id
+  combiner     = "OR"
+
+  conditions {
+    display_name = "More than 100 new sessions per hour"
+
+    condition_threshold {
+      filter = join(" AND ", [
+        "resource.type=\"cloud_run_revision\"",
+        "metric.type=\"run.googleapis.com/request_count\"",
+        "metric.label.response_code_class=\"2xx\"",
+        "resource.labels.service_name=\"improv-olympics-app\""
+      ])
+      duration        = "300s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 1.67 # ~100 requests per hour = 1.67 requests per minute
+
+      aggregations {
+        alignment_period   = "60s"
+        per_series_aligner = "ALIGN_RATE"
+      }
+    }
+  }
+
+  notification_channels = var.notification_channels
+
+  alert_strategy {
+    auto_close = "3600s"
+  }
+
+  documentation {
+    content   = "Session creation rate has exceeded 100 sessions per hour. This may indicate increased traffic or potential abuse. Review request patterns in Cloud Logging and check rate limiting rules in Cloud Armor."
+    mime_type = "text/markdown"
+  }
+
+  depends_on = [module.project_services]
+}
+
+# Alert: Firestore write failures
+resource "google_monitoring_alert_policy" "firestore_write_failures" {
+  display_name = "Firestore Write Failures"
+  project      = var.project_id
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Firestore write error rate > 5% for 5 minutes"
+
+    condition_threshold {
+      filter = join(" AND ", [
+        "resource.type=\"datastore_request\"",
+        "metric.type=\"datastore.googleapis.com/api/request_count\"",
+        "metric.label.response_code!=\"OK\""
+      ])
+      duration        = "300s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0.05
+
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_RATE"
+        cross_series_reducer = "REDUCE_SUM"
+      }
+    }
+  }
+
+  notification_channels = var.notification_channels
+
+  alert_strategy {
+    auto_close = "1800s"
+  }
+
+  documentation {
+    content   = "Firestore write operations are experiencing elevated failure rates (>5% for 5 minutes). Check Firestore quotas, IAM permissions, and application logs for error details. Verify the app runtime service account has `roles/datastore.user` permission."
+    mime_type = "text/markdown"
+  }
+
+  depends_on = [module.project_services]
+}
+
+# ============================================================================
+# BUDGET ALERTS - MANUAL SETUP REQUIRED
+# ============================================================================
+# NOTE: Budget alerts require GCP Organization billing permissions which are
+# not available for personal projects. These must be configured manually:
+#
+# 1. Navigate to: https://console.cloud.google.com/billing/budgets
+# 2. Click "CREATE BUDGET"
+# 3. Set budget name: "Improv Olympics Monthly Budget"
+# 4. Set amount: $150 USD
+# 5. Add threshold rules at: 50%, 90%, 100%
+# 6. Configure email notifications to project owners
+#
+# Terraform resource (requires billing account permissions):
+# resource "google_billing_budget" "improv_budget" {
+#   billing_account = var.billing_account_id
+#   display_name    = "Improv Olympics Monthly Budget"
+#
+#   budget_filter {
+#     projects = ["projects/${var.project_id}"]
+#   }
+#
+#   amount {
+#     specified_amount {
+#       currency_code = "USD"
+#       units         = "150"
+#     }
+#   }
+#
+#   threshold_rules {
+#     threshold_percent = 0.5
+#   }
+#
+#   threshold_rules {
+#     threshold_percent = 0.9
+#   }
+#
+#   threshold_rules {
+#     threshold_percent = 1.0
+#   }
+# }
+# ============================================================================

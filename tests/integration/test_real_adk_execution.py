@@ -19,7 +19,8 @@ from datetime import datetime, timezone
 from app.services.turn_orchestrator import TurnOrchestrator, create_stage_manager
 from app.services.session_manager import SessionManager
 from app.models.session import Session, SessionStatus, SessionCreate
-from google.adk import Runner
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
 
 
 @pytest.mark.integration
@@ -224,13 +225,24 @@ class TestRealADKExecution:
 
         Verify timeout mechanism prevents indefinite hangs.
         """
+        from app.config import get_settings
+        settings = get_settings()
+
         stage_manager = create_stage_manager()
-        runner = Runner(stage_manager)
+        session_service = InMemorySessionService()
+        runner = Runner(
+            agent=stage_manager,
+            app_name=settings.app_name,
+            artifact_service=None,
+            session_service=session_service
+        )
 
         with pytest.raises(asyncio.TimeoutError):
             await orchestrator._run_agent_async(
                 runner=runner,
                 prompt="Test prompt",
+                user_id="test_user",
+                session_id="test_session",
                 timeout=0.001
             )
 
@@ -243,8 +255,17 @@ class TestADKResponseStructure:
     @pytest.mark.asyncio
     async def test_adk_response_has_sections(self):
         """Verify ADK responses contain expected section markers"""
+        from app.config import get_settings
+        settings = get_settings()
+
         stage_manager = create_stage_manager()
-        runner = Runner(stage_manager)
+        session_service = InMemorySessionService()
+        runner = Runner(
+            agent=stage_manager,
+            app_name=settings.app_name,
+            artifact_service=None,
+            session_service=session_service
+        )
 
         prompt = """Location: Test Arena
 Turn 1
@@ -257,6 +278,8 @@ Provide response with PARTNER:, ROOM:, and COACH: sections."""
         response = await orchestrator._run_agent_async(
             runner=runner,
             prompt=prompt,
+            user_id="test_user",
+            session_id="test_session",
             timeout=30.0
         )
 
@@ -269,12 +292,48 @@ Provide response with PARTNER:, ROOM:, and COACH: sections."""
     @pytest.mark.asyncio
     async def test_adk_runner_basic_functionality(self):
         """Basic smoke test for ADK runner setup"""
+        from app.config import get_settings
+        from google.genai import types
+        settings = get_settings()
+
         stage_manager = create_stage_manager()
-        runner = Runner(stage_manager)
+        session_service = InMemorySessionService()
+        runner = Runner(
+            agent=stage_manager,
+            app_name=settings.app_name,
+            artifact_service=None,
+            session_service=session_service
+        )
 
         assert runner is not None
-        assert hasattr(runner, 'run')
+        assert hasattr(runner, 'run_async')
 
-        result = runner.run("Say hello")
+        # Create session for the runner
+        await session_service.create_session(
+            app_name=settings.app_name,
+            user_id="test_user",
+            session_id="test_session",
+            state={}
+        )
+
+        # New API uses run_async with Content object
+        new_message = types.Content(
+            role="user",
+            parts=[types.Part.from_text(text="Say hello")]
+        )
+
+        response_parts = []
+        async for event in runner.run_async(
+            user_id="test_user",
+            session_id="test_session",
+            new_message=new_message
+        ):
+            if hasattr(event, 'content') and event.content:
+                if hasattr(event.content, 'parts'):
+                    for part in event.content.parts:
+                        if hasattr(part, 'text') and part.text:
+                            response_parts.append(part.text)
+
+        result = "".join(response_parts)
         assert isinstance(result, str)
         assert len(result) > 0

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Improv Olympics - Active Scene">
+    <title>Improv Scene - Improv Olympics</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body class="chat-page">
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <header role="banner">
+        <nav class="nav-container" role="navigation" aria-label="Main navigation">
+            <div class="nav-content">
+                <a href="/" class="logo-link">
+                    <h1 class="logo">Improv Olympics</h1>
+                </a>
+                <div class="nav-actions">
+                    <button id="end-session-btn" class="btn btn-danger" aria-label="End current scene">
+                        End Scene
+                    </button>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main id="main-content" role="main" class="chat-main">
+        <div class="chat-container">
+            <!-- Session Info Panel -->
+            <aside class="session-info" role="complementary" aria-labelledby="session-info-title">
+                <h2 id="session-info-title" class="info-title">Scene Details</h2>
+                <div class="info-content">
+                    <div class="info-item">
+                        <span class="info-label">Location:</span>
+                        <span id="session-location" class="info-value">Loading...</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Turn:</span>
+                        <span id="turn-counter" class="info-value">0</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Phase:</span>
+                        <span id="current-phase" class="info-value">Starting...</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Status:</span>
+                        <span id="session-status" class="info-value status-active">Active</span>
+                    </div>
+                </div>
+
+                <!-- Help Section -->
+                <details class="help-section">
+                    <summary class="help-title">Improv Tips</summary>
+                    <ul class="help-list">
+                        <li>Say "Yes, and..." to build on your partner's ideas</li>
+                        <li>Make specific choices and statements</li>
+                        <li>Focus on your scene partner, not yourself</li>
+                        <li>Listen actively and react authentically</li>
+                        <li>Embrace mistakes as opportunities</li>
+                    </ul>
+                </details>
+            </aside>
+
+            <!-- Chat Area -->
+            <section class="chat-section" aria-labelledby="chat-title">
+                <h2 id="chat-title" class="sr-only">Scene Conversation</h2>
+
+                <!-- Messages Area -->
+                <div id="messages-container" class="messages-container" role="log" aria-live="polite" aria-atomic="false">
+                    <div class="system-message">
+                        <p class="message-text">Welcome to your improv scene! Your partner will introduce the scene. Listen carefully and build on what they say.</p>
+                    </div>
+                </div>
+
+                <!-- Input Area -->
+                <form id="chat-form" class="chat-input-form">
+                    <div class="input-wrapper">
+                        <label for="user-input" class="sr-only">Your scene line</label>
+                        <textarea
+                            id="user-input"
+                            name="user-input"
+                            class="chat-input"
+                            placeholder="Type your response to the scene..."
+                            rows="3"
+                            maxlength="1000"
+                            required
+                            aria-describedby="input-help"
+                        ></textarea>
+                        <div class="input-meta">
+                            <span id="char-count" class="char-count" aria-live="polite">0 / 1000</span>
+                            <span id="input-help" class="input-help">Press Enter to send (Shift+Enter for new line)</span>
+                        </div>
+                    </div>
+                    <button type="submit" id="send-btn" class="btn btn-primary btn-send" disabled>
+                        Send
+                    </button>
+                </form>
+
+                <!-- Loading State -->
+                <div id="partner-typing" class="typing-indicator" role="status" aria-live="polite" style="display: none;">
+                    <span class="typing-dot"></span>
+                    <span class="typing-dot"></span>
+                    <span class="typing-dot"></span>
+                    <span class="typing-text">Your scene partner is thinking...</span>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Error Modal -->
+    <div id="error-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="error-title" style="display: none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-content modal-error">
+            <div class="error-icon" aria-hidden="true">⚠️</div>
+            <h2 id="error-title" class="modal-title">Something Went Wrong</h2>
+            <p id="error-message" class="error-text">An unexpected error occurred.</p>
+            <div class="modal-actions">
+                <button id="retry-btn" class="btn btn-primary">
+                    Retry
+                </button>
+                <button id="exit-scene-btn" class="btn btn-secondary">
+                    Exit Scene
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- End Session Confirmation Modal -->
+    <div id="end-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="end-title" style="display: none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <h2 id="end-title" class="modal-title">End This Scene?</h2>
+            <p class="modal-text">
+                Are you sure you want to end this scene? Your progress will be saved,
+                but you won't be able to continue this specific scene.
+            </p>
+            <div class="modal-actions">
+                <button id="cancel-end-btn" class="btn btn-secondary">
+                    Continue Scene
+                </button>
+                <button id="confirm-end-btn" class="btn btn-danger">
+                    End Scene
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading overlay -->
+    <div id="loading-overlay" class="loading-overlay" role="status" aria-live="polite">
+        <div class="loading-content">
+            <div class="spinner" aria-hidden="true"></div>
+            <p id="loading-message" class="loading-message">Loading your scene...</p>
+        </div>
+    </div>
+
+    <!-- Toast notifications -->
+    <div id="toast-container" class="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <script src="/static/app.js"></script>
+    <script>
+        // Initialize chat interface when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeChatInterface);
+        } else {
+            initializeChatInterface();
+        }
+    </script>
+</body>
+</html>

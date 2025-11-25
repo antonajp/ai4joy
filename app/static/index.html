@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Improv Olympics - AI-powered social gym for rebuilding collaboration skills through improvisation">
+    <title>Improv Olympics - AI Social Gym</title>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-0CJGHXN57B"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-0CJGHXN57B');
+    </script>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <header role="banner">
+        <nav class="nav-container" role="navigation" aria-label="Main navigation">
+            <div class="nav-content">
+                <h1 class="logo">Improv Olympics</h1>
+                <div class="nav-actions">
+                    <button id="login-btn" class="btn btn-secondary" aria-label="Sign in with Google">
+                        Sign In
+                    </button>
+                    <button id="logout-btn" class="btn btn-secondary" aria-label="Sign out" style="display: none;">
+                        Sign Out
+                    </button>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main id="main-content" role="main">
+        <!-- Hero Section -->
+        <section class="hero" aria-labelledby="hero-title">
+            <div class="container">
+                <h2 id="hero-title" class="hero-title">Practice Collaboration Through AI Improv</h2>
+                <p class="hero-subtitle">
+                    Rebuild your social confidence in a safe, judgment-free environment.
+                    Practice real-time improvisation with AI partners that adapt to your skill level.
+                </p>
+                <div class="hero-actions">
+                    <button id="start-session-btn" class="btn btn-primary btn-large" disabled aria-describedby="auth-notice">
+                        Start Your Scene
+                    </button>
+                    <p id="auth-notice" class="auth-notice">Sign in to start your improv session</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section class="features" aria-labelledby="features-title">
+            <div class="container">
+                <h2 id="features-title" class="section-title">How It Works</h2>
+                <div class="features-grid">
+                    <article class="feature-card">
+                        <div class="feature-icon" aria-hidden="true">🎭</div>
+                        <h3 class="feature-title">Scene Partner</h3>
+                        <p class="feature-description">
+                            Practice with an AI partner that responds naturally to your ideas,
+                            building on what you say to create collaborative scenes.
+                        </p>
+                    </article>
+                    <article class="feature-card">
+                        <div class="feature-icon" aria-hidden="true">👥</div>
+                        <h3 class="feature-title">Audience Vibe</h3>
+                        <p class="feature-description">
+                            Get real-time feedback on scene energy, emotional tone, and
+                            collaboration quality from our AI audience.
+                        </p>
+                    </article>
+                    <article class="feature-card">
+                        <div class="feature-icon" aria-hidden="true">🎓</div>
+                        <h3 class="feature-title">Expert Coaching</h3>
+                        <p class="feature-description">
+                            Receive personalized coaching tips that help you develop stronger
+                            listening skills and collaborative techniques.
+                        </p>
+                    </article>
+                    <article class="feature-card">
+                        <div class="feature-icon" aria-hidden="true">📈</div>
+                        <h3 class="feature-title">Progressive Difficulty</h3>
+                        <p class="feature-description">
+                            Start with supportive scenes, then progress to more challenging
+                            scenarios as your confidence grows.
+                        </p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- About Section -->
+        <section class="about" aria-labelledby="about-title">
+            <div class="container">
+                <h2 id="about-title" class="section-title">Why Improv Olympics?</h2>
+                <div class="about-content">
+                    <p class="about-text">
+                        In a world where many of us work remotely and face fewer spontaneous social interactions,
+                        our collaboration skills can atrophy. Improv Olympics provides a low-stakes practice ground
+                        to rebuild these essential skills.
+                    </p>
+                    <p class="about-text">
+                        Through improvisation, you'll practice active listening, accepting ideas, building on
+                        others' contributions, and thinking on your feet. These aren't just performance skills -
+                        they're fundamental to effective teamwork, leadership, and human connection.
+                    </p>
+                    <div class="about-benefits">
+                        <h3 class="benefits-title">What You'll Practice</h3>
+                        <ul class="benefits-list">
+                            <li>Active listening and present-moment awareness</li>
+                            <li>Building on others' ideas instead of blocking them</li>
+                            <li>Accepting uncertainty and embracing mistakes</li>
+                            <li>Reading emotional cues and adapting your approach</li>
+                            <li>Generating creative responses under time pressure</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Session Setup Modal -->
+        <div id="setup-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" style="display: none;">
+            <div class="modal-overlay"></div>
+            <div class="modal-content">
+                <button id="close-modal" class="modal-close" aria-label="Close dialog">
+                    &times;
+                </button>
+                <h2 id="modal-title" class="modal-title">Start Your Scene</h2>
+                <form id="session-form" class="session-form">
+                    <div class="form-group">
+                        <label for="location-input" class="form-label">
+                            Where does your scene take place?
+                        </label>
+                        <input
+                            type="text"
+                            id="location-input"
+                            name="location"
+                            class="form-input"
+                            placeholder="e.g., a coffee shop, a spaceship, an elevator"
+                            required
+                            maxlength="200"
+                            aria-describedby="location-help"
+                        >
+                        <p id="location-help" class="form-help">
+                            Choose any location. Your scene partner will adapt to this setting.
+                        </p>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" id="cancel-session" class="btn btn-secondary">
+                            Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary" id="create-session-btn">
+                            Create Scene
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <footer role="contentinfo" class="footer">
+        <div class="container">
+            <p class="footer-text">
+                Improv Olympics - AI-powered social gym for collaboration practice
+            </p>
+            <p class="footer-text footer-secondary">
+                Built with Google Cloud AI and Vertex AI
+            </p>
+        </div>
+    </footer>
+
+    <!-- Loading overlay -->
+    <div id="loading-overlay" class="loading-overlay" role="status" aria-live="polite" style="display: none;">
+        <div class="loading-content">
+            <div class="spinner" aria-hidden="true"></div>
+            <p id="loading-message" class="loading-message">Loading...</p>
+        </div>
+    </div>
+
+    <!-- Toast notifications -->
+    <div id="toast-container" class="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

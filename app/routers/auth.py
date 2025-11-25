@@ -245,21 +245,37 @@ async def get_current_user(request: Request):
     """
     Get current authenticated user information.
 
-    This endpoint is protected by the OAuth middleware and will only
-    be accessible if the user has a valid session.
+    This endpoint bypasses the OAuth middleware (so it doesn't redirect
+    unauthenticated users) and directly checks the session cookie.
 
     Returns:
-        User information including email, name, and user ID
+        User information including email, name, and user ID, or
+        authenticated=False if no valid session exists.
     """
-    from app.middleware.oauth_auth import get_authenticated_user
+    # Read session cookie directly since this endpoint bypasses middleware
+    session_cookie = request.cookies.get("session")
+    if not session_cookie:
+        return {
+            "authenticated": False,
+            "user": None
+        }
 
     try:
-        user = get_authenticated_user(request)
+        # Validate and deserialize the session cookie
+        session_data = session_middleware.serializer.loads(
+            session_cookie,
+            max_age=session_middleware.max_age
+        )
         return {
             "authenticated": True,
-            "user": user
+            "user": {
+                "user_email": session_data.get("email"),
+                "user_id": session_data.get("sub"),
+                "user_name": session_data.get("name"),
+            }
         }
-    except HTTPException:
+    except Exception as e:
+        logger.warning("Session validation failed", error=str(e))
         return {
             "authenticated": False,
             "user": None

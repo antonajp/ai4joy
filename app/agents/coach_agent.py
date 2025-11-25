@@ -1,5 +1,5 @@
 """Coach Agent - Improv Teaching and Feedback using Google ADK"""
-from google.adk import Agent
+from google.adk.agents import Agent
 from app.config import get_settings
 from app.utils.logger import get_logger
 from app.tools import improv_expert_tools

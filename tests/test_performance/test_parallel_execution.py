@@ -89,7 +89,7 @@ class TestParallelExecution:
 
     @pytest.mark.asyncio
     async def test_agent_timeout_handling(self, orchestrator_with_cache):
-        from google.adk import Agent
+        from google.adk.agents import Agent
 
         mock_agent = Agent(
             name="test_agent",
@@ -110,25 +110,30 @@ class TestParallelExecution:
                 )
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Test relies on internal ADK Runner API which changed")
+    @pytest.mark.skip(reason="Test relies on internal ADK Runner API which changed - requires new run_async API")
     async def test_agent_timeout_success_within_limit(self, orchestrator_with_cache):
-        from google.adk import Runner, Agent
+        from google.adk.runners import Runner
+        from google.adk.agents import Agent
+        from google.adk.sessions import InMemorySessionService
+        from app.config import get_settings
+        settings = get_settings()
 
         mock_agent = Agent(
             name="test_agent",
             model="gemini-1.5-flash",
             instruction="Test"
         )
-        runner = Runner(mock_agent)
+        session_service = InMemorySessionService()
+        runner = Runner(
+            agent=mock_agent,
+            app_name=settings.app_name,
+            artifact_service=None,
+            session_service=session_service
+        )
 
-        with patch.object(runner, 'run', return_value="Success response"):
-            result = await orchestrator_with_cache._run_agent_async(
-                runner=runner,
-                prompt="test",
-                timeout=30
-            )
-
-            assert result == "Success response"
+        # Note: This test needs to be rewritten to use the new run_async API
+        # with patch.object(runner, 'run_async', ...):
+        pass
 
     def test_factory_function_with_defaults(self, mock_session_manager):
         orchestrator = get_turn_orchestrator(session_manager=mock_session_manager)
@@ -247,24 +252,30 @@ class TestParallelExecution:
                 )
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Test relies on internal ADK Runner API which changed")
+    @pytest.mark.skip(reason="Test relies on internal ADK Runner API which changed - requires new run_async API")
     async def test_timeout_per_agent_configuration(self, orchestrator_with_cache):
-        from google.adk import Runner, Agent
+        from google.adk.runners import Runner
+        from google.adk.agents import Agent
+        from google.adk.sessions import InMemorySessionService
+        from app.config import get_settings
+        settings = get_settings()
 
         mock_agent = Agent(
             name="test_agent",
             model="gemini-1.5-flash",
             instruction="Test"
         )
-        runner = Runner(mock_agent)
+        session_service = InMemorySessionService()
+        runner = Runner(
+            agent=mock_agent,
+            app_name=settings.app_name,
+            artifact_service=None,
+            session_service=session_service
+        )
 
-        with patch.object(runner, 'run', side_effect=lambda x: time.sleep(35)):
-            with pytest.raises(asyncio.TimeoutError):
-                await orchestrator_with_cache._run_agent_async(
-                    runner=runner,
-                    prompt="test",
-                    timeout=30
-                )
+        # Note: This test needs to be rewritten to use the new run_async API
+        # with patch.object(runner, 'run_async', side_effect=...):
+        pass
 
     def test_context_compaction_for_large_history(self, orchestrator_with_cache):
         from app.models.session import Session

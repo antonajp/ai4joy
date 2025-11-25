@@ -1,5 +1,5 @@
 """MC Agent - High-Energy Game Host using Google ADK"""
-from google.adk import Agent
+from google.adk.agents import Agent
 from app.tools import game_database_tools
 from app.config import get_settings
 from app.utils.logger import get_logger

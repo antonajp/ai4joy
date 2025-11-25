@@ -80,7 +80,7 @@ async def start_session(
 
     return SessionResponse(
         session_id=session.session_id,
-        status=session.status.value,
+        status=session.status,
         location=session.location,
         created_at=session.created_at,
         expires_at=session.expires_at,
@@ -121,7 +121,7 @@ async def get_session_info(
 
     return SessionResponse(
         session_id=session.session_id,
-        status=session.status.value,
+        status=session.status,
         location=session.location,
         created_at=session.created_at,
         expires_at=session.expires_at,

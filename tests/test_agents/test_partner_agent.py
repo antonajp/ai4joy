@@ -11,7 +11,7 @@ Test Coverage:
 """
 
 import pytest
-from google.adk import Agent
+from google.adk.agents import Agent
 
 
 class TestPartnerAgentCreation:
