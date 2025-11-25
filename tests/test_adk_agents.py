@@ -4,7 +4,7 @@ This test file validates that the Week 5 rewrite uses actual Google ADK framewor
 instead of custom wrappers.
 """
 import pytest
-from google.adk import Agent
+from google.adk.agents import Agent
 
 from app.agents.mc_agent import create_mc_agent
 from app.agents.room_agent import create_room_agent
@@ -181,13 +181,13 @@ class TestNoCustomWrappers:
         import inspect
 
         mc_source = inspect.getsource(mc_module)
-        assert 'from google.adk import Agent' in mc_source
+        assert 'from google.adk.agents import Agent' in mc_source
 
         room_source = inspect.getsource(room_module)
-        assert 'from google.adk import Agent' in room_source
+        assert 'from google.adk.agents import Agent' in room_source
 
         sm_source = inspect.getsource(sm_module)
-        assert 'from google.adk import Agent' in sm_source
+        assert 'from google.adk.agents import Agent' in sm_source
 
 
 class TestModelConfiguration:

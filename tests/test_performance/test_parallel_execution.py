@@ -89,7 +89,7 @@ class TestParallelExecution:
 
     @pytest.mark.asyncio
     async def test_agent_timeout_handling(self, orchestrator_with_cache):
-        from google.adk import Agent
+        from google.adk.agents import Agent
 
         mock_agent = Agent(
             name="test_agent",

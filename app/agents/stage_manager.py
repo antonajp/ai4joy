@@ -1,5 +1,5 @@
 """Stage Manager - Root Orchestrator Agent using Google ADK"""
-from google.adk import Agent
+from google.adk.agents import Agent
 from app.agents.mc_agent import create_mc_agent
 from app.agents.room_agent import create_room_agent
 from app.agents.partner_agent import create_partner_agent

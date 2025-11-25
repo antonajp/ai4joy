@@ -4,7 +4,7 @@ from datetime import datetime, timezone, timedelta
 from functools import lru_cache
 from threading import Lock
 
-from google.adk import Agent
+from google.adk.agents import Agent
 
 from app.agents.stage_manager import create_stage_manager, get_partner_agent_for_turn
 from app.agents.room_agent import create_room_agent

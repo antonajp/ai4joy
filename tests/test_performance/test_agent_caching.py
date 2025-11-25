@@ -164,7 +164,7 @@ class TestAgentCaching:
         assert stats_after['misses'] == 0
 
     def test_cached_agent_access_tracking(self):
-        from google.adk import Agent
+        from google.adk.agents import Agent
 
         mock_agent = Agent(
             name="test_agent",
@@ -185,7 +185,7 @@ class TestAgentCaching:
         assert cached.access_count == 3
 
     def test_cached_agent_expiration(self):
-        from google.adk import Agent
+        from google.adk.agents import Agent
 
         mock_agent = Agent(
             name="test_agent",

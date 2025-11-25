@@ -1,5 +1,5 @@
 """Room Agent - Collective Sentiment Analyzer using Google ADK"""
-from google.adk import Agent
+from google.adk.agents import Agent
 from app.tools import sentiment_gauge_tools, demographic_tools
 from app.config import get_settings
 from app.utils.logger import get_logger
