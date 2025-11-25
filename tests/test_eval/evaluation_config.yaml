@@ -1,0 +1,293 @@
+version: "1.0"
+description: "ADK Evaluation Framework Configuration for Improv Olympics Agent Testing"
+
+model_settings:
+  default_model: "gemini-1.5-flash"
+  pro_model: "gemini-1.5-pro"
+  temperature: 0.7
+  max_output_tokens: 2048
+  top_p: 0.95
+  top_k: 40
+
+  model_mapping:
+    stage_manager: "gemini-1.5-flash"
+    partner_agent: "gemini-1.5-pro"
+    mc_agent: "gemini-1.5-flash"
+    room_agent: "gemini-1.5-flash"
+    coach_agent: "gemini-1.5-flash"
+
+evaluation_parameters:
+  timeout_seconds: 30
+  max_retries: 3
+  retry_delay_seconds: 2
+  enable_logging: true
+  log_level: "INFO"
+  capture_failures: true
+
+  parallel_execution:
+    enabled: false
+    max_concurrent: 3
+
+  phase_config:
+    phase_1_turns: [0, 1, 2, 3]
+    phase_2_turns: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+    transition_turn: 4
+    coach_feedback_start_turn: 15
+
+  turn_limits:
+    min_turn: 0
+    max_turn: 20
+    default_session_turns: 15
+
+metrics_configuration:
+  collect_metrics: true
+  metrics_output_file: "evaluation_metrics.json"
+
+  tracked_metrics:
+    - response_time
+    - response_length
+    - phase_accuracy
+    - coach_feedback_quality
+    - error_rate
+    - success_rate
+    - consistency_score
+
+  thresholds:
+    max_response_time_seconds: 10.0
+    min_response_length: 20
+    max_response_length: 2000
+    min_success_rate: 0.80
+    max_error_rate: 0.10
+
+  quality_criteria:
+    phase1_supportive_threshold: 0.85
+    phase2_fallible_threshold: 0.75
+    coach_feedback_completeness: 0.90
+    transition_smoothness: 0.80
+
+agent_mappings:
+  stage_manager:
+    name: "stage_manager"
+    description: "Root orchestrator coordinating all sub-agents"
+    turn_dependency: true
+    has_sub_agents: true
+    sub_agents:
+      - mc_agent
+      - room_agent
+      - partner_agent
+      - coach_agent
+
+  partner_agent:
+    name: "partner_agent"
+    description: "Adaptive scene partner with phase-aware behavior"
+    phase_dependent: true
+    phases:
+      1:
+        name: "Supportive Training Mode"
+        turns: [0, 1, 2, 3]
+        keywords: ["yes", "and", "great", "perfect", "love"]
+      2:
+        name: "Realistic Challenge Mode"
+        turns: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+        keywords: ["but", "however", "although", "challenge"]
+
+  mc_agent:
+    name: "mc_agent"
+    description: "High-energy game host"
+    tools:
+      - get_all_games
+      - get_game_by_id
+      - search_games
+    evaluation_focus:
+      - enthusiasm
+      - game_knowledge
+      - clear_explanations
+
+  room_agent:
+    name: "room_agent"
+    description: "Collective sentiment analyzer"
+    tools:
+      - analyze_text
+      - analyze_engagement
+      - analyze_collective_mood
+      - generate_audience_sample
+      - analyze_audience_traits
+      - get_vibe_check
+    evaluation_focus:
+      - mood_accuracy
+      - collective_perspective
+      - energy_assessment
+
+  coach_agent:
+    name: "coach_agent"
+    description: "Improv teaching and feedback specialist"
+    tools:
+      - get_all_principles
+      - get_principle_by_id
+      - get_beginner_essentials
+      - search_principles_by_keyword
+    evaluation_focus:
+      - constructive_feedback
+      - principle_references
+      - specific_examples
+      - actionable_advice
+    feedback_triggers:
+      min_turn: 15
+      scene_end: true
+      explicit_request: true
+
+validation_rules:
+  phase1_validation:
+    required_behaviors:
+      - accepts_offers
+      - builds_on_ideas
+      - enthusiastic_support
+      - clear_choices
+
+    keyword_presence:
+      required: ["yes", "and"]
+      encouraged: ["great", "love", "perfect"]
+      forbidden: ["no", "but", "deny"]
+
+    length_constraints:
+      min: 20
+      max: 500
+
+  phase2_validation:
+    required_behaviors:
+      - creates_friction
+      - maintains_collaboration
+      - strong_point_of_view
+      - requires_adaptation
+
+    keyword_balance:
+      friction_indicators: ["but", "however", "although"]
+      collaboration_indicators: ["yes", "and", "together"]
+      min_collaboration_presence: 0.3
+
+    length_constraints:
+      min: 30
+      max: 500
+
+  coach_validation:
+    required_components:
+      - celebrates_success
+      - constructive_feedback
+      - principle_reference
+      - actionable_advice
+      - encouragement
+
+    structure_requirements:
+      min_feedback_length: 100
+      max_feedback_length: 1500
+      must_reference_principles: true
+      must_be_specific: true
+
+  edge_case_handling:
+    empty_input:
+      should_handle_gracefully: true
+      min_response_length: 10
+
+    long_input:
+      max_input_tokens: 4000
+      should_truncate_or_summarize: true
+
+    special_characters:
+      should_preserve_meaning: true
+      should_not_break: true
+
+test_scenarios_config:
+  scenarios_file: "improv_scenarios.json"
+
+  scenario_categories:
+    phase1:
+      count: 4
+      priority: "high"
+
+    phase2:
+      count: 4
+      priority: "high"
+
+    transitions:
+      count: 1
+      priority: "critical"
+
+    coach_feedback:
+      count: 1
+      priority: "high"
+
+    edge_cases:
+      count: 4
+      priority: "medium"
+
+    multi_agent:
+      count: 2
+      priority: "medium"
+
+reporting:
+  output_format: "json"
+  generate_html_report: false
+  include_raw_responses: true
+  include_metrics: true
+  include_failures_detail: true
+
+  report_sections:
+    - summary
+    - metrics
+    - phase_breakdown
+    - agent_performance
+    - failures
+    - recommendations
+
+  export_paths:
+    json_report: "test_eval/results/evaluation_report.json"
+    metrics_file: "test_eval/results/metrics.json"
+    failures_log: "test_eval/results/failures.log"
+
+adk_integration:
+  use_adk_evaluation: true
+  adk_session_service: true
+  adk_memory_service: false
+  adk_observability: true
+
+  runner_config:
+    app_name: "Improv Olympics"
+    use_singleton_runner: true
+    session_persistence: true
+
+  eval_set_config:
+    case_format: "json"
+    load_from_file: true
+    validate_on_load: true
+
+gcp_settings:
+  project_id: "${GCP_PROJECT_ID}"
+  location: "${GCP_LOCATION:us-central1}"
+  credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS}"
+
+  vertex_ai:
+    enabled: true
+    endpoint: "https://us-central1-aiplatform.googleapis.com"
+
+  firestore:
+    database: "${FIRESTORE_DATABASE:(default)}"
+    sessions_collection: "sessions"
+
+performance:
+  enable_caching: true
+  cache_ttl_seconds: 300
+  enable_parallel_tools: true
+  max_concurrent_tools: 3
+
+  timeout_config:
+    agent_timeout: 30
+    tool_timeout: 10
+    overall_timeout: 60
+
+debug:
+  verbose_logging: false
+  log_prompts: true
+  log_tool_calls: true
+  log_model_responses: true
+  save_debug_artifacts: true
+  debug_output_dir: "test_eval/debug"

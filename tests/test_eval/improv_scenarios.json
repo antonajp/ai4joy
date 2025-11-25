@@ -1,0 +1,379 @@
+{
+  "test_scenarios": [
+    {
+      "name": "phase1_basic_yes_and",
+      "description": "Test Phase 1 supportive 'Yes, and' response",
+      "agent": "partner_agent",
+      "input": "Welcome to the bakery! I just made fresh croissants.",
+      "context": {
+        "turn_count": 0,
+        "phase": 1,
+        "expected_phase": 1
+      },
+      "expected": {
+        "phase": 1,
+        "behaviors": [
+          "accepts_offer",
+          "builds_on_idea",
+          "enthusiastic",
+          "supportive"
+        ],
+        "keywords": ["yes", "and", "croissant", "bakery"],
+        "avoid_keywords": ["no", "but", "however"],
+        "min_length": 20,
+        "max_length": 500
+      }
+    },
+    {
+      "name": "phase1_relationship_building",
+      "description": "Test Phase 1 clear relationship establishment",
+      "agent": "partner_agent",
+      "input": "As your sister, I need to tell you something important about our family business.",
+      "context": {
+        "turn_count": 1,
+        "phase": 1,
+        "expected_phase": 1
+      },
+      "expected": {
+        "phase": 1,
+        "behaviors": [
+          "accepts_relationship",
+          "responds_to_sister",
+          "acknowledges_family_business"
+        ],
+        "keywords": ["sister", "family", "business"],
+        "avoid_keywords": ["deny", "block"],
+        "min_length": 30,
+        "max_length": 500
+      }
+    },
+    {
+      "name": "phase1_location_acceptance",
+      "description": "Test Phase 1 accepts and builds on location",
+      "agent": "partner_agent",
+      "input": "Look at this view from the top of the mountain! We finally made it.",
+      "context": {
+        "turn_count": 2,
+        "phase": 1,
+        "expected_phase": 1
+      },
+      "expected": {
+        "phase": 1,
+        "behaviors": [
+          "accepts_location",
+          "celebrates_achievement",
+          "builds_on_mountain_setting"
+        ],
+        "keywords": ["mountain", "view", "made it"],
+        "avoid_keywords": ["no", "not really"],
+        "min_length": 20,
+        "max_length": 500
+      }
+    },
+    {
+      "name": "phase1_emotional_support",
+      "description": "Test Phase 1 supportive emotional response",
+      "agent": "partner_agent",
+      "input": "I'm really nervous about performing tonight. This is my first time on stage.",
+      "context": {
+        "turn_count": 3,
+        "phase": 1,
+        "expected_phase": 1
+      },
+      "expected": {
+        "phase": 1,
+        "behaviors": [
+          "encouraging",
+          "supportive",
+          "addresses_nervousness"
+        ],
+        "keywords": ["support", "great", "help", "together"],
+        "avoid_keywords": ["afraid", "fail", "worry"],
+        "min_length": 30,
+        "max_length": 500
+      }
+    },
+    {
+      "name": "phase2_realistic_friction",
+      "description": "Test Phase 2 creates realistic friction while collaborating",
+      "agent": "partner_agent",
+      "input": "We need to organize this event perfectly by tomorrow morning.",
+      "context": {
+        "turn_count": 4,
+        "phase": 2,
+        "expected_phase": 2
+      },
+      "expected": {
+        "phase": 2,
+        "behaviors": [
+          "creates_friction",
+          "still_collaborative",
+          "realistic_concern"
+        ],
+        "keywords": ["but", "however", "although", "challenge"],
+        "must_include_collaboration": ["yes", "and", "together", "work"],
+        "min_length": 30,
+        "max_length": 500
+      }
+    },
+    {
+      "name": "phase2_point_of_view",
+      "description": "Test Phase 2 has strong point of view requiring adaptation",
+      "agent": "partner_agent",
+      "input": "I think we should take the safe route and follow the established plan.",
+      "context": {
+        "turn_count": 6,
+        "phase": 2,
+        "expected_phase": 2
+      },
+      "expected": {
+        "phase": 2,
+        "behaviors": [
+          "has_own_perspective",
+          "requires_justification",
+          "creates_dynamic_tension"
+        ],
+        "keywords": ["different", "perspective", "consider"],
+        "min_length": 30,
+        "max_length": 500
+      }
+    },
+    {
+      "name": "phase2_unexpected_choice",
+      "description": "Test Phase 2 makes unexpected but justifiable choice",
+      "agent": "partner_agent",
+      "input": "Everything is going according to plan. Nothing could go wrong now.",
+      "context": {
+        "turn_count": 8,
+        "phase": 2,
+        "expected_phase": 2
+      },
+      "expected": {
+        "phase": 2,
+        "behaviors": [
+          "unexpected_response",
+          "creates_complication",
+          "still_follows_improv_rules"
+        ],
+        "avoid_complete_blocks": true,
+        "min_length": 30,
+        "max_length": 500
+      }
+    },
+    {
+      "name": "phase_transition_turn3_to_4",
+      "description": "Test phase transition from Phase 1 to Phase 2",
+      "agent": "stage_manager",
+      "input": "This has been great practice so far! I'm feeling more confident.",
+      "context": {
+        "turn_count": 3,
+        "phase": 1,
+        "expected_phase": 1,
+        "next_turn_phase": 2,
+        "is_transition": true
+      },
+      "expected": {
+        "phase": 1,
+        "behaviors": [
+          "acknowledges_progress",
+          "prepares_for_transition",
+          "encourages_next_level"
+        ],
+        "keywords": ["confident", "progress", "ready"],
+        "transition_announcement": false,
+        "min_length": 30,
+        "max_length": 500
+      }
+    },
+    {
+      "name": "coach_feedback_turn15",
+      "description": "Test coach feedback appears at turn 15",
+      "agent": "stage_manager",
+      "input": "That scene was challenging but I tried to stay present and listen.",
+      "context": {
+        "turn_count": 15,
+        "phase": 2,
+        "expected_phase": 2,
+        "should_have_coach": true
+      },
+      "expected": {
+        "phase": 2,
+        "behaviors": [
+          "provides_feedback",
+          "references_principles",
+          "celebrates_successes",
+          "suggests_improvements"
+        ],
+        "keywords": ["feedback", "principle", "well done", "next time"],
+        "coach_feedback_present": true,
+        "min_feedback_length": 100,
+        "min_length": 100,
+        "max_length": 1500
+      }
+    },
+    {
+      "name": "room_agent_mood_analysis",
+      "description": "Test Room Agent analyzes audience mood and energy",
+      "agent": "room_agent",
+      "input": "The audience is laughing and seems really engaged with the performance.",
+      "context": {
+        "turn_count": 5,
+        "phase": 2
+      },
+      "expected": {
+        "behaviors": [
+          "analyzes_mood",
+          "reports_energy_level",
+          "collective_perspective"
+        ],
+        "keywords": ["room", "audience", "energy", "engaged"],
+        "perspective": "collective",
+        "min_length": 30,
+        "max_length": 500
+      }
+    },
+    {
+      "name": "mc_agent_game_introduction",
+      "description": "Test MC Agent introduces game with energy",
+      "agent": "mc_agent",
+      "input": "We have a group of 5 people ready to play. What game should we do?",
+      "context": {
+        "turn_count": 0,
+        "phase": 1,
+        "player_count": 5
+      },
+      "expected": {
+        "behaviors": [
+          "enthusiastic",
+          "suggests_appropriate_game",
+          "explains_rules_clearly"
+        ],
+        "keywords": ["game", "play", "fun", "excited"],
+        "uses_tools": ["get_all_games", "search_games"],
+        "min_length": 50,
+        "max_length": 800
+      }
+    },
+    {
+      "name": "edge_case_empty_input",
+      "description": "Test handling of empty or minimal input",
+      "agent": "partner_agent",
+      "input": "",
+      "context": {
+        "turn_count": 2,
+        "phase": 1,
+        "is_edge_case": true
+      },
+      "expected": {
+        "behaviors": [
+          "handles_gracefully",
+          "prompts_for_input",
+          "stays_in_character"
+        ],
+        "error_handling": true,
+        "min_length": 10,
+        "max_length": 500
+      }
+    },
+    {
+      "name": "edge_case_long_input",
+      "description": "Test handling of very long input",
+      "agent": "partner_agent",
+      "input": "I'm standing here in this beautiful location and I'm thinking about all the things that have happened to us over the years and how we've grown together and faced challenges and overcome obstacles and learned so much about ourselves and each other and now we're here at this moment and it feels like everything has led to this point and I'm wondering what you think about all of this and where we should go from here and what the future holds for us and our journey together. I'm standing here in this beautiful location and I'm thinking about all the things that have happened to us over the years and how we've grown together and faced challenges and overcome obstacles and learned so much about ourselves and each other and now we're here at this moment and it feels like everything has led to this point and I'm wondering what you think about all of this and where we should go from here and what the future holds for us and our journey together. I'm standing here in this beautiful location and I'm thinking about all the things that have happened to us over the years and how we've grown together and faced challenges and overcome obstacles and learned so much about ourselves and each other.",
+      "context": {
+        "turn_count": 5,
+        "phase": 2,
+        "is_edge_case": true
+      },
+      "expected": {
+        "behaviors": [
+          "handles_long_input",
+          "focuses_on_key_elements",
+          "maintains_coherence"
+        ],
+        "min_length": 30,
+        "max_length": 500
+      }
+    },
+    {
+      "name": "edge_case_special_characters",
+      "description": "Test handling of special characters and unicode",
+      "agent": "partner_agent",
+      "input": "Welcome to the theater! 🎭 It's showtime! Let's give 110% effort!!!",
+      "context": {
+        "turn_count": 1,
+        "phase": 1,
+        "is_edge_case": true
+      },
+      "expected": {
+        "behaviors": [
+          "handles_special_chars",
+          "responds_appropriately",
+          "maintains_context"
+        ],
+        "keywords": ["theater", "show"],
+        "min_length": 20,
+        "max_length": 500
+      }
+    },
+    {
+      "name": "multi_turn_consistency",
+      "description": "Test consistency across multiple turns",
+      "agent": "partner_agent",
+      "input": "Remember when we talked about the bakery earlier? Let's go back to that.",
+      "context": {
+        "turn_count": 7,
+        "phase": 2,
+        "history": [
+          {"turn": 0, "input": "Welcome to the bakery!"},
+          {"turn": 1, "input": "These croissants are delicious."}
+        ]
+      },
+      "expected": {
+        "behaviors": [
+          "maintains_continuity",
+          "references_history",
+          "consistent_character"
+        ],
+        "keywords": ["bakery"],
+        "memory_coherent": true,
+        "min_length": 30,
+        "max_length": 500
+      }
+    },
+    {
+      "name": "error_recovery_context_loss",
+      "description": "Test recovery from context loss scenario",
+      "agent": "partner_agent",
+      "input": "Wait, what were we just talking about?",
+      "context": {
+        "turn_count": 10,
+        "phase": 2,
+        "is_recovery_scenario": true
+      },
+      "expected": {
+        "behaviors": [
+          "handles_confusion",
+          "reorients_gracefully",
+          "maintains_improv_spirit"
+        ],
+        "keywords": ["scene", "together"],
+        "min_length": 20,
+        "max_length": 500
+      }
+    }
+  ],
+  "metadata": {
+    "version": "1.0",
+    "created": "2025-11-25",
+    "description": "ADK Evaluation scenarios for Improv Olympics agent testing",
+    "total_scenarios": 16,
+    "phase1_scenarios": 4,
+    "phase2_scenarios": 4,
+    "transition_scenarios": 1,
+    "coach_scenarios": 1,
+    "room_scenarios": 1,
+    "mc_scenarios": 1,
+    "edge_case_scenarios": 4
+  }
+}
