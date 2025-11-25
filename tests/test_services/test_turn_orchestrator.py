@@ -162,14 +162,15 @@ class TestTurnOrchestratorPromptConstruction:
             turn_count=0
         )
 
-    def test_tc_turn_02a_phase1_prompt_construction(self, orchestrator, base_session):
+    @pytest.mark.asyncio
+    async def test_tc_turn_02a_phase1_prompt_construction(self, orchestrator, base_session):
         """
         TC-TURN-02a: Phase 1 Prompt Construction (Turns 1-3)
 
         Prompt should indicate Phase 1 (Supportive) and NOT include
         Coach agent instruction.
         """
-        prompt = orchestrator._construct_scene_prompt(
+        prompt = await orchestrator._construct_scene_prompt(
             session=base_session,
             user_input="Let's explore this coral reef!",
             turn_number=2
@@ -185,13 +186,14 @@ class TestTurnOrchestratorPromptConstruction:
         # Should NOT include coach in Phase 1 early turns
         assert "Coach Agent" not in prompt
 
-    def test_tc_turn_02b_phase2_prompt_construction(self, orchestrator, base_session):
+    @pytest.mark.asyncio
+    async def test_tc_turn_02b_phase2_prompt_construction(self, orchestrator, base_session):
         """
         TC-TURN-02b: Phase 2 Prompt Construction (Turns 4+)
 
         Prompt should indicate Phase 2 (Fallible) at turn 4 and beyond.
         """
-        prompt = orchestrator._construct_scene_prompt(
+        prompt = await orchestrator._construct_scene_prompt(
             session=base_session,
             user_input="We need to repair the hull breach!",
             turn_number=5
@@ -202,13 +204,14 @@ class TestTurnOrchestratorPromptConstruction:
         assert "Underwater Research Station" in prompt
         assert "We need to repair the hull breach!" in prompt
 
-    def test_tc_turn_02c_coach_inclusion_at_turn_15(self, orchestrator, base_session):
+    @pytest.mark.asyncio
+    async def test_tc_turn_02c_coach_inclusion_at_turn_15(self, orchestrator, base_session):
         """
         TC-TURN-02c: Coach Agent Included at Turn 15+
 
         Coach feedback should be requested starting at turn 15.
         """
-        prompt = orchestrator._construct_scene_prompt(
+        prompt = await orchestrator._construct_scene_prompt(
             session=base_session,
             user_input="Final scene action",
             turn_number=15
@@ -217,14 +220,15 @@ class TestTurnOrchestratorPromptConstruction:
         assert "Coach Agent: Provide constructive feedback" in prompt
         assert "COACH:" in prompt
 
-    def test_tc_turn_02d_coach_not_included_before_turn_15(self, orchestrator, base_session):
+    @pytest.mark.asyncio
+    async def test_tc_turn_02d_coach_not_included_before_turn_15(self, orchestrator, base_session):
         """
         TC-TURN-02d: No Coach Before Turn 15
 
         Coach should NOT be mentioned in turns 1-14.
         """
         for turn in [1, 5, 10, 14]:
-            prompt = orchestrator._construct_scene_prompt(
+            prompt = await orchestrator._construct_scene_prompt(
                 session=base_session,
                 user_input="Scene input",
                 turn_number=turn
@@ -671,7 +675,8 @@ class TestTurnOrchestratorPhaseIntegration:
             turn_count=0
         )
 
-    def test_tc_turn_07a_phase_1_for_turns_1_to_4(self, orchestrator, base_session):
+    @pytest.mark.asyncio
+    async def test_tc_turn_07a_phase_1_for_turns_1_to_4(self, orchestrator, base_session):
         """
         TC-TURN-07a: Phase 1 for Turns 1-4
 
@@ -679,7 +684,7 @@ class TestTurnOrchestratorPhaseIntegration:
         Internal turn_count is turn_number - 1, so turns 0-3 are Phase 1.
         """
         for turn in [1, 2, 3, 4]:
-            prompt = orchestrator._construct_scene_prompt(
+            prompt = await orchestrator._construct_scene_prompt(
                 session=base_session,
                 user_input="Test",
                 turn_number=turn
@@ -692,7 +697,8 @@ class TestTurnOrchestratorPhaseIntegration:
             )
             assert parsed["current_phase"] == 1
 
-    def test_tc_turn_07b_phase_2_from_turn_5_onwards(self, orchestrator, base_session):
+    @pytest.mark.asyncio
+    async def test_tc_turn_07b_phase_2_from_turn_5_onwards(self, orchestrator, base_session):
         """
         TC-TURN-07b: Phase 2 from Turn 5 Onwards
 
@@ -700,7 +706,7 @@ class TestTurnOrchestratorPhaseIntegration:
         Internal turn_count is turn_number - 1, so turn_count 4+ is Phase 2.
         """
         for turn in [5, 6, 10, 15]:
-            prompt = orchestrator._construct_scene_prompt(
+            prompt = await orchestrator._construct_scene_prompt(
                 session=base_session,
                 user_input="Test",
                 turn_number=turn
@@ -851,7 +857,8 @@ class TestTurnOrchestratorEdgeCases:
             turn_count=0
         )
 
-    def test_tc_turn_08a_very_long_user_input(self, orchestrator, base_session):
+    @pytest.mark.asyncio
+    async def test_tc_turn_08a_very_long_user_input(self, orchestrator, base_session):
         """
         TC-TURN-08a: Very Long User Input (1000 chars)
 
@@ -859,7 +866,7 @@ class TestTurnOrchestratorEdgeCases:
         """
         long_input = "A" * 1000
 
-        prompt = orchestrator._construct_scene_prompt(
+        prompt = await orchestrator._construct_scene_prompt(
             session=base_session,
             user_input=long_input,
             turn_number=5
@@ -868,7 +875,8 @@ class TestTurnOrchestratorEdgeCases:
         assert long_input in prompt
         assert len(prompt) > 1000
 
-    def test_tc_turn_08b_special_characters_in_input(self, orchestrator, base_session):
+    @pytest.mark.asyncio
+    async def test_tc_turn_08b_special_characters_in_input(self, orchestrator, base_session):
         """
         TC-TURN-08b: Special Characters in User Input
 
@@ -876,7 +884,7 @@ class TestTurnOrchestratorEdgeCases:
         """
         special_input = 'Test with "quotes" and <tags> and & symbols!'
 
-        prompt = orchestrator._construct_scene_prompt(
+        prompt = await orchestrator._construct_scene_prompt(
             session=base_session,
             user_input=special_input,
             turn_number=2

@@ -101,9 +101,20 @@ async def global_exception_handler(request: Request, exc: Exception):
 async def startup_event():
     """Application startup event - initialize singleton services"""
     from app.services.turn_orchestrator import initialize_runner
+    from app.services.adk_memory_service import get_adk_memory_service
 
     logger.info("Initializing singleton Runner")
     initialize_runner()
+
+    if settings.memory_service_enabled:
+        logger.info("Initializing ADK Memory Service")
+        memory_service = get_adk_memory_service()
+        if memory_service:
+            logger.info("ADK Memory Service initialized")
+        else:
+            logger.warning("Memory service enabled but initialization returned None")
+    else:
+        logger.info("Memory service disabled, skipping initialization")
 
     logger.info(
         "Application startup complete",
@@ -120,7 +131,12 @@ async def shutdown_event():
 
     # Close ADK DatabaseSessionService connections
     from app.services.adk_session_service import close_adk_session_service
+    from app.services.adk_memory_service import close_adk_memory_service
+
     await close_adk_session_service()
+
+    if settings.memory_service_enabled:
+        await close_adk_memory_service()
 
     # Flush OpenTelemetry data before shutdown
     obs = get_adk_observability()
