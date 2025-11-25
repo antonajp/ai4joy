@@ -3,7 +3,9 @@ from datetime import datetime, timezone
 from typing import Dict, Any, Optional, Tuple
 import asyncio
 
-from google.adk import Runner
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.genai import types
 
 from app.agents import create_stage_manager, determine_partner_phase
 from app.models.session import Session, SessionStatus
@@ -40,6 +42,7 @@ class TurnOrchestrator:
         self.use_parallel = use_parallel
         self.agent_cache = get_agent_cache() if use_cache else None
         self.context_manager = get_context_manager()
+        self.adk_session_service = InMemorySessionService()
 
     async def execute_turn(
         self,
@@ -85,7 +88,12 @@ class TurnOrchestrator:
                 turn_number=turn_number
             )
 
-            runner = Runner(stage_manager)
+            runner = Runner(
+                agent=stage_manager,
+                app_name=settings.app_name,
+                artifact_service=None,
+                session_service=self.adk_session_service
+            )
 
             scene_prompt = self._construct_scene_prompt(
                 session=session,
@@ -93,7 +101,12 @@ class TurnOrchestrator:
                 turn_number=turn_number
             )
 
-            response = await self._run_agent_async(runner, scene_prompt)
+            response = await self._run_agent_async(
+                runner=runner,
+                prompt=scene_prompt,
+                user_id=session.user_id,
+                session_id=session.session_id
+            )
 
             turn_response = self._parse_agent_response(
                 response=response,
@@ -180,12 +193,21 @@ ROOM: [Audience vibe analysis]
 
         return prompt
 
-    async def _run_agent_async(self, runner: Runner, prompt: str, timeout: int = 30) -> str:
+    async def _run_agent_async(
+        self,
+        runner: Runner,
+        prompt: str,
+        user_id: str,
+        session_id: str,
+        timeout: int = 30
+    ) -> str:
         """Run agent asynchronously with ADK Runner with timeout protection.
 
         Args:
             runner: ADK Runner instance
             prompt: Prompt to send to agent
+            user_id: User identifier for the session
+            session_id: Session identifier
             timeout: Maximum execution time in seconds (default: 30)
 
         Returns:
@@ -194,19 +216,46 @@ ROOM: [Audience vibe analysis]
         Raises:
             asyncio.TimeoutError: If agent execution exceeds timeout
         """
-        loop = asyncio.get_event_loop()
-
         try:
-            # ADK Runner.run() is synchronous, so run in executor with timeout
-            response = await asyncio.wait_for(
-                loop.run_in_executor(
-                    None,
-                    lambda: runner.run(prompt)
-                ),
-                timeout=timeout
+            # Create or get session for this user/session
+            adk_session = await self.adk_session_service.get_session(
+                app_name=settings.app_name,
+                user_id=user_id,
+                session_id=session_id
+            )
+            if not adk_session:
+                adk_session = await self.adk_session_service.create_session(
+                    app_name=settings.app_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    state={}
+                )
+
+            # Create content message from prompt
+            new_message = types.Content(
+                role="user",
+                parts=[types.Part.from_text(text=prompt)]
             )
 
-            return response
+            # Run agent async and collect response
+            response_parts = []
+
+            async def run_with_timeout():
+                async for event in runner.run_async(
+                    user_id=user_id,
+                    session_id=session_id,
+                    new_message=new_message
+                ):
+                    # Extract text from model response events
+                    if hasattr(event, 'content') and event.content:
+                        if hasattr(event.content, 'parts'):
+                            for part in event.content.parts:
+                                if hasattr(part, 'text') and part.text:
+                                    response_parts.append(part.text)
+
+            await asyncio.wait_for(run_with_timeout(), timeout=timeout)
+
+            return "".join(response_parts)
 
         except asyncio.TimeoutError:
             logger.error(

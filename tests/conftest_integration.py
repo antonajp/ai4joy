@@ -269,7 +269,7 @@ def skip_if_no_credentials():
 def skip_if_no_adk():
     """Skip test if ADK not available"""
     try:
-        from google.adk import Runner
+        from google.adk.runners import Runner
     except ImportError:
         pytest.skip("ADK not installed")
 
