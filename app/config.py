@@ -79,6 +79,11 @@ class Settings(BaseSettings):
     # SQLite file path for ADK session persistence
     adk_database_url: str = os.getenv("ADK_DATABASE_URL", "sqlite+aiosqlite:///./adk_sessions.db")
 
+    # ADK Memory Service Configuration
+    memory_service_enabled: bool = os.getenv("MEMORY_SERVICE_ENABLED", "false").lower() == "true"
+    agent_engine_id: str = os.getenv("AGENT_ENGINE_ID", "")
+    use_in_memory_memory_service: bool = os.getenv("USE_IN_MEMORY_MEMORY_SERVICE", "true").lower() == "true"
+
     # Performance Tuning Configuration
     perf_agent_timeout: int = int(os.getenv("PERF_AGENT_TIMEOUT", "30"))
     perf_cache_ttl: int = int(os.getenv("PERF_CACHE_TTL", "300"))

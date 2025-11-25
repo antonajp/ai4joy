@@ -13,6 +13,7 @@ from app.services.session_manager import SessionManager
 from app.services.agent_cache import get_agent_cache
 from app.services.context_manager import get_context_manager
 from app.services.adk_session_service import get_adk_session_service
+from app.services.adk_memory_service import get_adk_memory_service, search_user_memories
 from app.utils.logger import get_logger
 from app.config import get_settings
 
@@ -23,11 +24,14 @@ _runner_instance: Optional[Runner] = None
 _runner_lock = threading.Lock()
 
 
-def get_singleton_runner() -> Runner:
+def get_singleton_runner(memory_service=None) -> Runner:
     """Get or create the singleton Runner instance.
 
     The Runner is application-scoped and shared across all requests.
-    It is initialized with the shared DatabaseSessionService.
+    It is initialized with the shared DatabaseSessionService and optional MemoryService.
+
+    Args:
+        memory_service: Optional memory service instance to pass to Runner
 
     Returns:
         Runner: Singleton Runner instance
@@ -41,13 +45,21 @@ def get_singleton_runner() -> Runner:
         if _runner_instance is None:
             logger.info("Initializing singleton Runner")
             stage_manager = create_stage_manager(turn_count=0)
+
+            memory_svc = memory_service or get_adk_memory_service()
+
             _runner_instance = Runner(
                 agent=stage_manager,
                 app_name=settings.app_name,
                 artifact_service=None,
-                session_service=get_adk_session_service()
+                session_service=get_adk_session_service(),
+                memory_service=memory_svc
             )
-            logger.info("Singleton Runner initialized successfully")
+
+            if memory_svc:
+                logger.info("Singleton Runner initialized with memory service")
+            else:
+                logger.info("Singleton Runner initialized without memory service")
 
     return _runner_instance
 
@@ -136,7 +148,7 @@ class TurnOrchestrator:
             runner = get_singleton_runner()
             logger.debug("Using singleton Runner", turn_number=turn_number)
 
-            scene_prompt = self._construct_scene_prompt(
+            scene_prompt = await self._construct_scene_prompt(
                 session=session,
                 user_input=user_input,
                 turn_number=turn_number
@@ -206,21 +218,34 @@ class TurnOrchestrator:
 
         return "\n".join(context_parts)
 
-    def _construct_scene_prompt(
+    async def _construct_scene_prompt(
         self,
         session: Session,
         user_input: str,
         turn_number: int
     ) -> str:
-        """Construct prompt for Stage Manager"""
+        """Construct prompt for Stage Manager with optional memory context"""
         phase = determine_partner_phase(turn_number - 1)
         phase_name = "Phase 1 (Supportive)" if phase == 1 else "Phase 2 (Fallible)"
+
+        memory_context = ""
+        if turn_number == 1 and settings.memory_service_enabled:
+            memories = await search_user_memories(
+                user_id=session.user_id,
+                query=f"improv techniques preferences performance {session.location}",
+                limit=3
+            )
+            if memories:
+                memory_context = "\nPast session insights about this user:\n"
+                for memory in memories:
+                    content = memory.get('content', str(memory)) if isinstance(memory, dict) else str(memory)
+                    memory_context += f"- {content[:200]}\n"
 
         prompt = f"""Scene Turn {turn_number} - {phase_name}
 
 Location: {session.location}
 User's contribution: {user_input}
-
+{memory_context}
 Coordinate the following:
 1. Partner Agent: Respond to user's scene contribution with appropriate phase behavior
 2. Room Agent: Analyze scene energy and provide audience vibe

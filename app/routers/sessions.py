@@ -11,6 +11,8 @@ from app.services.turn_orchestrator import TurnOrchestrator, get_turn_orchestrat
 from app.services.content_filter import get_content_filter
 from app.services.pii_detector import get_pii_detector
 from app.services.prompt_injection_guard import get_prompt_injection_guard
+from app.services.adk_session_service import get_adk_session
+from app.services.adk_memory_service import save_session_to_memory
 from app.middleware.iap_auth import get_authenticated_user
 from app.utils.logger import get_logger
 
@@ -315,6 +317,31 @@ async def close_session(
         session_id=session_id,
         user_id=user_id
     )
+
+    try:
+        adk_session = await get_adk_session(session_id=session_id, user_id=user_id)
+        if adk_session:
+            memory_saved = await save_session_to_memory(adk_session)
+            if memory_saved:
+                logger.info(
+                    "Session memories saved",
+                    session_id=session_id,
+                    user_id=user_id
+                )
+        else:
+            logger.warning(
+                "ADK session not found for memory save",
+                session_id=session_id,
+                user_id=user_id
+            )
+    except Exception as e:
+        logger.error(
+            "Failed to save session to memory, continuing with close",
+            session_id=session_id,
+            user_id=user_id,
+            error=str(e),
+            error_type=type(e).__name__
+        )
 
     return {"status": "closed", "session_id": session_id}
 
