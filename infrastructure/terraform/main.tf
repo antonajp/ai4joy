@@ -926,14 +926,15 @@ resource "google_logging_metric" "token_usage" {
 }
 
 # Log-based metric for sentiment scores
+# Uses DISTRIBUTION to extract actual sentiment values from logs
 resource "google_logging_metric" "sentiment_score" {
   name    = "sentiment_score"
   project = var.project_id
   filter  = "jsonPayload.sentiment_score != null"
 
   metric_descriptor {
-    metric_kind  = "GAUGE"
-    value_type   = "DOUBLE"
+    metric_kind  = "DELTA"
+    value_type   = "DISTRIBUTION"
     unit         = "1"
     display_name = "Sentiment Score"
 
@@ -942,25 +943,27 @@ resource "google_logging_metric" "sentiment_score" {
       value_type  = "STRING"
       description = "Session identifier"
     }
-
-    labels {
-      key         = "turn"
-      value_type  = "STRING"
-      description = "Turn number in session"
-    }
   }
 
   value_extractor = "EXTRACT(jsonPayload.sentiment_score)"
 
   label_extractors = {
     session_id = "EXTRACT(jsonPayload.session_id)"
-    turn       = "EXTRACT(jsonPayload.turn)"
+  }
+
+  bucket_options {
+    linear_buckets {
+      num_finite_buckets = 10
+      width              = 0.1
+      offset             = 0
+    }
   }
 
   depends_on = [module.project_services]
 }
 
 # Log-based metric for agent type distribution
+# Counts agent invocations by type - no value_extractor needed for counters
 resource "google_logging_metric" "agent_invocations" {
   name    = "agent_invocations"
   project = var.project_id
@@ -984,8 +987,6 @@ resource "google_logging_metric" "agent_invocations" {
       description = "Whether agent execution succeeded"
     }
   }
-
-  value_extractor = "EXTRACT(1)"
 
   label_extractors = {
     agent   = "EXTRACT(jsonPayload.agent)"
