@@ -26,9 +26,12 @@ from app.routers import health, sessions, agent, auth, static
 
 settings = get_settings()
 
-# Initialize OpenTelemetry BEFORE creating logger so trace context is available
+# CRITICAL: Initialize OpenTelemetry BEFORE any ADK imports
+# This sets up environment variables that enable ADK's auto-instrumentation
+# and configures Cloud Trace exporter to receive ADK's spans
 adk_obs = initialize_adk_observability(enabled=settings.otel_enabled)
 
+# Logger created after observability so it can access trace context
 logger = get_logger(__name__, level=settings.log_level)
 
 app = FastAPI(
