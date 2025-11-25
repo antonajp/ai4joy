@@ -99,7 +99,12 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.on_event("startup")
 async def startup_event():
-    """Application startup event"""
+    """Application startup event - initialize singleton services"""
+    from app.services.turn_orchestrator import initialize_runner
+
+    logger.info("Initializing singleton Runner")
+    initialize_runner()
+
     logger.info(
         "Application startup complete",
         python_version=sys.version,
