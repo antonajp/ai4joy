@@ -18,8 +18,10 @@ class Settings(BaseSettings):
     firestore_sessions_collection: str = "sessions"
     firestore_user_limits_collection: str = "user_limits"
 
-    vertexai_flash_model: str = "gemini-1.5-flash"
-    vertexai_pro_model: str = "gemini-1.5-pro"
+    # Model names without version suffixes use auto-updated aliases
+    # See: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions
+    vertexai_flash_model: str = "gemini-2.0-flash"
+    vertexai_pro_model: str = "gemini-2.0-flash"  # gemini-1.5-pro deprecated April 2025
 
     rate_limit_daily_sessions: int = int(os.getenv("RATE_LIMIT_DAILY_SESSIONS", "10"))
     rate_limit_concurrent_sessions: int = int(os.getenv("RATE_LIMIT_CONCURRENT_SESSIONS", "3"))
@@ -76,7 +78,12 @@ class Settings(BaseSettings):
 
     # ADK Session Database Configuration
     # SQLite file path for ADK session persistence
-    adk_database_url: str = os.getenv("ADK_DATABASE_URL", "sqlite+aiosqlite:///./adk_sessions.db")
+    # IMPORTANT: In Cloud Run, /tmp is ephemeral and instance-specific. Sessions created
+    # in one instance won't be visible to another. The TurnOrchestrator.execute_turn()
+    # method handles this by ensuring ADK sessions are created from Firestore data before
+    # each turn execution. This makes SQLite effectively a local cache, with Firestore as
+    # the source of truth. For production scale, consider using Cloud SQL for ADK sessions.
+    adk_database_url: str = os.getenv("ADK_DATABASE_URL", "sqlite+aiosqlite:////tmp/adk_sessions.db")
 
     # ADK Memory Service Configuration
     memory_service_enabled: bool = os.getenv("MEMORY_SERVICE_ENABLED", "false").lower() == "true"

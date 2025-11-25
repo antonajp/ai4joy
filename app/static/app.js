@@ -444,7 +444,7 @@ async function executeFirstTurn(sessionId) {
 
     } catch (error) {
         hideTypingIndicator();
-        showToast('Failed to start scene. Please try again.', 'error');
+        showToast(`Failed to start scene: ${error.message}`, 'error');
     }
 }
 

@@ -194,7 +194,7 @@ def create_stage_manager(turn_count: int = 0) -> Agent:
     stage_manager = Agent(
         name="stage_manager",
         description=f"Stage Manager - Orchestrates MC, Room, Partner (Phase {partner_phase}), and Coach agents for adaptive improv training",
-        model="gemini-1.5-flash",
+        model=settings.vertexai_flash_model,
         instruction=instruction,
         sub_agents=[mc, room, partner, coach]
     )

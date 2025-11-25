@@ -10,6 +10,9 @@ Focuses on:
 """
 
 import pytest
+from app.config import get_settings
+
+settings = get_settings()
 
 
 class TestPartnerAgentEdgeCases:
@@ -238,9 +241,10 @@ class TestIntegrationEdgeCases:
 
         sm = create_stage_manager()
 
+        valid_models = [settings.vertexai_flash_model, settings.vertexai_pro_model]
         for agent in sm.sub_agents:
             assert hasattr(agent, 'model'), f"Agent {agent.name} missing model"
-            assert agent.model in ['gemini-1.5-flash', 'gemini-1.5-pro'], \
+            assert agent.model in valid_models, \
                 f"Agent {agent.name} has invalid model: {agent.model}"
 
     def test_model_selection_appropriate(self):
@@ -252,15 +256,15 @@ class TestIntegrationEdgeCases:
         for agent in sm.sub_agents:
             if agent.name == 'partner_agent':
                 # Partner needs creativity, should use Pro
-                assert agent.model == 'gemini-1.5-pro', \
+                assert agent.model == settings.vertexai_pro_model, \
                     "Partner should use Pro model"
             elif agent.name == 'coach_agent':
                 # Coach can use Flash for speed
-                assert agent.model == 'gemini-1.5-flash', \
+                assert agent.model == settings.vertexai_flash_model, \
                     "Coach should use Flash model"
             elif agent.name == 'stage_manager':
                 # Stage Manager coordinates, uses Flash
-                assert agent.model == 'gemini-1.5-flash', \
+                assert agent.model == settings.vertexai_flash_model, \
                     "Stage Manager should use Flash model"
 
 
@@ -336,7 +340,7 @@ class TestPerformanceEdgeCases:
         # All should be valid
         for agent in agents:
             assert agent.name == "partner_agent"
-            assert agent.model == "gemini-1.5-pro"
+            assert agent.model == settings.vertexai_pro_model
 
     def test_stage_manager_multiple_instances(self):
         """Multiple Stage Manager instances should coexist"""

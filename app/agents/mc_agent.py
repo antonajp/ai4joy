@@ -52,7 +52,7 @@ def create_mc_agent() -> Agent:
     agent = Agent(
         name="mc_agent",
         description="Master of Ceremonies - High-energy game host who welcomes users, suggests games, and explains rules enthusiastically",
-        model="gemini-1.5-flash",
+        model=settings.vertexai_flash_model,
         instruction=MC_SYSTEM_PROMPT,
         tools=[
             game_database_tools.get_all_games,

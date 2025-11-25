@@ -12,6 +12,9 @@ Test Coverage:
 
 import pytest
 from google.adk.agents import Agent
+from app.config import get_settings
+
+settings = get_settings()
 
 
 class TestPartnerAgentCreation:
@@ -25,7 +28,7 @@ class TestPartnerAgentCreation:
 
         Expected:
         - Agent is instance of google.adk.Agent
-        - Model is gemini-1.5-pro (needs creativity)
+        - Model is configured pro model (needs creativity)
         - Name is partner_agent
         - No tools attached
         - Has valid instruction
@@ -42,8 +45,8 @@ class TestPartnerAgentCreation:
         assert partner.name == "partner_agent", \
             f"Name should be 'partner_agent', got '{partner.name}'"
 
-        assert partner.model == "gemini-1.5-pro", \
-            f"Model should be 'gemini-1.5-pro', got '{partner.model}'"
+        assert partner.model == settings.vertexai_pro_model, \
+            f"Model should be '{settings.vertexai_pro_model}', got '{partner.model}'"
 
         # Verify no tools (Partner uses creativity, not tool calls)
         assert len(partner.tools) == 0, \
@@ -72,7 +75,7 @@ class TestPartnerAgentCreation:
 
         assert isinstance(partner, Agent)
         assert partner.name == "partner_agent"
-        assert partner.model == "gemini-1.5-pro"
+        assert partner.model == settings.vertexai_pro_model
         assert len(partner.tools) == 0
 
         print("✓ Partner Agent Phase 2 created successfully")
@@ -284,8 +287,8 @@ class TestPartnerConfiguration:
 
         partner = create_partner_agent(phase=1)
 
-        assert partner.model == "gemini-1.5-pro", \
-            f"Partner should use gemini-1.5-pro for creativity, got {partner.model}"
+        assert partner.model == settings.vertexai_pro_model, \
+            f"Partner should use {settings.vertexai_pro_model} for creativity, got {partner.model}"
 
         print("✓ Partner correctly uses Gemini Pro model")
 

@@ -189,7 +189,7 @@ def create_partner_agent(phase: int = 1) -> Agent:
     partner = Agent(
         name="partner_agent",
         description=f"Adaptive improv scene partner ({phase_name}) - Phase {phase}",
-        model="gemini-1.5-pro",  # Use Pro for creative scene work
+        model=settings.vertexai_pro_model,  # Use Pro for creative scene work
         instruction=instruction,
         tools=[]  # Partner doesn't need external tools
     )

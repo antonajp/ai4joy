@@ -12,6 +12,9 @@ Test Coverage:
 
 import pytest
 from google.adk.agents import Agent
+from app.config import get_settings
+
+settings = get_settings()
 
 
 class TestStageManagerSubAgents:
@@ -222,20 +225,20 @@ class TestPartnerAgentUpdates:
         """
         TC-STAGE-04d: Partner Uses Pro Model in Both Phases
 
-        Both phases should use gemini-1.5-pro for creativity.
+        Both phases should use configured pro model for creativity.
         """
         from app.agents.stage_manager import get_partner_agent_for_turn
 
         partner_p1 = get_partner_agent_for_turn(turn_count=1)
         partner_p2 = get_partner_agent_for_turn(turn_count=8)
 
-        assert partner_p1.model == "gemini-1.5-pro", \
+        assert partner_p1.model == settings.vertexai_pro_model, \
             f"Phase 1 Partner should use Pro, got {partner_p1.model}"
 
-        assert partner_p2.model == "gemini-1.5-pro", \
+        assert partner_p2.model == settings.vertexai_pro_model, \
             f"Phase 2 Partner should use Pro, got {partner_p2.model}"
 
-        print("✓ Both phases use gemini-1.5-pro model")
+        print(f"✓ Both phases use {settings.vertexai_pro_model} model")
 
 
 class TestPhaseInformation:
@@ -349,10 +352,10 @@ class TestStageManagerConfiguration:
 
         stage_manager = create_stage_manager()
 
-        assert stage_manager.model == "gemini-1.5-flash", \
+        assert stage_manager.model == settings.vertexai_flash_model, \
             f"Stage Manager should use Flash, got {stage_manager.model}"
 
-        print("✓ Stage Manager uses gemini-1.5-flash")
+        print(f"✓ Stage Manager uses {settings.vertexai_flash_model}")
 
     def test_tc_stage_06_stage_manager_has_instruction(self):
         """

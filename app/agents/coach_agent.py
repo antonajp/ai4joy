@@ -128,7 +128,7 @@ def create_coach_agent() -> Agent:
     coach = Agent(
         name="coach_agent",
         description="Improv coach providing constructive feedback and teaching based on core principles",
-        model="gemini-1.5-flash",  # Flash is sufficient for coaching, faster responses
+        model=settings.vertexai_flash_model,
         instruction=COACH_SYSTEM_PROMPT,
         tools=[
             improv_expert_tools.get_all_principles,

@@ -60,7 +60,7 @@ def create_room_agent() -> Agent:
     agent = Agent(
         name="room_agent",
         description="Room Agent - Collective sentiment analyzer who reads audience mood, engagement, and energy to help adapt the show",
-        model="gemini-1.5-flash",
+        model=settings.vertexai_flash_model,
         instruction=ROOM_SYSTEM_PROMPT,
         tools=[
             sentiment_gauge_tools.analyze_text,

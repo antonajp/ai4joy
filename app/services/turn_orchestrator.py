@@ -148,6 +148,25 @@ class TurnOrchestrator:
             runner = get_singleton_runner()
             logger.debug("Using singleton Runner", turn_number=turn_number)
 
+            # Ensure ADK session exists before running agent.
+            # This handles the case where the request is routed to a different
+            # Cloud Run instance that doesn't have the session in its local SQLite DB.
+            # get_adk_session() will create the session if it doesn't exist.
+            adk_session = await self.session_manager.get_adk_session(session.session_id)
+            if not adk_session:
+                logger.error(
+                    "Failed to ensure ADK session exists",
+                    session_id=session.session_id,
+                    user_id=session.user_id
+                )
+                raise ValueError(f"Could not create ADK session for {session.session_id}")
+
+            logger.debug(
+                "ADK session ready for turn execution",
+                session_id=session.session_id,
+                events_count=len(adk_session.events)
+            )
+
             scene_prompt = await self._construct_scene_prompt(
                 session=session,
                 user_input=user_input,

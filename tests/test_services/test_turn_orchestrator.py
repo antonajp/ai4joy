@@ -553,6 +553,10 @@ class TestTurnOrchestratorErrorHandling:
         manager.update_session_phase = AsyncMock()
         manager.update_session_status = AsyncMock()
         manager.update_session_atomic = AsyncMock()
+        # Mock get_adk_session to return a mock ADK session
+        mock_adk_session = Mock()
+        mock_adk_session.events = []
+        manager.get_adk_session = AsyncMock(return_value=mock_adk_session)
         return manager
 
     @pytest.fixture
@@ -784,6 +788,10 @@ class TestTurnOrchestratorAsyncExecution:
 
         session_manager = Mock()
         session_manager.update_session_atomic = AsyncMock()
+        # Mock get_adk_session to return a mock ADK session
+        mock_adk_session = Mock()
+        mock_adk_session.events = []
+        session_manager.get_adk_session = AsyncMock(return_value=mock_adk_session)
 
         orchestrator = TurnOrchestrator(session_manager)
 

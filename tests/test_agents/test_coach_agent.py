@@ -11,6 +11,9 @@ Test Coverage:
 
 import pytest
 from google.adk.agents import Agent
+from app.config import get_settings
+
+settings = get_settings()
 
 
 class TestCoachAgentCreation:
@@ -24,7 +27,7 @@ class TestCoachAgentCreation:
 
         Expected:
         - Agent is instance of google.adk.Agent
-        - Model is gemini-1.5-flash (faster for coaching)
+        - Model is configured flash model (faster for coaching)
         - Name is coach_agent
         - Has exactly 4 improv expert tools
         - Has valid instruction
@@ -41,8 +44,8 @@ class TestCoachAgentCreation:
         assert coach.name == "coach_agent", \
             f"Name should be 'coach_agent', got '{coach.name}'"
 
-        assert coach.model == "gemini-1.5-flash", \
-            f"Model should be 'gemini-1.5-flash', got '{coach.model}'"
+        assert coach.model == settings.vertexai_flash_model, \
+            f"Model should be '{settings.vertexai_flash_model}', got '{coach.model}'"
 
         # Verify has 4 tools
         assert len(coach.tools) == 4, \
@@ -343,8 +346,8 @@ class TestCoachConfiguration:
 
         coach = create_coach_agent()
 
-        assert coach.model == "gemini-1.5-flash", \
-            f"Coach should use gemini-1.5-flash for speed, got {coach.model}"
+        assert coach.model == settings.vertexai_flash_model, \
+            f"Coach should use {settings.vertexai_flash_model} for speed, got {coach.model}"
 
         print("✓ Coach correctly uses Gemini Flash model")
 

@@ -277,7 +277,7 @@ async def execute_turn(
         # Sanitize error message - don't leak internal details
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while executing the turn. Please try again or contact support."
+            detail=f"An error occurred while executing the turn: {str(e)}"
         )
 
 

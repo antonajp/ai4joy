@@ -11,6 +11,14 @@ AI-powered social gym, featuring:
 - Workload Identity for secure API access
 - OpenTelemetry observability with Cloud Trace integration
 """
+import os
+
+# Configure google-genai for Vertex AI BEFORE any ADK imports
+# This must happen at module load time, before Agent classes are imported
+os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "true")
+os.environ.setdefault("GOOGLE_CLOUD_PROJECT", os.getenv("GCP_PROJECT_ID", "coherent-answer-479115-e1"))
+os.environ.setdefault("GOOGLE_CLOUD_LOCATION", os.getenv("GCP_LOCATION", "us-central1"))
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -104,6 +112,13 @@ async def startup_event():
     """Application startup event - initialize singleton services"""
     from app.services.turn_orchestrator import initialize_runner
     from app.services.adk_memory_service import get_adk_memory_service
+
+    logger.info(
+        "Vertex AI configuration",
+        use_vertexai=os.environ.get("GOOGLE_GENAI_USE_VERTEXAI"),
+        project=os.environ.get("GOOGLE_CLOUD_PROJECT"),
+        location=os.environ.get("GOOGLE_CLOUD_LOCATION")
+    )
 
     logger.info("Initializing singleton Runner")
     initialize_runner()
