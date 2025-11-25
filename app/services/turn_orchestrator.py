@@ -1,7 +1,8 @@
 """Turn Orchestration Service - Coordinates ADK Agents for Session Turns"""
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional
 import asyncio
+import threading
 
 from google.adk.runners import Runner
 from google.genai import types
@@ -17,6 +18,62 @@ from app.config import get_settings
 
 logger = get_logger(__name__)
 settings = get_settings()
+
+_runner_instance: Optional[Runner] = None
+_runner_lock = threading.Lock()
+
+
+def get_singleton_runner() -> Runner:
+    """Get or create the singleton Runner instance.
+
+    The Runner is application-scoped and shared across all requests.
+    It is initialized with the shared DatabaseSessionService.
+
+    Returns:
+        Runner: Singleton Runner instance
+    """
+    global _runner_instance
+
+    if _runner_instance is not None:
+        return _runner_instance
+
+    with _runner_lock:
+        if _runner_instance is None:
+            logger.info("Initializing singleton Runner")
+            stage_manager = create_stage_manager(turn_count=0)
+            _runner_instance = Runner(
+                agent=stage_manager,
+                app_name=settings.app_name,
+                artifact_service=None,
+                session_service=get_adk_session_service()
+            )
+            logger.info("Singleton Runner initialized successfully")
+
+    return _runner_instance
+
+
+def initialize_runner() -> Runner:
+    """Initialize the singleton Runner at application startup.
+
+    Call this during FastAPI startup to ensure the Runner is ready
+    before serving requests.
+
+    Returns:
+        Runner: Initialized singleton Runner instance
+    """
+    return get_singleton_runner()
+
+
+def reset_runner() -> None:
+    """Reset the singleton Runner for testing purposes.
+
+    This allows tests to reset the runner between test cases.
+    Should NOT be used in production.
+    """
+    global _runner_instance
+    with _runner_lock:
+        _runner_instance = None
+        logger.info("Singleton Runner reset")
 
 
 class TurnOrchestrator:
@@ -76,24 +133,8 @@ class TurnOrchestrator:
         )
 
         try:
-            if self.use_cache:
-                stage_manager = self.agent_cache.get_stage_manager(turn_count=turn_number - 1)
-                logger.debug("Using cached Stage Manager", turn_number=turn_number)
-            else:
-                stage_manager = create_stage_manager(turn_count=turn_number - 1)
-
-            context = self.context_manager.build_optimized_context(
-                session=session,
-                user_input=user_input,
-                turn_number=turn_number
-            )
-
-            runner = Runner(
-                agent=stage_manager,
-                app_name=settings.app_name,
-                artifact_service=None,
-                session_service=get_adk_session_service()
-            )
+            runner = get_singleton_runner()
+            logger.debug("Using singleton Runner", turn_number=turn_number)
 
             scene_prompt = self._construct_scene_prompt(
                 session=session,
@@ -203,8 +244,11 @@ ROOM: [Audience vibe analysis]
     ) -> str:
         """Run agent asynchronously with ADK Runner with timeout protection.
 
+        The Runner's session service handles session creation/retrieval automatically
+        based on user_id and session_id. No manual session management needed.
+
         Args:
-            runner: ADK Runner instance
+            runner: ADK Runner instance (singleton)
             prompt: Prompt to send to agent
             user_id: User identifier for the session
             session_id: Session identifier
@@ -217,30 +261,11 @@ ROOM: [Audience vibe analysis]
             asyncio.TimeoutError: If agent execution exceeds timeout
         """
         try:
-            # Get shared session service
-            session_service = get_adk_session_service()
-
-            # Create or get session for this user/session
-            adk_session = await session_service.get_session(
-                app_name=settings.app_name,
-                user_id=user_id,
-                session_id=session_id
-            )
-            if not adk_session:
-                adk_session = await session_service.create_session(
-                    app_name=settings.app_name,
-                    user_id=user_id,
-                    session_id=session_id,
-                    state={}
-                )
-
-            # Create content message from prompt
             new_message = types.Content(
                 role="user",
                 parts=[types.Part.from_text(text=prompt)]
             )
 
-            # Run agent async and collect response
             response_parts = []
 
             async def run_with_timeout():
@@ -249,7 +274,6 @@ ROOM: [Audience vibe analysis]
                     session_id=session_id,
                     new_message=new_message
                 ):
-                    # Extract text from model response events
                     if hasattr(event, 'content') and event.content:
                         if hasattr(event.content, 'parts'):
                             for part in event.content.parts:

@@ -722,33 +722,34 @@ class TestTurnOrchestratorAsyncExecution:
         return TurnOrchestrator(Mock())
 
     @pytest.mark.asyncio
-    async def test_tc_turn_03a_uses_shared_session_service(self, orchestrator):
+    async def test_tc_turn_03a_uses_singleton_runner(self, orchestrator):
         """
-        TC-TURN-03a: Turn Orchestrator Uses Shared Session Service
+        TC-TURN-03a: Turn Orchestrator Uses Singleton Runner
 
-        The orchestrator should use the shared DatabaseSessionService singleton
-        via get_adk_session_service(), not create a new InMemorySessionService
-        per request.
+        The orchestrator should use the singleton Runner via get_singleton_runner(),
+        not create a new Runner per request.
 
-        This ensures sessions persist across Cloud Run instance restarts.
+        This ensures:
+        - Better performance (no Runner recreation overhead)
+        - Sessions persist across Cloud Run instance restarts via shared session service
         """
+        from app.services.turn_orchestrator import get_singleton_runner, reset_runner
+
         with patch('app.services.turn_orchestrator.get_adk_session_service') as mock_get_service:
             with patch('app.services.turn_orchestrator.Runner') as mock_runner_class:
                 with patch('app.services.turn_orchestrator.create_stage_manager') as mock_create_stage:
-                    # Mock the shared session service
+                    reset_runner()
+
                     mock_session_service = Mock()
                     mock_get_service.return_value = mock_session_service
 
-                    # Mock stage manager and runner
                     mock_stage_manager = Mock()
                     mock_create_stage.return_value = mock_stage_manager
 
                     mock_runner_instance = Mock()
                     mock_runner_class.return_value = mock_runner_instance
 
-                    # Mock the async run_async method
                     async def mock_run_async(*args, **kwargs):
-                        # Yield a final event with response
                         yield {
                             "type": "final",
                             "content": "PARTNER: Test response"
@@ -756,59 +757,65 @@ class TestTurnOrchestratorAsyncExecution:
 
                     mock_runner_instance.run_async = mock_run_async
 
-                    # Create test session
-                    session = Session(
-                        session_id="test-session",
-                        user_id="user-123",
-                        user_email="test@example.com",
-                        location="Test Location",
-                        status=SessionStatus.ACTIVE,
-                        created_at=datetime.now(timezone.utc),
-                        updated_at=datetime.now(timezone.utc),
-                        expires_at=datetime.now(timezone.utc),
-                        conversation_history=[],
-                        turn_count=0
-                    )
+                    runner1 = get_singleton_runner()
+                    runner2 = get_singleton_runner()
 
-                    # Execute turn
-                    try:
-                        await orchestrator.execute_turn(
-                            session=session,
-                            user_input="Test input",
-                            turn_number=1
-                        )
-                    except Exception:
-                        # Execution may fail due to mocking, but we're testing service usage
-                        pass
+                    assert runner1 is runner2, "Singleton Runner should return same instance"
 
-                    # Verify get_adk_session_service was called
-                    mock_get_service.assert_called()
+                    mock_runner_class.assert_called_once()
+                    call_args = mock_runner_class.call_args
+                    assert call_args[1]['session_service'] is mock_session_service
 
-                    # Verify Runner was initialized with the shared session service
-                    mock_runner_class.assert_called()
-                    runner_call = mock_runner_class.call_args
-
-                    # session_service should be the mock_session_service
-                    assert runner_call[1]['session_service'] is mock_session_service
+                    reset_runner()
 
     @pytest.mark.asyncio
-    async def test_tc_turn_03b_session_service_not_created_per_request(self):
+    async def test_tc_turn_03b_execute_turn_uses_singleton_runner(self):
         """
-        TC-TURN-03b: Session Service is NOT Created Per Request
+        TC-TURN-03b: execute_turn Uses Singleton Runner
 
-        The old implementation created a new InMemorySessionService in __init__.
-        The new implementation should NOT create any session service - it should
-        only use the shared singleton.
+        The execute_turn method should get the singleton Runner via
+        get_singleton_runner(), not create a new Runner each call.
         """
+        from app.services.turn_orchestrator import reset_runner
+
         session_manager = Mock()
-        session_manager.add_conversation_turn = AsyncMock()
         session_manager.update_session_atomic = AsyncMock()
 
         orchestrator = TurnOrchestrator(session_manager)
 
-        # The orchestrator should NOT have created its own session service
-        # It should only reference the shared one via get_adk_session_service()
-        assert not hasattr(orchestrator, 'adk_session_service') or orchestrator.adk_session_service is None
+        with patch('app.services.turn_orchestrator.get_singleton_runner') as mock_get_runner:
+            mock_runner = Mock()
+
+            async def mock_run_async(*args, **kwargs):
+                mock_event = Mock()
+                mock_event.content = Mock()
+                mock_event.content.parts = [Mock(text="PARTNER: Test response\nROOM: Good energy")]
+                yield mock_event
+
+            mock_runner.run_async = mock_run_async
+            mock_get_runner.return_value = mock_runner
+
+            session = Session(
+                session_id="test-session",
+                user_id="user-123",
+                user_email="test@example.com",
+                location="Test Location",
+                status=SessionStatus.ACTIVE,
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+                expires_at=datetime.now(timezone.utc),
+                conversation_history=[],
+                turn_count=0,
+                current_phase="PHASE_1"
+            )
+
+            await orchestrator.execute_turn(
+                session=session,
+                user_input="Test input",
+                turn_number=1
+            )
+
+            mock_get_runner.assert_called_once()
 
     @pytest.mark.asyncio
     @pytest.mark.skip(reason="Test needs to be rewritten for new ADK run_async API")
