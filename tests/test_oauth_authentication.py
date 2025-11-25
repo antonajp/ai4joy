@@ -13,9 +13,7 @@ These tests validate that:
 import os
 import pytest
 import requests
-import time
 from typing import Dict, Optional
-from urllib.parse import urlparse
 
 # Skip production OAuth tests by default unless explicitly enabled
 INTEGRATION_TESTS_ENABLED = os.getenv("ENABLE_INTEGRATION_TESTS", "false").lower() == "true"

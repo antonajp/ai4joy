@@ -10,8 +10,6 @@ Test Coverage:
 """
 
 import pytest
-import asyncio
-from datetime import datetime, timezone
 from httpx import AsyncClient, ASGITransport
 
 from app.main import app

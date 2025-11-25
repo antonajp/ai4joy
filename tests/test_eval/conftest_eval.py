@@ -9,7 +9,7 @@ from app.agents.partner_agent import create_partner_agent
 from app.agents.mc_agent import create_mc_agent
 from app.agents.room_agent import create_room_agent
 from app.agents.coach_agent import create_coach_agent
-from app.services.turn_orchestrator import get_singleton_runner, reset_runner
+from app.services.turn_orchestrator import reset_runner
 from app.config import get_settings
 from app.utils.logger import get_logger
 

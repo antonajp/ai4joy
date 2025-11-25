@@ -1,6 +1,5 @@
 """Performance Tuning Configuration and Utilities"""
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass

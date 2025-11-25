@@ -1,8 +1,5 @@
 """Tests for ADK native OpenTelemetry observability integration"""
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
+from unittest.mock import patch
 
 from app.services.adk_observability import (
     ADKObservability,
@@ -113,7 +110,6 @@ class TestOpenTelemetryIntegration:
     def test_trace_propagation_to_logger(self):
         """Test trace ID propagates from span to logger"""
         from app.utils.logger import CloudLogger
-        from opentelemetry import trace
 
         obs = ADKObservability(enabled=True)
         tracer = obs.get_tracer("test")

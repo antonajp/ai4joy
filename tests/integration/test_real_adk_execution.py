@@ -14,11 +14,11 @@ Test Coverage:
 
 import pytest
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime
 
 from app.services.turn_orchestrator import TurnOrchestrator, create_stage_manager
 from app.services.session_manager import SessionManager
-from app.models.session import Session, SessionStatus, SessionCreate
+from app.models.session import SessionCreate
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 

@@ -1,10 +1,9 @@
 """Tests for monitoring and observability features"""
 import pytest
 import time
-from unittest.mock import Mock, patch
 
 from app.services.monitoring import MonitoringService, get_monitoring_service
-from app.services.alerting import AlertingService, AlertSeverity, get_alerting_service
+from app.services.alerting import AlertingService, AlertSeverity
 from app.utils.logger import CloudLogger, set_trace_id, get_trace_id
 from app.middleware.performance import PerformanceMiddleware
 
@@ -259,7 +258,7 @@ class TestPerformanceMiddleware:
     @pytest.mark.asyncio
     async def test_performance_middleware_tracks_duration(self):
         """Test middleware tracks request duration"""
-        from fastapi import FastAPI, Request
+        from fastapi import FastAPI
         from fastapi.testclient import TestClient
 
         app = FastAPI()

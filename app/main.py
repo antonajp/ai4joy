@@ -22,7 +22,7 @@ from app.utils.logger import get_logger
 from app.middleware.oauth_auth import OAuthSessionMiddleware
 from app.middleware.performance import PerformanceMiddleware
 from app.services.adk_observability import initialize_adk_observability, get_adk_observability
-from app.routers import health, sessions, agent, auth, static
+from app.routers import health, sessions, auth, static
 
 settings = get_settings()
 
@@ -74,7 +74,6 @@ logger.info("OAuth session authentication and performance middleware registered"
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(sessions.router)
-app.include_router(agent.router)
 app.include_router(static.router)
 
 logger.info("All routers registered")

@@ -10,7 +10,6 @@ Usage:
     pytest tests/test_eval/test_agent_evaluations.py -k phase2
 """
 import pytest
-import asyncio
 from pathlib import Path
 
 from tests.test_eval.eval_runner import (

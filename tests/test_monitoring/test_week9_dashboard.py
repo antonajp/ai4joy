@@ -6,7 +6,7 @@ Test Coverage:
 - TC-W9-005: Log-Based Metrics (partial - requires manual validation)
 """
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock
 from google.cloud import monitoring_v3
 from google.cloud.monitoring_dashboard import v1 as dashboard_v1
 

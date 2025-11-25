@@ -6,10 +6,6 @@ Test Coverage:
 """
 import pytest
 import time
-from unittest.mock import Mock, patch, MagicMock
-from opentelemetry import metrics, trace
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.trace import TracerProvider
 
 
 class TestOpenTelemetryMetricsExport:
@@ -128,7 +124,6 @@ class TestOpenTelemetryMetricsExport:
         """Integration test: Verify metrics appear in Cloud Monitoring"""
         import os
         from google.cloud import monitoring_v3
-        from datetime import datetime, timedelta
 
         project_id = os.getenv("GCP_PROJECT_ID", "improvOlympics")
         client = monitoring_v3.MetricServiceClient()

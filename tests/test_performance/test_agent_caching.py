@@ -4,10 +4,6 @@ import time
 from datetime import datetime, timezone, timedelta
 
 from app.services.agent_cache import AgentCache, CachedAgent, get_agent_cache, reset_agent_cache
-from app.agents.stage_manager import create_stage_manager
-from app.agents.partner_agent import create_partner_agent
-from app.agents.room_agent import create_room_agent
-from app.agents.coach_agent import create_coach_agent
 
 
 class TestAgentCaching:

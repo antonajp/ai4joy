@@ -1,6 +1,6 @@
 """PII Detection and Redaction Service"""
 import re
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Optional
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)

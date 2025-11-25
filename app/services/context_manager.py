@@ -11,7 +11,6 @@ This service focuses on:
 - Conversation history compaction for display
 """
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timezone
 
 from app.models.session import Session
 from app.utils.logger import get_logger

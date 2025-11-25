@@ -15,8 +15,8 @@ import requests
 import socket
 import ssl
 import dns.resolver
-from datetime import datetime, timedelta
-from typing import Dict, Optional, Tuple
+from datetime import datetime
+from typing import Dict, Optional
 from urllib.parse import urlparse
 
 

@@ -2,7 +2,6 @@
 TC-001: Container Build Verification
 Tests that the Docker container builds successfully with all dependencies.
 """
-import subprocess
 import pytest
 import docker
 from pathlib import Path

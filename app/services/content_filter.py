@@ -1,7 +1,6 @@
 """Content Filtering Service for User Input Validation"""
 import re
-from typing import Dict, List, Tuple, Optional
-from datetime import datetime, timezone
+from typing import Dict, List, Optional
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)

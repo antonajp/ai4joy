@@ -13,9 +13,8 @@ Test Coverage:
 """
 
 import pytest
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, AsyncMock, patch
 from datetime import datetime, timezone
-from google.adk.runners import Runner
 
 from app.services.turn_orchestrator import TurnOrchestrator
 from app.models.session import Session, SessionStatus
@@ -782,7 +781,6 @@ class TestTurnOrchestratorAsyncExecution:
         The execute_turn method should get the singleton Runner via
         get_singleton_runner(), not create a new Runner each call.
         """
-        from app.services.turn_orchestrator import reset_runner
 
         session_manager = Mock()
         session_manager.update_session_atomic = AsyncMock()

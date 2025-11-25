@@ -13,7 +13,7 @@ import asyncio
 import httpx
 import time
 import statistics
-from typing import List, Dict, Any
+from typing import List, Dict
 
 # Skip load tests by default unless explicitly enabled
 LOAD_TESTS_ENABLED = os.getenv("ENABLE_LOAD_TESTS", "false").lower() == "true"

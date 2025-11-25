@@ -4,7 +4,6 @@ Tests complete session from initialization to coach feedback.
 """
 import pytest
 import requests
-import time
 from typing import Dict, Any
 
 

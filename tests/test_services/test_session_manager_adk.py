@@ -6,10 +6,10 @@ which uses DatabaseSessionService instead of InMemorySessionService.
 """
 import pytest
 from datetime import datetime, timezone, timedelta
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch, MagicMock
 
 from app.services.session_manager import SessionManager, get_session_manager
-from app.models.session import SessionCreate, SessionStatus
+from app.models.session import SessionCreate
 
 
 @pytest.fixture
