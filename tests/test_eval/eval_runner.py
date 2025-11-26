@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from dataclasses import dataclass, asdict
 
 from google.adk.runners import Runner
+from google.genai import types
 
 from app.agents.stage_manager import create_stage_manager
 from app.agents.partner_agent import create_partner_agent
@@ -286,14 +287,36 @@ class EvaluationRunner:
             max_retries = self.config.get('evaluation_parameters.max_retries', 3)
             retry_delay = self.config.get('evaluation_parameters.retry_delay_seconds', 2)
 
+            # Create message using new ADK API
+            new_message = types.Content(
+                role="user",
+                parts=[types.Part.from_text(text=input_text)]
+            )
+
+            # Generate unique IDs for this evaluation run
+            eval_user_id = f"eval_user_{test_name}"
+            eval_session_id = f"eval_session_{test_name}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
             response_obj = None
             last_error = None
             for attempt in range(max_retries):
                 try:
-                    response_obj = await asyncio.wait_for(
-                        runner.run(input_text),
-                        timeout=timeout
-                    )
+                    response_parts = []
+
+                    async def run_with_timeout():
+                        async for event in runner.run_async(
+                            user_id=eval_user_id,
+                            session_id=eval_session_id,
+                            new_message=new_message
+                        ):
+                            if hasattr(event, 'content') and event.content:
+                                if hasattr(event.content, 'parts'):
+                                    for part in event.content.parts:
+                                        if hasattr(part, 'text') and part.text:
+                                            response_parts.append(part.text)
+
+                    await asyncio.wait_for(run_with_timeout(), timeout=timeout)
+                    response_obj = "".join(response_parts)
                     break
                 except asyncio.TimeoutError as e:
                     last_error = e
