@@ -30,6 +30,55 @@ class MCWelcomeInput(BaseModel):
     )
 
 
+def _validate_user_input_security(
+    user_input: str, session_id: str, user_id: str
+) -> None:
+    """Validate user input for security concerns.
+
+    Raises HTTPException if input fails security checks.
+    """
+    content_filter = get_content_filter()
+    pii_detector = get_pii_detector()
+    injection_guard = get_prompt_injection_guard()
+
+    # Check for prompt injection attempts
+    injection_result = injection_guard.check_injection(user_input)
+    if not injection_result.is_safe:
+        logger.warning(
+            "Prompt injection attempt blocked",
+            session_id=session_id,
+            user_id=user_id,
+            threat_level=injection_result.threat_level,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Input contains patterns that violate content policy.",
+        )
+
+    # Check for offensive content
+    content_result = content_filter.filter_input(user_input)
+    if not content_result.is_allowed:
+        logger.warning(
+            "Offensive content blocked",
+            session_id=session_id,
+            user_id=user_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Input contains inappropriate content.",
+        )
+
+    # Log PII detection (warning only, don't block)
+    pii_result = pii_detector.detect_pii(user_input)
+    if pii_result.has_pii:
+        logger.warning(
+            "PII detected in user input",
+            session_id=session_id,
+            user_id=user_id,
+            pii_types=[d.pii_type for d in pii_result.detections],
+        )
+
+
 class MCWelcomeResponse(BaseModel):
     """Response from MC welcome phase"""
 
@@ -219,46 +268,7 @@ async def mc_welcome_phase(
 
     # Security checks on user input if provided
     if welcome_input.user_input:
-        content_filter = get_content_filter()
-        pii_detector = get_pii_detector()
-        injection_guard = get_prompt_injection_guard()
-
-        # Check for prompt injection attempts
-        injection_result = injection_guard.check_injection(welcome_input.user_input)
-        if not injection_result.is_safe:
-            logger.warning(
-                "Prompt injection attempt blocked in MC welcome",
-                session_id=session_id,
-                user_id=user_id,
-                threat_level=injection_result.threat_level,
-            )
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Input contains patterns that violate content policy.",
-            )
-
-        # Check for offensive content
-        content_result = content_filter.filter_input(welcome_input.user_input)
-        if not content_result.is_allowed:
-            logger.warning(
-                "Offensive content blocked in MC welcome",
-                session_id=session_id,
-                user_id=user_id,
-            )
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Input contains inappropriate content.",
-            )
-
-        # Log PII detection
-        pii_result = pii_detector.detect_pii(welcome_input.user_input)
-        if pii_result.has_pii:
-            logger.warning(
-                "PII detected in MC welcome input",
-                session_id=session_id,
-                user_id=user_id,
-                pii_types=[d.pii_type for d in pii_result.detections],
-            )
+        _validate_user_input_security(welcome_input.user_input, session_id, user_id)
 
     # Execute MC welcome phase
     orchestrator = get_mc_welcome_orchestrator(session_manager)
