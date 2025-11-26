@@ -587,7 +587,7 @@ class TestTurnOrchestratorErrorHandling:
 
         When ADK Runner fails, error should be logged and re-raised.
         """
-        with patch('app.services.turn_orchestrator.create_stage_manager') as mock_create:
+        with patch('app.services.turn_orchestrator.create_stage_manager'):
             with patch('app.services.turn_orchestrator.Runner') as mock_runner:
                 # Simulate runner failure
                 mock_runner_instance = Mock()

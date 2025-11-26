@@ -70,7 +70,7 @@ class TestMonitoringService:
     def test_get_trace_id(self):
         """Test getting current trace ID"""
         monitoring = MonitoringService(enabled=True)
-        trace_id = monitoring.get_trace_id()
+        _trace_id = monitoring.get_trace_id()  # noqa: F841 - verifies method works
 
     def test_singleton_pattern(self):
         """Test get_monitoring_service returns singleton"""
@@ -263,7 +263,7 @@ class TestPerformanceMiddleware:
 
         app = FastAPI()
 
-        middleware = PerformanceMiddleware(app, slow_request_threshold=1.0)
+        _middleware = PerformanceMiddleware(app, slow_request_threshold=1.0)  # noqa: F841 - tests instantiation
         app.add_middleware(PerformanceMiddleware, slow_request_threshold=1.0)
 
         @app.get("/test")

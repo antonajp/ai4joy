@@ -251,7 +251,7 @@ class TestOAuthAuthentication:
         assert retrieved_session['user_id'] == user_id, \
             "Retrieved session should have same user_id"
 
-        print(f"✓ Session user association verified")
+        print("✓ Session user association verified")
 
 
 class TestIAPHeaderExtraction:

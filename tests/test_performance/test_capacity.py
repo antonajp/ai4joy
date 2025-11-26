@@ -308,7 +308,7 @@ class TestMemoryUsage:
         total_growth = sizes[-1] - sizes[0]
         avg_per_turn = total_growth / 15
 
-        print(f"\nConversation History Memory Growth:")
+        print("\nConversation History Memory Growth:")
         print(f"  Initial size: {sizes[0]} bytes")
         print(f"  Final size (15 turns): {sizes[-1]} bytes")
         print(f"  Average per turn: {avg_per_turn:.0f} bytes")
@@ -375,7 +375,7 @@ class TestFirestoreOperationPatterns:
         total_ops = sum(operations_per_turn.values())
         assert total_ops <= 5
 
-        print(f"\nFirestore operations per turn:")
+        print("\nFirestore operations per turn:")
         print(f"  Reads: {operations_per_turn['reads']}")
         print(f"  Writes: {operations_per_turn['writes']}")
         print(f"  Optional: {operations_per_turn['optional_writes']}")
@@ -400,7 +400,7 @@ class TestFirestoreOperationPatterns:
 
         total_ops = sum(operations.values())
 
-        print(f"\nFirestore operations per session:")
+        print("\nFirestore operations per session:")
         print(f"  Session creation: {operations['session_creation']}")
         print(f"  Turn operations: {operations['turns']} (15 turns × 3 ops)")
         print(f"  Session close: {operations['session_close']}")

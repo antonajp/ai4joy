@@ -211,7 +211,7 @@ class TestPartnerPhase2Behavior:
             f"Phase 2 should have less scaffolding than Phase 1. " \
             f"P1: {p1_scaffolding_count}, P2: {p2_scaffolding_count}"
 
-        print(f"✓ Scaffolding reduced from Phase 1 to Phase 2")
+        print("✓ Scaffolding reduced from Phase 1 to Phase 2")
         print(f"  - Phase 1 scaffolding words: {p1_scaffolding_count}")
         print(f"  - Phase 2 scaffolding words: {p2_scaffolding_count}")
 

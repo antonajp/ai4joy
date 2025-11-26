@@ -77,7 +77,7 @@ class TestHealthCheckEndpoints:
             assert 'ok' in response.text.lower() or 'healthy' in response.text.lower(), \
                 f"Health check response should indicate healthy status: {response.text}"
 
-        print(f"✓ /health endpoint accessible and healthy")
+        print("✓ /health endpoint accessible and healthy")
         print(f"✓ Response time: {response_time:.2f}s")
 
     def test_tc_infra_02_ready_check_accessible(
@@ -104,9 +104,9 @@ class TestHealthCheckEndpoints:
             f"/ready should return 200 or 503, got {response.status_code}"
 
         if response.status_code == 200:
-            print(f"✓ /ready endpoint indicates service is ready")
+            print("✓ /ready endpoint indicates service is ready")
         else:
-            print(f"ℹ /ready endpoint indicates service not ready (503)")
+            print("ℹ /ready endpoint indicates service not ready (503)")
 
     def test_tc_infra_03_health_check_no_auth_required(
         self,
@@ -149,7 +149,7 @@ class TestHealthCheckEndpoints:
         assert ready_response.status_code in [200, 503], \
             f"/ready should return 200/503 without auth, got {ready_response.status_code}"
 
-        print(f"✓ Health checks accessible without authentication")
+        print("✓ Health checks accessible without authentication")
 
 
 class TestDNSResolution:
@@ -434,7 +434,7 @@ class TestHTTPSEnforcement:
         assert final_response.url.startswith('https://'), \
             "Final URL should be HTTPS"
 
-        print(f"✓ HTTPS enforcement working correctly")
+        print("✓ HTTPS enforcement working correctly")
 
     def test_tc_infra_09_hsts_header_present(
         self,

@@ -142,7 +142,7 @@ class TestIAPAuthMiddleware:
         health_paths = ["/health", "/ready", "/health/", "/ready/"]
 
         for path in health_paths:
-            request = mock_request(path=path, headers={})
+            _request = mock_request(path=path, headers={})  # noqa: F841 - created to test path handling
             should_bypass = middleware._should_bypass_auth(path)
 
             assert should_bypass, f"Path {path} should bypass authentication"
@@ -167,7 +167,7 @@ class TestIAPAuthMiddleware:
         ]
 
         for path in protected_paths:
-            request = mock_request(path=path, headers={})
+            _request = mock_request(path=path, headers={})  # noqa: F841 - created to test path handling
             should_bypass = middleware._should_bypass_auth(path)
 
             assert not should_bypass, f"Path {path} should NOT bypass authentication"
@@ -311,10 +311,11 @@ class TestIAPAuthMiddlewareIntegration:
             assert scope["state"]["user_email"] == "testuser@example.com"
             assert scope["state"]["user_id"] == "1234567890"
 
-        middleware = IAPAuthMiddleware(app=mock_app)
+        _middleware = IAPAuthMiddleware(app=mock_app)  # noqa: F841 - testing instantiation
 
-        # Create ASGI scope with valid headers
-        scope = {
+        # Create ASGI scope with valid headers (not used in this test structure)
+        # _scope kept for documentation of expected structure
+        _ = {
             "type": "http",
             "method": "GET",
             "path": "/api/sessions",

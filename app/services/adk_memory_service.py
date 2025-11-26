@@ -20,12 +20,14 @@ Usage:
 """
 import threading
 from typing import Optional, List, Dict, Any, Union
-from google.adk.memory import VertexAiMemoryBankService, InMemoryMemoryService
 
-MemoryServiceType = Union[VertexAiMemoryBankService, InMemoryMemoryService]
+from google.adk.memory import VertexAiMemoryBankService, InMemoryMemoryService
 from google.adk.sessions.session import Session as ADKSession
+
 from app.config import get_settings
 from app.utils.logger import get_logger
+
+MemoryServiceType = Union[VertexAiMemoryBankService, InMemoryMemoryService]
 
 logger = get_logger(__name__)
 settings = get_settings()

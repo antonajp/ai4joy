@@ -10,6 +10,7 @@ ADK automatically instruments:
 This service adds custom metrics for cache operations and custom spans for
 application-specific operations not covered by ADK.
 """
+import asyncio
 import time
 import functools
 from typing import Callable, Optional
@@ -279,6 +280,3 @@ def measure_latency(metric_name: str, **metric_attributes):
         return sync_wrapper
 
     return decorator
-
-
-import asyncio

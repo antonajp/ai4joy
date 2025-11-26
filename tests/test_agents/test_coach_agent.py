@@ -212,7 +212,7 @@ class TestCoachSystemPrompt:
 
         # At least some emphasis on constructive feedback
         assert len(found_constructive) >= 1, \
-            f"Coach should emphasize constructive feedback"
+            "Coach should emphasize constructive feedback"
 
         print(f"✓ Coach emphasizes constructive feedback: {found_constructive}")
 

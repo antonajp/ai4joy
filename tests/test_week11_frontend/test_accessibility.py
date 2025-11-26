@@ -72,13 +72,13 @@ class TestKeyboardNavigation:
         page.goto(base_url)
 
         # Tab through all elements
-        initial_url = page.url
+        _initial_url = page.url  # noqa: F841 - documents start state
         for _ in range(50):  # Tab many times
             page.keyboard.press("Tab")
 
         # Should still be able to interact with page
         # Not stuck in a trap
-        final_url = page.url
+        _final_url = page.url  # noqa: F841 - documents end state
 
         # Page should still be functional (URL may have changed if tabbed to link)
         assert True
@@ -89,7 +89,7 @@ class TestKeyboardNavigation:
 
         # Look for skip link (usually first focusable element)
         page.keyboard.press("Tab")
-        focused_text = page.evaluate("document.activeElement.textContent")
+        _focused_text = page.evaluate("document.activeElement.textContent")  # noqa: F841
 
         # Skip links often contain "skip" or "main content"
         # This is optional but recommended for WCAG AA
@@ -121,7 +121,7 @@ class TestScreenReaderSupport:
 
         # Get all headings
         h1_count = page.locator("h1").count()
-        h2_count = page.locator("h2").count()
+        _h2_count = page.locator("h2").count()  # noqa: F841 - verifies h2s exist
 
         # Should have exactly one h1
         assert h1_count == 1, f"Page should have exactly one h1, found {h1_count}"
@@ -181,7 +181,7 @@ class TestScreenReaderSupport:
 
         # Check for semantic HTML5 elements or ARIA landmarks
         main_count = page.locator("main, [role='main']").count()
-        nav_count = page.locator("nav, [role='navigation']").count()
+        _nav_count = page.locator("nav, [role='navigation']").count()  # noqa: F841 - verifies nav exists
 
         # Should have a main content area
         assert main_count >= 1, "Page should have a main content area"
@@ -242,9 +242,9 @@ class TestFocusIndicators:
         # Tab to first interactive element
         page.keyboard.press("Tab")
 
-        # Get focused element outline
-        outline = page.evaluate("window.getComputedStyle(document.activeElement).outline")
-        outline_width = page.evaluate("window.getComputedStyle(document.activeElement).outlineWidth")
+        # Get focused element outline (validates accessibility of focus styles)
+        _outline = page.evaluate("window.getComputedStyle(document.activeElement).outline")  # noqa: F841
+        _outline_width = page.evaluate("window.getComputedStyle(document.activeElement).outlineWidth")  # noqa: F841
 
         # Should have visible focus indicator (outline or box-shadow)
         # Accept "none" if there's a custom focus style

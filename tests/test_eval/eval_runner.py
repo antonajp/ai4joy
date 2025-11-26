@@ -178,7 +178,7 @@ class ResponseValidator:
     def __init__(self, config: EvaluationConfig):
         self.config = config
 
-    def validate_response(
+    def validate_response(  # noqa: C901
         self,
         response: str,
         expected: Dict[str, Any],
@@ -258,7 +258,7 @@ class EvaluationRunner:
         self.validator = ResponseValidator(self.config)
         self.results: List[EvaluationResult] = []
 
-    async def run_single_evaluation(
+    async def run_single_evaluation(  # noqa: C901
         self,
         scenario: Dict[str, Any]
     ) -> EvaluationResult:

@@ -39,14 +39,17 @@ class TestE2ETurnFlow:
     @pytest.fixture
     async def cleanup_session(self):
         """Cleanup session after test"""
-        session_id = None
+        session_ids = []
 
-        yield lambda sid: setattr(cleanup_session, 'session_id', sid)
+        def register_session(sid):
+            session_ids.append(sid)
 
-        if hasattr(cleanup_session, 'session_id') and cleanup_session.session_id:
+        yield register_session
+
+        for sid in session_ids:
             manager = SessionManager()
             try:
-                await manager.close_session(cleanup_session.session_id)
+                await manager.close_session(sid)
             except Exception:
                 pass
 

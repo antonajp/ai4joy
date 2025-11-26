@@ -314,7 +314,7 @@ def eval_logger():
 
 
 @pytest.fixture
-def validation_helpers():
+def validation_helpers():  # noqa: C901
     """Helper functions for validating agent responses"""
     class ValidationHelpers:
         @staticmethod

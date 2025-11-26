@@ -122,79 +122,12 @@ class PromptInjectionGuard:
         self._stats["total_checks"] += 1
 
         detections: List[str] = []
-        threat_level = "none"
-
-        system_leak = self._check_patterns(
-            user_input,
-            self.SYSTEM_PROMPT_LEAK_PATTERNS
-        )
-        if system_leak:
-            detections.append("system_leak")
-            threat_level = "critical"
-            self._stats["by_type"]["system_leak"] += 1
-
-        role_hijack = self._check_patterns(
-            user_input,
-            self.ROLE_HIJACKING_PATTERNS
-        )
-        if role_hijack:
-            detections.append("role_hijack")
-            if threat_level == "none":
-                threat_level = "high"
-            self._stats["by_type"]["role_hijack"] += 1
-
-        instruction_override = self._check_patterns(
-            user_input,
-            self.INSTRUCTION_OVERRIDE_PATTERNS
-        )
-        if instruction_override:
-            detections.append("instruction_override")
-            if threat_level == "none":
-                threat_level = "high"
-            self._stats["by_type"]["instruction_override"] += 1
-
-        context_manip = self._check_patterns(
-            user_input,
-            self.CONTEXT_MANIPULATION_PATTERNS
-        )
-        if context_manip:
-            detections.append("context_manipulation")
-            if threat_level == "none":
-                threat_level = "high"
-            self._stats["by_type"]["context_manipulation"] += 1
-
-        jailbreak = self._check_patterns(
-            user_input,
-            self.JAILBREAK_PATTERNS
-        )
-        if jailbreak:
-            detections.append("jailbreak")
-            if threat_level == "none":
-                threat_level = "high"
-            self._stats["by_type"]["jailbreak"] += 1
-
-        encoding = self._check_patterns(
-            user_input,
-            self.SUSPICIOUS_ENCODING_PATTERNS
-        )
-        if encoding:
-            detections.append("suspicious_encoding")
-            if threat_level == "none":
-                threat_level = "medium"
-            self._stats["by_type"]["encoding"] += 1
+        threat_level = self._run_all_detection_checks(user_input, detections)
 
         is_safe = threat_level in ["none", "low"]
 
         if not is_safe:
-            self._stats["blocked"] += 1
-            self._stats["by_threat_level"][threat_level] += 1
-
-            logger.warning(
-                "Prompt injection attempt detected",
-                threat_level=threat_level,
-                detections=detections,
-                input_length=len(user_input)
-            )
+            self._record_blocked_attempt(threat_level, detections, len(user_input))
 
         sanitized = self.sanitize_input(user_input) if is_safe else ""
 
@@ -203,6 +136,46 @@ class PromptInjectionGuard:
             threat_level=threat_level,
             detections=detections,
             sanitized_input=sanitized
+        )
+
+    def _run_all_detection_checks(
+        self, user_input: str, detections: List[str]
+    ) -> str:
+        """Run all detection pattern checks and return threat level."""
+        threat_level = "none"
+
+        # Check each pattern category
+        checks = [
+            (self.SYSTEM_PROMPT_LEAK_PATTERNS, "system_leak", "critical"),
+            (self.ROLE_HIJACKING_PATTERNS, "role_hijack", "high"),
+            (self.INSTRUCTION_OVERRIDE_PATTERNS, "instruction_override", "high"),
+            (self.CONTEXT_MANIPULATION_PATTERNS, "context_manipulation", "high"),
+            (self.JAILBREAK_PATTERNS, "jailbreak", "high"),
+            (self.SUSPICIOUS_ENCODING_PATTERNS, "suspicious_encoding", "medium"),
+        ]
+
+        for patterns, detection_name, level in checks:
+            if self._check_patterns(user_input, patterns):
+                detections.append(detection_name)
+                stat_key = detection_name.replace("suspicious_", "")
+                self._stats["by_type"][stat_key] += 1
+                if threat_level == "none" or level == "critical":
+                    threat_level = level
+
+        return threat_level
+
+    def _record_blocked_attempt(
+        self, threat_level: str, detections: List[str], input_length: int
+    ) -> None:
+        """Record statistics for a blocked injection attempt."""
+        self._stats["blocked"] += 1
+        self._stats["by_threat_level"][threat_level] += 1
+
+        logger.warning(
+            "Prompt injection attempt detected",
+            threat_level=threat_level,
+            detections=detections,
+            input_length=input_length
         )
 
     def sanitize_input(self, user_input: str) -> str:

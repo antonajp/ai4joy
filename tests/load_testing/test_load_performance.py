@@ -82,7 +82,7 @@ class TestLoadPerformance:
         avg_latency = statistics.mean(latencies)
         max_latency = max(latencies)
 
-        print(f"\nConcurrent Session Creation (n=10):")
+        print("\nConcurrent Session Creation (n=10):")
         print(f"  Success: {len(successful)}/10")
         print(f"  Avg latency: {avg_latency:.2f}s")
         print(f"  Max latency: {max_latency:.2f}s")
@@ -150,7 +150,7 @@ class TestLoadPerformance:
         avg_latency = statistics.mean(latencies)
         p95_latency = statistics.quantiles(latencies, n=20)[18]
 
-        print(f"\nConcurrent Turn Execution (n=10):")
+        print("\nConcurrent Turn Execution (n=10):")
         print(f"  Success: {len(successful)}/10")
         print(f"  Avg latency: {avg_latency:.2f}s")
         print(f"  p95 latency: {p95_latency:.2f}s")
@@ -237,7 +237,7 @@ class TestLoadPerformance:
             avg_latency = 0
             p95_latency = 0
 
-        print(f"\nFull Session Flow Under Load (5 users × 15 turns):")
+        print("\nFull Session Flow Under Load (5 users × 15 turns):")
         print(f"  Sessions completed: {len(successful_sessions)}/5")
         print(f"  Turns completed: {total_turns_completed}/{total_turns_attempted}")
         print(f"  Error rate: {error_rate:.2f}%")
@@ -289,7 +289,7 @@ class TestLoadPerformance:
         successful = all_status_codes.count(200)
         other_errors = len([c for c in all_status_codes if c not in [200, 429]])
 
-        print(f"\nRate Limiting Under Load:")
+        print("\nRate Limiting Under Load:")
         print(f"  Successful: {successful}")
         print(f"  Rate limited (429): {rate_limited}")
         print(f"  Other errors: {other_errors}")

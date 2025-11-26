@@ -255,13 +255,13 @@ class TestPhaseInformation:
         # Create with turn_count parameter (if supported)
         # This may need adjustment based on actual implementation
         try:
-            stage_manager = create_stage_manager(turn_count=5)
+            _stage_manager = create_stage_manager(turn_count=5)
             # Check if turn_count is stored somewhere
             # Implementation-specific
             print("✓ Stage Manager can receive turn_count parameter")
         except TypeError:
             # If turn_count not in constructor, check if there's a method
-            stage_manager = create_stage_manager()
+            _stage_manager = create_stage_manager()
             print("ℹ Stage Manager does not accept turn_count in constructor")
             print("  (May use different mechanism for phase tracking)")
 

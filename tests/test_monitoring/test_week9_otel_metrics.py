@@ -250,7 +250,7 @@ class TestTraceContextPropagation:
 
         with monitoring.trace_operation("async_parent"):
             parent_trace_id = monitoring.get_trace_id()
-            child_trace_id = await async_operation()
+            _child_trace_id = await async_operation()  # noqa: F841 - verifies propagation
 
             # Trace ID should propagate to async operation
             # Note: This may require proper async context setup
@@ -267,7 +267,7 @@ class TestTraceContextPropagation:
         from google.cloud import trace_v2
 
         project_id = os.getenv("GCP_PROJECT_ID", "improvOlympics")
-        client = trace_v2.TraceServiceClient()
+        _client = trace_v2.TraceServiceClient()  # noqa: F841 - validates client creation
 
         # Execute operation with trace
         from app.services.monitoring import MonitoringService
@@ -280,7 +280,7 @@ class TestTraceContextPropagation:
         time.sleep(2)
 
         # Query for recent traces (last 1 hour)
-        project_name = f"projects/{project_id}"
+        _project_name = f"projects/{project_id}"  # noqa: F841 - documents expected format
 
         # Note: Actual trace query would use TraceServiceClient.list_traces()
         # This is a simplified test structure

@@ -4,6 +4,8 @@ Test Coverage:
 - TC-W11-001: Landing Page Rendering
 - TC-W11-006: Static File Serving (partial)
 """
+import re
+
 import pytest
 from playwright.sync_api import Page, expect
 
@@ -214,6 +216,3 @@ class TestStaticFileServing:
 
         assert len(failed_requests) == 0, \
             f"Failed network requests detected: {failed_requests}"
-
-
-import re

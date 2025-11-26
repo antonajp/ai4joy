@@ -251,19 +251,19 @@ def test_summary():
     room = create_room_agent()
     stage_manager = create_stage_manager()
 
-    print(f"\nMC Agent:")
+    print("\nMC Agent:")
     print(f"  - Type: {type(mc).__name__}")
     print(f"  - Module: {type(mc).__module__}")
     print(f"  - Model: {mc.model}")
     print(f"  - Tools: {len(mc.tools)}")
 
-    print(f"\nRoom Agent:")
+    print("\nRoom Agent:")
     print(f"  - Type: {type(room).__name__}")
     print(f"  - Module: {type(room).__module__}")
     print(f"  - Model: {room.model}")
     print(f"  - Tools: {len(room.tools)}")
 
-    print(f"\nStage Manager:")
+    print("\nStage Manager:")
     print(f"  - Type: {type(stage_manager).__name__}")
     print(f"  - Module: {type(stage_manager).__module__}")
     print(f"  - Model: {stage_manager.model}")

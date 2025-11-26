@@ -179,11 +179,12 @@ async def test_i_agent_creation_performance():
     from app.agents import create_mc_agent, create_room_agent, create_partner_agent, create_coach_agent, create_stage_manager
 
     start = time.time()
-    mc = create_mc_agent()
-    room = create_room_agent()
-    partner = create_partner_agent(current_turn=1)
-    coach = create_coach_agent()
-    stage = create_stage_manager(current_turn=1)
+    # Create agents (results not used - testing creation time only)
+    create_mc_agent()
+    create_room_agent()
+    create_partner_agent(current_turn=1)
+    create_coach_agent()
+    create_stage_manager(current_turn=1)
     elapsed = time.time() - start
 
     print(f"✅ Agent creation time: {elapsed:.3f}s")

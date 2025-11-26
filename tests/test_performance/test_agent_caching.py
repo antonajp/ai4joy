@@ -88,13 +88,13 @@ class TestAgentCaching:
     def test_cache_expiration(self, cache):
         cache.ttl_seconds = 1
 
-        agent = cache.get_stage_manager(turn_count=0)
+        _agent = cache.get_stage_manager(turn_count=0)  # noqa: F841 - populates cache
         stats_before = cache.stats.get_stats()
         assert stats_before['misses'] == 1
 
         time.sleep(1.5)
 
-        agent2 = cache.get_stage_manager(turn_count=0)
+        _agent2 = cache.get_stage_manager(turn_count=0)  # noqa: F841 - tests expiration
 
         stats_after = cache.stats.get_stats()
         assert stats_after['misses'] == 2

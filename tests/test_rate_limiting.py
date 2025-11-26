@@ -200,7 +200,7 @@ class TestDailyRateLimiting:
             'active_sessions': 0
         })
 
-        print(f"✓ Set test data: 10 sessions from yesterday")
+        print("✓ Set test data: 10 sessions from yesterday")
 
         # Trigger counter reset by checking limits (this would be done by application)
         # In actual implementation, this logic would be in RateLimiter.check_daily_limit()
@@ -218,16 +218,16 @@ class TestDailyRateLimiting:
                 'sessions_today': 0,
                 'last_reset': datetime.now(timezone.utc)
             })
-            print(f"✓ Counter reset triggered (last_reset was yesterday)")
+            print("✓ Counter reset triggered (last_reset was yesterday)")
 
             # Verify reset
             updated_doc = user_limits_ref.get()
             updated_data = updated_doc.to_dict()
             assert updated_data['sessions_today'] == 0, \
                 "sessions_today should reset to 0"
-            print(f"✓ sessions_today correctly reset to 0")
+            print("✓ sessions_today correctly reset to 0")
         else:
-            print(f"ℹ Counter does not need reset (last_reset is today)")
+            print("ℹ Counter does not need reset (last_reset is today)")
 
     def test_tc_rate_04_rate_limit_error_response_format(
         self,
@@ -275,7 +275,7 @@ class TestDailyRateLimiting:
         assert 'reset' in message.lower() or 'midnight' in message.lower(), \
             "Message should explain when limit resets"
 
-        print(f"✓ Rate limit error response well-formed")
+        print("✓ Rate limit error response well-formed")
         print(f"  Error: {error_data.get('error')}")
         print(f"  Message: {error_data.get('message')}")
 
@@ -365,7 +365,7 @@ class TestConcurrentSessionLimiting:
         assert response_after_complete.status_code == 200, \
             "Should be able to create session after completing one"
 
-        print(f"✓ Can create new session after completing one")
+        print("✓ Can create new session after completing one")
 
         # Cleanup remaining sessions
         for session_id in active_sessions[1:]:
@@ -483,7 +483,7 @@ class TestRateLimitEdgeCases:
             'override_by': 'admin@ai4joy.org'
         })
 
-        print(f"✓ Admin override capability tested")
+        print("✓ Admin override capability tested")
 
 
 # Fixtures

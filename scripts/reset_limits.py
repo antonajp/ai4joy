@@ -60,7 +60,7 @@ def reset_user(db, user_id, reset_daily=True, reset_concurrent=True):
         if updates:
             doc_ref.update(updates)
             print(f"Successfully reset limits for {user_id}")
-        
+
     except Exception as e:
         print(f"Error resetting user {user_id}: {e}")
 
@@ -75,37 +75,58 @@ def get_user_email(db, user_id):
         return data.get("user_email", "")
     return ""
 
-def list_and_prompt(db, reset_daily=True, reset_concurrent=True):
-    collection = db.collection(settings.firestore_user_limits_collection)
-    docs = collection.stream()
-
-    users_with_limits = []
-    user_emails = {}
+def _print_users_table(users_with_limits, user_emails):
+    """Print the users table header and rows."""
     print("\nUsers with session limits:")
     print("-" * 90)
     print(f"{'Email':<35} | {'User ID':<30} | {'Concurrent':<10} | {'Daily':<8}")
     print("-" * 90)
 
+    for uid, (email, active_count, daily_count) in user_emails.items():
+        email_display = email[:33] + ".." if len(email) > 35 else email
+        user_id_display = uid[:28] + ".." if len(uid) > 30 else uid
+        print(f"{email_display:<35} | {user_id_display:<30} | {active_count:<10} | {daily_count:<8}")
+
+
+def _handle_reset_choice(db, choice, users_with_limits, reset_daily, reset_concurrent):
+    """Handle the user's reset choice."""
+    if choice.lower() == 'q':
+        return
+    if choice.lower() == 'all':
+        for uid in users_with_limits:
+            reset_user(db, uid, reset_daily, reset_concurrent)
+    elif choice in users_with_limits:
+        reset_user(db, choice, reset_daily, reset_concurrent)
+    else:
+        print("User ID not in list.")
+        if input("Try to reset anyway? (y/n): ").lower() == 'y':
+            reset_user(db, choice, reset_daily, reset_concurrent)
+
+
+def list_and_prompt(db, reset_daily=True, reset_concurrent=True):
+    collection = db.collection(settings.firestore_user_limits_collection)
+    docs = collection.stream()
+
+    users_with_limits = []
+    user_data = {}
+
     for doc in docs:
         data = doc.to_dict()
         concurrent = data.get("concurrent_sessions", {})
         daily = data.get("daily_sessions", {})
-
         active_count = concurrent.get("count", 0)
         daily_count = daily.get("count", 0)
 
-        # Show users with any non-zero limits
         if active_count > 0 or daily_count > 0:
             users_with_limits.append(doc.id)
             email = get_user_email(db, doc.id)
-            user_emails[doc.id] = email
-            email_display = email[:33] + ".." if len(email) > 35 else email
-            user_id_display = doc.id[:28] + ".." if len(doc.id) > 30 else doc.id
-            print(f"{email_display:<35} | {user_id_display:<30} | {active_count:<10} | {daily_count:<8}")
+            user_data[doc.id] = (email, active_count, daily_count)
 
     if not users_with_limits:
         print("No users found with active limits.")
         return
+
+    _print_users_table(users_with_limits, user_data)
 
     print("-" * 60)
     reset_type = []
@@ -116,19 +137,7 @@ def list_and_prompt(db, reset_daily=True, reset_concurrent=True):
     print(f"Will reset: {', '.join(reset_type)} limits")
 
     choice = input("\nEnter User ID to reset, 'all' to reset all listed, or 'q' to quit: ").strip()
-
-    if choice.lower() == 'q':
-        return
-    elif choice.lower() == 'all':
-        for uid in users_with_limits:
-            reset_user(db, uid, reset_daily, reset_concurrent)
-    else:
-        if choice in users_with_limits:
-            reset_user(db, choice, reset_daily, reset_concurrent)
-        else:
-            print("User ID not in list.")
-            if input("Try to reset anyway? (y/n): ").lower() == 'y':
-                reset_user(db, choice, reset_daily, reset_concurrent)
+    _handle_reset_choice(db, choice, users_with_limits, reset_daily, reset_concurrent)
 
 def main():
     parser = argparse.ArgumentParser(description="Reset Improv Olympics User Limits")

@@ -349,7 +349,7 @@ class TestADKMemoryServiceIntegration:
 
                 memory_service = get_adk_memory_service()
 
-                runner = mock_runner_class(
+                _runner = mock_runner_class(  # noqa: F841 - validates runner creation
                     agent=MagicMock(),
                     app_name="Test App",
                     memory_service=memory_service

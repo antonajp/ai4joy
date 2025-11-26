@@ -14,7 +14,7 @@ Usage:
 import sys
 import argparse
 import requests
-from typing import Dict, Any, Optional
+from typing import Optional
 from datetime import datetime
 import json
 

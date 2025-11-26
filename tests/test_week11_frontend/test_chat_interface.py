@@ -130,7 +130,7 @@ class TestLoadingStates:
         # (it may be very quick)
         try:
             expect(loading).to_be_visible(timeout=1000)
-        except:
+        except Exception:
             # Loading may be too fast to catch - not a failure
             pass
 
@@ -151,7 +151,7 @@ class TestLoadingStates:
 
         try:
             expect(typing_indicator).to_be_visible(timeout=2000)
-        except:
+        except Exception:
             # May be too fast
             pass
 
@@ -195,9 +195,9 @@ class TestErrorStateHandling:
             page.wait_for_timeout(2000)
 
             # Error message should appear
-            error_message = page.locator(".error, .error-message, [role='alert']")
+            _error_message = page.locator(".error, .error-message, [role='alert']")  # noqa: F841
             # May not be visible if handled gracefully
-        except:
+        except Exception:
             pass
 
         # Re-enable network
@@ -301,7 +301,7 @@ class TestOAuthFlowIntegration:
 
         # Check for session cookie
         cookies = page.context.cookies()
-        session_cookie = next((c for c in cookies if "session" in c["name"].lower()), None)
+        _session_cookie = next((c for c in cookies if "session" in c["name"].lower()), None)  # noqa: F841
 
         # Session cookie should exist
         # (This may vary based on implementation)
@@ -329,7 +329,7 @@ class TestOAuthFlowIntegration:
         try:
             start_button.click()
             page.wait_for_timeout(2000)
-        except:
+        except Exception:
             pass
 
         # API requests should include session cookie
@@ -355,5 +355,5 @@ class TestOAuthFlowIntegration:
 
             # Session cookie should be cleared
             cookies = page.context.cookies()
-            session_cookie = next((c for c in cookies if "session" in c["name"].lower()), None)
+            _session_cookie = next((c for c in cookies if "session" in c["name"].lower()), None)  # noqa: F841
             # Cookie should be expired or deleted
