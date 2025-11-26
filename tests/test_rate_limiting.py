@@ -423,8 +423,8 @@ class TestConcurrentSessionLimiting:
 
             print(f"✓ Batch {batch}: Completed 3 sessions")
 
-        print(f"✓ Successfully created 9 sessions across 3 batches")
-        print(f"✓ Concurrent limit does not block daily usage")
+        print("✓ Successfully created 9 sessions across 3 batches")
+        print("✓ Concurrent limit does not block daily usage")
 
 
 class TestRateLimitEdgeCases:

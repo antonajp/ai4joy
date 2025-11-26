@@ -470,7 +470,7 @@ class TestHTTPSEnforcement:
 
                 print(f"✓ HSTS max-age: {max_age} seconds (>= 1 year)")
         else:
-            print(f"ℹ HSTS header not present (recommended but not required)")
+            print("ℹ HSTS header not present (recommended but not required)")
 
 
 class TestCloudRunService:
