@@ -281,6 +281,19 @@ class EvaluationRunner:
             # Use InMemorySessionService for evaluations
             session_service = InMemorySessionService()
 
+            # Generate unique IDs for this evaluation run
+            eval_user_id = f"eval_user_{test_name}"
+            eval_session_id = (
+                f"eval_session_{test_name}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            )
+
+            # Create the session before running the agent
+            await session_service.create_session(
+                app_name=settings.app_name,
+                user_id=eval_user_id,
+                session_id=eval_session_id,
+            )
+
             runner = Runner(
                 agent=agent, app_name=settings.app_name, session_service=session_service
             )
@@ -294,12 +307,6 @@ class EvaluationRunner:
             # Create message using new ADK API
             new_message = types.Content(
                 role="user", parts=[types.Part.from_text(text=input_text)]
-            )
-
-            # Generate unique IDs for this evaluation run
-            eval_user_id = f"eval_user_{test_name}"
-            eval_session_id = (
-                f"eval_session_{test_name}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
             )
 
             response_obj = None
