@@ -1,4 +1,5 @@
 """Request-level performance tracking middleware with OpenTelemetry integration"""
+
 import time
 import uuid
 from typing import Callable, Dict, List
@@ -47,12 +48,12 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
                 "http.method": request.method,
                 "http.url": str(request.url),
                 "http.target": request.url.path,
-            }
+            },
         ) as span:
             # Get trace ID from OpenTelemetry span
             span_context = span.get_span_context()
             if span_context.is_valid:
-                trace_id = format(span_context.trace_id, '032x')
+                trace_id = format(span_context.trace_id, "032x")
             else:
                 # Fallback to UUID if span context is invalid
                 trace_id = str(uuid.uuid4())
@@ -65,7 +66,7 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
                 trace_id=trace_id,
                 method=request.method,
                 path=request.url.path,
-                timestamp=timestamp
+                timestamp=timestamp,
             )
 
             try:
@@ -80,7 +81,7 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
                     duration=duration,
                     method=request.method,
                     path=request.url.path,
-                    status_code=response.status_code
+                    status_code=response.status_code,
                 )
 
                 response.headers["X-Trace-ID"] = trace_id
@@ -94,7 +95,7 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
                         path=request.url.path,
                         duration=duration,
                         threshold=self.slow_request_threshold,
-                        status_code=response.status_code
+                        status_code=response.status_code,
                     )
                     span.set_attribute("slow_request", True)
                 else:
@@ -104,7 +105,7 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
                         method=request.method,
                         path=request.url.path,
                         duration=duration,
-                        status_code=response.status_code
+                        status_code=response.status_code,
                     )
 
                 endpoint_key = f"{request.method}:{request.url.path}"
@@ -126,7 +127,7 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
                     path=request.url.path,
                     duration=duration,
                     error=str(e),
-                    error_type=type(e).__name__
+                    error_type=type(e).__name__,
                 )
 
                 self.monitoring.record_error(
@@ -134,8 +135,8 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
                     attributes={
                         "method": request.method,
                         "path": request.url.path,
-                        "trace_id": trace_id
-                    }
+                        "trace_id": trace_id,
+                    },
                 )
 
                 raise

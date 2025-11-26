@@ -3,6 +3,7 @@
 This module tests the new adk_session_service module that replaces the
 deprecated adk_session_bridge with ADK's native DatabaseSessionService.
 """
+
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 from datetime import datetime, timezone
@@ -14,6 +15,7 @@ from app.models.session import Session, SessionStatus
 def reset_singleton():
     """Reset the singleton before and after each test for isolation."""
     from app.services import adk_session_service
+
     adk_session_service._session_service = None
     yield
     adk_session_service._session_service = None
@@ -24,7 +26,9 @@ class TestADKSessionServiceSingleton:
 
     def test_get_adk_session_service_returns_same_instance(self):
         """Verify singleton returns same instance on multiple calls."""
-        with patch('app.services.adk_session_service.DatabaseSessionService') as mock_db_service:
+        with patch(
+            "app.services.adk_session_service.DatabaseSessionService"
+        ) as mock_db_service:
             mock_db_service.return_value = MagicMock()
 
             from app.services.adk_session_service import get_adk_session_service
@@ -37,9 +41,13 @@ class TestADKSessionServiceSingleton:
 
     def test_get_adk_session_service_initializes_with_config(self):
         """Verify service uses db_url from settings."""
-        with patch('app.services.adk_session_service.DatabaseSessionService') as mock_db_service:
-            with patch('app.services.adk_session_service.settings') as mock_settings:
-                mock_settings.adk_database_url = "postgresql://user:pass@localhost/testdb"
+        with patch(
+            "app.services.adk_session_service.DatabaseSessionService"
+        ) as mock_db_service:
+            with patch("app.services.adk_session_service.settings") as mock_settings:
+                mock_settings.adk_database_url = (
+                    "postgresql://user:pass@localhost/testdb"
+                )
                 mock_instance = MagicMock()
                 mock_db_service.return_value = mock_instance
 
@@ -54,14 +62,16 @@ class TestADKSessionServiceSingleton:
 
     def test_singleton_reset_for_testing(self):
         """Verify singleton can be reset for testing purposes."""
-        with patch('app.services.adk_session_service.DatabaseSessionService') as mock_db_service:
+        with patch(
+            "app.services.adk_session_service.DatabaseSessionService"
+        ) as mock_db_service:
             mock_instance1 = MagicMock(name="instance1")
             mock_instance2 = MagicMock(name="instance2")
             mock_db_service.side_effect = [mock_instance1, mock_instance2]
 
             from app.services.adk_session_service import (
                 get_adk_session_service,
-                reset_adk_session_service
+                reset_adk_session_service,
             )
 
             service1 = get_adk_session_service()
@@ -93,14 +103,16 @@ class TestADKSessionServiceOperations:
             conversation_history=[],
             metadata={},
             current_phase="PHASE_1",
-            turn_count=0
+            turn_count=0,
         )
 
     @pytest.mark.asyncio
     async def test_create_session_stores_state(self, sample_session):
         """Test creating session stores state data."""
-        with patch('app.services.adk_session_service.DatabaseSessionService') as mock_db_service:
-            with patch('app.services.adk_session_service.settings') as mock_settings:
+        with patch(
+            "app.services.adk_session_service.DatabaseSessionService"
+        ) as mock_db_service:
+            with patch("app.services.adk_session_service.settings") as mock_settings:
                 mock_settings.app_name = "Improv Olympics"
                 mock_settings.adk_database_url = "sqlite:///test.db"
 
@@ -128,18 +140,17 @@ class TestADKSessionServiceOperations:
     @pytest.mark.asyncio
     async def test_get_session_retrieves_state(self):
         """Test retrieving session returns stored state."""
-        with patch('app.services.adk_session_service.DatabaseSessionService') as mock_db_service:
-            with patch('app.services.adk_session_service.settings') as mock_settings:
+        with patch(
+            "app.services.adk_session_service.DatabaseSessionService"
+        ) as mock_db_service:
+            with patch("app.services.adk_session_service.settings") as mock_settings:
                 mock_settings.app_name = "Improv Olympics"
                 mock_settings.adk_database_url = "sqlite:///test.db"
 
                 mock_instance = MagicMock()
                 mock_adk_session = MagicMock()
                 mock_adk_session.id = "sess_test123"
-                mock_adk_session.state = {
-                    "location": "Mars Colony",
-                    "turn_count": 3
-                }
+                mock_adk_session.state = {"location": "Mars Colony", "turn_count": 3}
                 mock_adk_session.events = []
                 mock_instance.get_session = AsyncMock(return_value=mock_adk_session)
                 mock_db_service.return_value = mock_instance
@@ -147,14 +158,13 @@ class TestADKSessionServiceOperations:
                 from app.services.adk_session_service import get_adk_session
 
                 adk_session = await get_adk_session(
-                    session_id="sess_test123",
-                    user_id="user_456"
+                    session_id="sess_test123", user_id="user_456"
                 )
 
                 mock_instance.get_session.assert_called_once_with(
                     app_name="Improv Olympics",
                     user_id="user_456",
-                    session_id="sess_test123"
+                    session_id="sess_test123",
                 )
                 assert adk_session.id == "sess_test123"
                 assert adk_session.state["location"] == "Mars Colony"
@@ -162,8 +172,10 @@ class TestADKSessionServiceOperations:
     @pytest.mark.asyncio
     async def test_get_session_returns_none_if_not_found(self):
         """Test get_session returns None for non-existent session."""
-        with patch('app.services.adk_session_service.DatabaseSessionService') as mock_db_service:
-            with patch('app.services.adk_session_service.settings') as mock_settings:
+        with patch(
+            "app.services.adk_session_service.DatabaseSessionService"
+        ) as mock_db_service:
+            with patch("app.services.adk_session_service.settings") as mock_settings:
                 mock_settings.app_name = "Improv Olympics"
                 mock_settings.adk_database_url = "sqlite:///test.db"
 
@@ -174,8 +186,7 @@ class TestADKSessionServiceOperations:
                 from app.services.adk_session_service import get_adk_session
 
                 adk_session = await get_adk_session(
-                    session_id="nonexistent",
-                    user_id="user_456"
+                    session_id="nonexistent", user_id="user_456"
                 )
 
                 assert adk_session is None
@@ -183,8 +194,10 @@ class TestADKSessionServiceOperations:
     @pytest.mark.asyncio
     async def test_update_session_state(self):
         """Test updating session state."""
-        with patch('app.services.adk_session_service.DatabaseSessionService') as mock_db_service:
-            with patch('app.services.adk_session_service.settings') as mock_settings:
+        with patch(
+            "app.services.adk_session_service.DatabaseSessionService"
+        ) as mock_db_service:
+            with patch("app.services.adk_session_service.settings") as mock_settings:
                 mock_settings.app_name = "Improv Olympics"
                 mock_settings.adk_database_url = "sqlite:///test.db"
 
@@ -199,7 +212,7 @@ class TestADKSessionServiceOperations:
                 await update_adk_session_state(
                     session_id="sess_test123",
                     user_id="user_456",
-                    state_updates={"turn_count": 4, "current_phase": "PHASE_2"}
+                    state_updates={"turn_count": 4, "current_phase": "PHASE_2"},
                 )
 
                 assert mock_adk_session.state["turn_count"] == 4
@@ -213,7 +226,9 @@ class TestADKSessionServiceCleanup:
     @pytest.mark.asyncio
     async def test_close_adk_session_service_disposes_engine(self):
         """Test cleanup properly disposes database engine."""
-        with patch('app.services.adk_session_service.DatabaseSessionService') as mock_db_service:
+        with patch(
+            "app.services.adk_session_service.DatabaseSessionService"
+        ) as mock_db_service:
             mock_instance = MagicMock()
             mock_engine = MagicMock()
             mock_engine.dispose = AsyncMock()
@@ -222,7 +237,7 @@ class TestADKSessionServiceCleanup:
 
             from app.services.adk_session_service import (
                 get_adk_session_service,
-                close_adk_session_service
+                close_adk_session_service,
             )
 
             get_adk_session_service()
@@ -244,8 +259,10 @@ class TestADKSessionServiceErrorHandling:
     @pytest.mark.asyncio
     async def test_create_session_propagates_db_errors(self):
         """Test that database errors are properly propagated."""
-        with patch('app.services.adk_session_service.DatabaseSessionService') as mock_db_service:
-            with patch('app.services.adk_session_service.settings') as mock_settings:
+        with patch(
+            "app.services.adk_session_service.DatabaseSessionService"
+        ) as mock_db_service:
+            with patch("app.services.adk_session_service.settings") as mock_settings:
                 mock_settings.app_name = "Improv Olympics"
                 mock_settings.adk_database_url = "sqlite:///test.db"
 
@@ -270,7 +287,7 @@ class TestADKSessionServiceErrorHandling:
                     conversation_history=[],
                     metadata={},
                     current_phase="PHASE_1",
-                    turn_count=0
+                    turn_count=0,
                 )
 
                 with pytest.raises(Exception, match="Database connection failed"):

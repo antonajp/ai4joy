@@ -2,6 +2,7 @@
 TC-001: Container Build Verification
 Tests that the Docker container builds successfully with all dependencies.
 """
+
 import pytest
 import docker
 from pathlib import Path
@@ -40,16 +41,13 @@ class TestContainerBuild:
         # Build the image
         try:
             image, build_logs = docker_client.images.build(
-                path=str(project_root),
-                tag=image_tag,
-                rm=True,
-                pull=True
+                path=str(project_root), tag=image_tag, rm=True, pull=True
             )
 
             # Print build logs for debugging
             for log in build_logs:
-                if 'stream' in log:
-                    print(log['stream'].strip())
+                if "stream" in log:
+                    print(log["stream"].strip())
 
             assert image is not None, "Image build failed"
             assert image_tag in [tag for img_tags in image.tags for tag in img_tags]
@@ -63,7 +61,7 @@ class TestContainerBuild:
 
         try:
             image = docker_client.images.get(image_tag)
-            size_gb = image.attrs['Size'] / (1024**3)
+            size_gb = image.attrs["Size"] / (1024**3)
 
             assert size_gb < 2.0, f"Image size {size_gb:.2f}GB exceeds 2GB limit"
             print(f"Image size: {size_gb:.2f}GB")
@@ -94,23 +92,21 @@ class TestContainerBuild:
             "google-cloud-aiplatform",
             "google-generativeai",
             "pytest",
-            "flask"  # or fastapi, depending on implementation
+            "flask",  # or fastapi, depending on implementation
         ]
 
         try:
             # Run pip list inside container
             container = docker_client.containers.run(
-                image_tag,
-                command="pip list",
-                remove=True,
-                detach=False
+                image_tag, command="pip list", remove=True, detach=False
             )
 
-            installed_packages = container.decode('utf-8').lower()
+            installed_packages = container.decode("utf-8").lower()
 
             for package in required_packages:
-                assert package.lower() in installed_packages, \
-                    f"Required package '{package}' not found in container"
+                assert (
+                    package.lower() in installed_packages
+                ), f"Required package '{package}' not found in container"
 
         except docker.errors.ImageNotFound:
             pytest.skip("Image not built, run test_container_build first")
@@ -125,19 +121,20 @@ class TestContainerBuild:
             container = docker_client.containers.run(
                 image_tag,
                 detach=True,
-                environment={
-                    "GOOGLE_APPLICATION_CREDENTIALS": "/tmp/dummy_creds.json"
-                },
-                remove=False  # Keep for inspection
+                environment={"GOOGLE_APPLICATION_CREDENTIALS": "/tmp/dummy_creds.json"},
+                remove=False,  # Keep for inspection
             )
 
             # Wait a few seconds to see if it crashes immediately
             import time
+
             time.sleep(3)
 
             container.reload()
-            assert container.status in ["running", "created"], \
-                f"Container failed to start, status: {container.status}"
+            assert container.status in [
+                "running",
+                "created",
+            ], f"Container failed to start, status: {container.status}"
 
             # Clean up
             container.stop(timeout=1)

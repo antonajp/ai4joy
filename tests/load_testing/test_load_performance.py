@@ -7,6 +7,7 @@ Can be run as part of CI pipeline unlike Locust tests.
 Run with:
     pytest tests/load_testing/test_load_performance.py -v -m load
 """
+
 import os
 import pytest
 import asyncio
@@ -21,7 +22,7 @@ LOAD_TESTS_ENABLED = os.getenv("ENABLE_LOAD_TESTS", "false").lower() == "true"
 
 @pytest.mark.skipif(
     not LOAD_TESTS_ENABLED,
-    reason="Load tests require running server. Set ENABLE_LOAD_TESTS=true to run."
+    reason="Load tests require running server. Set ENABLE_LOAD_TESTS=true to run.",
 )
 class TestLoadPerformance:
     """Load performance tests using asyncio for concurrency"""
@@ -30,19 +31,19 @@ class TestLoadPerformance:
     def service_url(self) -> str:
         """Service URL from environment or default"""
         import os
+
         return os.getenv("SERVICE_URL", "https://ai4joy.org")
 
     @pytest.fixture
     def session_config(self) -> Dict[str, str]:
         """Default session configuration"""
-        return {
-            "user_name": "LoadTest",
-            "location": "Test Location"
-        }
+        return {"user_name": "LoadTest", "location": "Test Location"}
 
     @pytest.mark.load
     @pytest.mark.asyncio
-    async def test_concurrent_session_creation(self, service_url: str, session_config: Dict):
+    async def test_concurrent_session_creation(
+        self, service_url: str, session_config: Dict
+    ):
         """
         Test 10 concurrent session creations
 
@@ -51,15 +52,14 @@ class TestLoadPerformance:
         - No rate limiting errors (different users)
         - Reasonable response times
         """
+
         async def create_session(client: httpx.AsyncClient, user_num: int) -> Dict:
             config = session_config.copy()
             config["user_name"] = f"LoadTest_{user_num}"
 
             start_time = time.time()
             response = await client.post(
-                f"{service_url}/session/start",
-                json=config,
-                timeout=30.0
+                f"{service_url}/session/start", json=config, timeout=30.0
             )
             latency = time.time() - start_time
 
@@ -92,7 +92,9 @@ class TestLoadPerformance:
 
     @pytest.mark.load
     @pytest.mark.asyncio
-    async def test_concurrent_turn_execution(self, service_url: str, session_config: Dict):
+    async def test_concurrent_turn_execution(
+        self, service_url: str, session_config: Dict
+    ):
         """
         Test 10 concurrent turn executions on different sessions
 
@@ -101,14 +103,15 @@ class TestLoadPerformance:
         - Agent coordination works under load
         - Response times stay within bounds
         """
-        async def execute_session_turn(client: httpx.AsyncClient, user_num: int) -> Dict:
+
+        async def execute_session_turn(
+            client: httpx.AsyncClient, user_num: int
+        ) -> Dict:
             config = session_config.copy()
             config["user_name"] = f"LoadTest_{user_num}"
 
             session_resp = await client.post(
-                f"{service_url}/session/start",
-                json=config,
-                timeout=30.0
+                f"{service_url}/session/start", json=config, timeout=30.0
             )
             session_resp.raise_for_status()
             session_id = session_resp.json()["session_id"]
@@ -118,9 +121,9 @@ class TestLoadPerformance:
                 f"{service_url}/session/{session_id}/turn",
                 json={
                     "user_input": f"Test input from user {user_num}",
-                    "turn_number": 1
+                    "turn_number": 1,
                 },
-                timeout=30.0
+                timeout=30.0,
             )
             latency = time.time() - start_time
 
@@ -160,7 +163,9 @@ class TestLoadPerformance:
     @pytest.mark.load
     @pytest.mark.asyncio
     @pytest.mark.slow
-    async def test_full_session_flow_under_load(self, service_url: str, session_config: Dict):
+    async def test_full_session_flow_under_load(
+        self, service_url: str, session_config: Dict
+    ):
         """
         Test complete 15-turn session flow with 5 concurrent users
 
@@ -169,14 +174,13 @@ class TestLoadPerformance:
         - Phase transitions work correctly
         - Error rate < 1%
         """
+
         async def complete_session(client: httpx.AsyncClient, user_num: int) -> Dict:
             config = session_config.copy()
             config["user_name"] = f"LoadTest_{user_num}"
 
             session_resp = await client.post(
-                f"{service_url}/session/start",
-                json=config,
-                timeout=30.0
+                f"{service_url}/session/start", json=config, timeout=30.0
             )
             session_resp.raise_for_status()
             session_id = session_resp.json()["session_id"]
@@ -189,11 +193,8 @@ class TestLoadPerformance:
                     start_time = time.time()
                     turn_resp = await client.post(
                         f"{service_url}/session/{session_id}/turn",
-                        json={
-                            "user_input": f"Turn {turn} input",
-                            "turn_number": turn
-                        },
-                        timeout=30.0
+                        json={"user_input": f"Turn {turn} input", "turn_number": turn},
+                        timeout=30.0,
                     )
                     latency = time.time() - start_time
                     turn_resp.raise_for_status()
@@ -210,7 +211,7 @@ class TestLoadPerformance:
                 "user_num": user_num,
                 "turns_completed": len(turn_results),
                 "errors": errors,
-                "turn_results": turn_results
+                "turn_results": turn_results,
             }
 
         async with httpx.AsyncClient() as client:
@@ -250,7 +251,9 @@ class TestLoadPerformance:
 
     @pytest.mark.load
     @pytest.mark.asyncio
-    async def test_rate_limiting_under_load(self, service_url: str, session_config: Dict):
+    async def test_rate_limiting_under_load(
+        self, service_url: str, session_config: Dict
+    ):
         """
         Test rate limiting behavior under concurrent load
 
@@ -259,7 +262,10 @@ class TestLoadPerformance:
         - Error responses are appropriate (429)
         - System remains stable when limits hit
         """
-        async def rapid_session_creation(client: httpx.AsyncClient, user_id: int) -> List[int]:
+
+        async def rapid_session_creation(
+            client: httpx.AsyncClient, user_id: int
+        ) -> List[int]:
             status_codes = []
 
             for attempt in range(15):
@@ -268,9 +274,9 @@ class TestLoadPerformance:
                         f"{service_url}/session/start",
                         json={
                             "user_name": f"RateLimitTest_{user_id}",
-                            "location": "Test"
+                            "location": "Test",
                         },
-                        timeout=30.0
+                        timeout=30.0,
                     )
                     status_codes.append(response.status_code)
                 except httpx.HTTPStatusError as e:
@@ -299,7 +305,9 @@ class TestLoadPerformance:
 
     @pytest.mark.load
     @pytest.mark.asyncio
-    async def test_latency_distribution_under_load(self, service_url: str, session_config: Dict):
+    async def test_latency_distribution_under_load(
+        self, service_url: str, session_config: Dict
+    ):
         """
         Measure latency distribution with 10 concurrent sessions
 
@@ -308,14 +316,15 @@ class TestLoadPerformance:
         - No extreme outliers
         - p50, p95, p99 within acceptable bounds
         """
-        async def measure_turn_latency(client: httpx.AsyncClient, user_num: int) -> List[float]:
+
+        async def measure_turn_latency(
+            client: httpx.AsyncClient, user_num: int
+        ) -> List[float]:
             config = session_config.copy()
             config["user_name"] = f"LoadTest_{user_num}"
 
             session_resp = await client.post(
-                f"{service_url}/session/start",
-                json=config,
-                timeout=30.0
+                f"{service_url}/session/start", json=config, timeout=30.0
             )
             session_resp.raise_for_status()
             session_id = session_resp.json()["session_id"]
@@ -325,11 +334,8 @@ class TestLoadPerformance:
                 start_time = time.time()
                 turn_resp = await client.post(
                     f"{service_url}/session/{session_id}/turn",
-                    json={
-                        "user_input": f"Turn {turn}",
-                        "turn_number": turn
-                    },
-                    timeout=30.0
+                    json={"user_input": f"Turn {turn}", "turn_number": turn},
+                    timeout=30.0,
                 )
                 latency = time.time() - start_time
                 turn_resp.raise_for_status()

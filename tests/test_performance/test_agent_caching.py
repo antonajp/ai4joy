@@ -1,9 +1,15 @@
 """Test Suite for Agent Caching Performance Optimization"""
+
 import pytest
 import time
 from datetime import datetime, timezone, timedelta
 
-from app.services.agent_cache import AgentCache, CachedAgent, get_agent_cache, reset_agent_cache
+from app.services.agent_cache import (
+    AgentCache,
+    CachedAgent,
+    get_agent_cache,
+    reset_agent_cache,
+)
 
 
 class TestAgentCaching:
@@ -30,15 +36,15 @@ class TestAgentCaching:
         assert agent1 is not None
 
         stats = cache.stats.get_stats()
-        assert stats['misses'] == 1
-        assert stats['hits'] == 0
+        assert stats["misses"] == 1
+        assert stats["hits"] == 0
 
         agent2 = cache.get_stage_manager(turn_count=1)
         assert agent2 is agent1
 
         stats = cache.stats.get_stats()
-        assert stats['hits'] == 1
-        assert stats['misses'] == 1
+        assert stats["hits"] == 1
+        assert stats["misses"] == 1
 
     def test_stage_manager_phase_specific_caching(self, cache):
         phase1_agent = cache.get_stage_manager(turn_count=0)
@@ -49,8 +55,8 @@ class TestAgentCaching:
         assert phase2_agent is not phase1_agent
 
         stats = cache.stats.get_stats()
-        assert stats['hits'] == 1
-        assert stats['misses'] == 2
+        assert stats["hits"] == 1
+        assert stats["misses"] == 2
 
     def test_partner_agent_cache_by_phase(self, cache):
         phase1_partner = cache.get_partner_agent(turn_count=0)
@@ -61,8 +67,8 @@ class TestAgentCaching:
         assert phase2_partner is not phase1_partner
 
         stats = cache.stats.get_stats()
-        assert stats['hits'] == 1
-        assert stats['misses'] == 2
+        assert stats["hits"] == 1
+        assert stats["misses"] == 2
 
     def test_room_agent_caching(self, cache):
         room1 = cache.get_room_agent()
@@ -72,8 +78,8 @@ class TestAgentCaching:
         assert room1 is room2 is room3
 
         stats = cache.stats.get_stats()
-        assert stats['hits'] == 2
-        assert stats['misses'] == 1
+        assert stats["hits"] == 2
+        assert stats["misses"] == 1
 
     def test_coach_agent_caching(self, cache):
         coach1 = cache.get_coach_agent()
@@ -82,23 +88,23 @@ class TestAgentCaching:
         assert coach1 is coach2
 
         stats = cache.stats.get_stats()
-        assert stats['hits'] == 1
-        assert stats['misses'] == 1
+        assert stats["hits"] == 1
+        assert stats["misses"] == 1
 
     def test_cache_expiration(self, cache):
         cache.ttl_seconds = 1
 
         _agent = cache.get_stage_manager(turn_count=0)  # noqa: F841 - populates cache
         stats_before = cache.stats.get_stats()
-        assert stats_before['misses'] == 1
+        assert stats_before["misses"] == 1
 
         time.sleep(1.5)
 
         _agent2 = cache.get_stage_manager(turn_count=0)  # noqa: F841 - tests expiration
 
         stats_after = cache.stats.get_stats()
-        assert stats_after['misses'] == 2
-        assert stats_after['evictions'] == 1
+        assert stats_after["misses"] == 2
+        assert stats_after["evictions"] == 1
 
     def test_cache_invalidation_all(self, cache):
         cache.get_stage_manager(turn_count=0)
@@ -139,33 +145,31 @@ class TestAgentCaching:
 
         stats = cache.get_cache_stats()
 
-        assert stats['hits'] == 3
-        assert stats['misses'] == 2
-        assert stats['total_requests'] == 5
-        assert stats['hit_rate_pct'] == 60.0
-        assert stats['stage_manager_entries'] == 1
-        assert stats['partner_entries'] == 1
+        assert stats["hits"] == 3
+        assert stats["misses"] == 2
+        assert stats["total_requests"] == 5
+        assert stats["hit_rate_pct"] == 60.0
+        assert stats["stage_manager_entries"] == 1
+        assert stats["partner_entries"] == 1
 
     def test_cache_stats_reset(self, cache):
         cache.get_stage_manager(turn_count=0)
         cache.get_stage_manager(turn_count=0)
 
         stats_before = cache.stats.get_stats()
-        assert stats_before['hits'] > 0
+        assert stats_before["hits"] > 0
 
         cache.stats.reset()
 
         stats_after = cache.stats.get_stats()
-        assert stats_after['hits'] == 0
-        assert stats_after['misses'] == 0
+        assert stats_after["hits"] == 0
+        assert stats_after["misses"] == 0
 
     def test_cached_agent_access_tracking(self):
         from google.adk.agents import Agent
 
         mock_agent = Agent(
-            name="test_agent",
-            model="gemini-1.5-flash",
-            instruction="Test agent"
+            name="test_agent", model="gemini-1.5-flash", instruction="Test agent"
         )
 
         cached = CachedAgent(mock_agent, phase=1)
@@ -184,9 +188,7 @@ class TestAgentCaching:
         from google.adk.agents import Agent
 
         mock_agent = Agent(
-            name="test_agent",
-            model="gemini-1.5-flash",
-            instruction="Test agent"
+            name="test_agent", model="gemini-1.5-flash", instruction="Test agent"
         )
 
         cached = CachedAgent(mock_agent)
@@ -209,8 +211,8 @@ class TestAgentCaching:
 
         stats = cache.get_cache_stats()
 
-        assert stats['total_requests'] == 10
-        assert stats['hit_rate_pct'] >= 70.0
+        assert stats["total_requests"] == 10
+        assert stats["hit_rate_pct"] >= 70.0
 
     def test_concurrent_cache_access(self, cache):
         import concurrent.futures
@@ -226,7 +228,7 @@ class TestAgentCaching:
         assert all(r is not None for r in results)
 
         stats = cache.get_cache_stats()
-        assert stats['hit_rate_pct'] >= 75.0
+        assert stats["hit_rate_pct"] >= 75.0
 
     def test_cache_performance_improvement(self):
         cache = AgentCache(ttl_minutes=5)
@@ -249,6 +251,6 @@ class TestAgentCaching:
         assert len(cache._stage_manager_cache) == 2
 
         stats = cache.get_cache_stats()
-        assert stats['stage_manager_entries'] == 2
-        assert stats['misses'] == 2
-        assert stats['hits'] == 0
+        assert stats["stage_manager_entries"] == 2
+        assert stats["misses"] == 2
+        assert stats["hits"] == 0

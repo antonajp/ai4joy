@@ -5,6 +5,7 @@ Test Coverage:
 - TC-W9-002: Alert Policy Functionality
 - TC-W9-005: Log-Based Metrics (partial - requires manual validation)
 """
+
 import pytest
 from unittest.mock import Mock
 from google.cloud import monitoring_v3
@@ -41,7 +42,7 @@ class TestCloudMonitoringDashboard:
             "Error Rate Over Time",
             "Cache Hit/Miss Ratio",
             "Concurrent Session Count",
-            "Request Rate & Status Codes"
+            "Request Rate & Status Codes",
         ]
 
         # Create mock widgets
@@ -74,9 +75,9 @@ class TestCloudMonitoringDashboard:
                 "alignment_period": "60s",
                 "per_series_aligner": "ALIGN_DELTA",
                 "cross_series_reducer": "REDUCE_PERCENTILE",
-                "group_by_fields": []
+                "group_by_fields": [],
             },
-            "percentiles": expected_percentiles
+            "percentiles": expected_percentiles,
         }
 
         assert widget_config["metric"] == expected_metric
@@ -88,8 +89,8 @@ class TestCloudMonitoringDashboard:
             "metric": "agent_latency_seconds",
             "aggregation": {
                 "group_by_fields": ["agent"],
-                "cross_series_reducer": "REDUCE_MEAN"
-            }
+                "cross_series_reducer": "REDUCE_MEAN",
+            },
         }
 
         assert "agent" in widget_config["aggregation"]["group_by_fields"]
@@ -99,7 +100,7 @@ class TestCloudMonitoringDashboard:
         # Error rate = (errors_total / requests_total) * 100
         widget_config = {
             "metric_formula": "(errors_total / request_duration_seconds_count) * 100",
-            "threshold_line": 5.0  # 5% threshold
+            "threshold_line": 5.0,  # 5% threshold
         }
 
         assert "errors_total" in widget_config["metric_formula"]
@@ -108,12 +109,9 @@ class TestCloudMonitoringDashboard:
     def test_cache_metrics_widget_shows_hit_miss_ratio(self):
         """Verify cache widget shows hit/miss ratio"""
         widget_config = {
-            "metrics": [
-                "cache_hits_total",
-                "cache_misses_total"
-            ],
+            "metrics": ["cache_hits_total", "cache_misses_total"],
             "chart_type": "STACKED_AREA",
-            "calculation": "cache_hits_total / (cache_hits_total + cache_misses_total)"
+            "calculation": "cache_hits_total / (cache_hits_total + cache_misses_total)",
         }
 
         assert "cache_hits_total" in widget_config["metrics"]
@@ -122,7 +120,7 @@ class TestCloudMonitoringDashboard:
     @pytest.mark.integration
     @pytest.mark.skipif(
         not pytest.config.getoption("--run-integration", default=False),
-        reason="Integration test - requires GCP credentials"
+        reason="Integration test - requires GCP credentials",
     )
     def test_dashboard_exists_in_production(self):
         """Integration test: Verify dashboard exists in GCP project"""
@@ -142,8 +140,9 @@ class TestCloudMonitoringDashboard:
             if "Improv Olympics" in dashboard.display_name:
                 dashboard_found = True
                 # Verify it has widgets
-                assert len(dashboard.grid_layout.widgets) >= 6, \
-                    "Dashboard should have at least 6 widgets"
+                assert (
+                    len(dashboard.grid_layout.widgets) >= 6
+                ), "Dashboard should have at least 6 widgets"
                 break
 
         assert dashboard_found, "Dashboard 'Improv Olympics Production' not found"
@@ -156,68 +155,89 @@ class TestAlertPolicies:
         """Verify high latency alert policy is configured"""
         policy_config = {
             "display_name": "High P95 Turn Latency",
-            "conditions": [{
-                "display_name": "Turn latency p95 > 8s",
-                "condition_threshold": {
-                    "filter": 'metric.type="custom.googleapis.com/turn_latency_seconds"',
-                    "aggregations": [{
-                        "alignment_period": "60s",
-                        "per_series_aligner": "ALIGN_DELTA",
-                        "cross_series_reducer": "REDUCE_PERCENTILE_95"
-                    }],
-                    "comparison": "COMPARISON_GT",
-                    "threshold_value": 8.0,
-                    "duration": "120s"
+            "conditions": [
+                {
+                    "display_name": "Turn latency p95 > 8s",
+                    "condition_threshold": {
+                        "filter": 'metric.type="custom.googleapis.com/turn_latency_seconds"',
+                        "aggregations": [
+                            {
+                                "alignment_period": "60s",
+                                "per_series_aligner": "ALIGN_DELTA",
+                                "cross_series_reducer": "REDUCE_PERCENTILE_95",
+                            }
+                        ],
+                        "comparison": "COMPARISON_GT",
+                        "threshold_value": 8.0,
+                        "duration": "120s",
+                    },
                 }
-            }],
+            ],
             "notification_channels": [],
-            "alert_strategy": {
-                "auto_close": "604800s"  # 7 days
-            }
+            "alert_strategy": {"auto_close": "604800s"},  # 7 days
         }
 
-        assert policy_config["conditions"][0]["condition_threshold"]["threshold_value"] == 8.0
-        assert policy_config["conditions"][0]["condition_threshold"]["comparison"] == "COMPARISON_GT"
+        assert (
+            policy_config["conditions"][0]["condition_threshold"]["threshold_value"]
+            == 8.0
+        )
+        assert (
+            policy_config["conditions"][0]["condition_threshold"]["comparison"]
+            == "COMPARISON_GT"
+        )
 
     def test_error_rate_alert_policy_exists(self):
         """Verify error rate alert policy is configured"""
         policy_config = {
             "display_name": "High Error Rate",
-            "conditions": [{
-                "display_name": "Error rate > 5%",
-                "condition_threshold": {
-                    "filter": 'metric.type="custom.googleapis.com/errors_total"',
-                    "comparison": "COMPARISON_GT",
-                    "threshold_value": 0.05,  # 5%
-                    "duration": "300s"
+            "conditions": [
+                {
+                    "display_name": "Error rate > 5%",
+                    "condition_threshold": {
+                        "filter": 'metric.type="custom.googleapis.com/errors_total"',
+                        "comparison": "COMPARISON_GT",
+                        "threshold_value": 0.05,  # 5%
+                        "duration": "300s",
+                    },
                 }
-            }]
+            ],
         }
 
-        assert policy_config["conditions"][0]["condition_threshold"]["threshold_value"] == 0.05
+        assert (
+            policy_config["conditions"][0]["condition_threshold"]["threshold_value"]
+            == 0.05
+        )
 
     def test_low_cache_hit_rate_alert_policy_exists(self):
         """Verify low cache hit rate alert policy is configured"""
         policy_config = {
             "display_name": "Low Cache Hit Rate",
-            "conditions": [{
-                "display_name": "Cache hit rate < 50%",
-                "condition_threshold": {
-                    "filter": 'metric.type="custom.googleapis.com/cache_hits_total"',
-                    "comparison": "COMPARISON_LT",
-                    "threshold_value": 0.50,
-                    "duration": "600s"  # 10 minutes
+            "conditions": [
+                {
+                    "display_name": "Cache hit rate < 50%",
+                    "condition_threshold": {
+                        "filter": 'metric.type="custom.googleapis.com/cache_hits_total"',
+                        "comparison": "COMPARISON_LT",
+                        "threshold_value": 0.50,
+                        "duration": "600s",  # 10 minutes
+                    },
                 }
-            }]
+            ],
         }
 
-        assert policy_config["conditions"][0]["condition_threshold"]["comparison"] == "COMPARISON_LT"
-        assert policy_config["conditions"][0]["condition_threshold"]["threshold_value"] == 0.50
+        assert (
+            policy_config["conditions"][0]["condition_threshold"]["comparison"]
+            == "COMPARISON_LT"
+        )
+        assert (
+            policy_config["conditions"][0]["condition_threshold"]["threshold_value"]
+            == 0.50
+        )
 
     @pytest.mark.integration
     @pytest.mark.skipif(
         not pytest.config.getoption("--run-integration", default=False),
-        reason="Integration test - requires GCP credentials"
+        reason="Integration test - requires GCP credentials",
     )
     def test_alert_policies_exist_in_production(self):
         """Integration test: Verify all alert policies exist in GCP project"""
@@ -235,21 +255,22 @@ class TestAlertPolicies:
         expected_policies = [
             "High P95 Turn Latency",
             "High Error Rate",
-            "Low Cache Hit Rate"
+            "Low Cache Hit Rate",
         ]
 
         found_policies = [policy.display_name for policy in policies]
 
         for expected_policy in expected_policies:
-            assert any(expected_policy in found for found in found_policies), \
-                f"Alert policy '{expected_policy}' not found"
+            assert any(
+                expected_policy in found for found in found_policies
+            ), f"Alert policy '{expected_policy}' not found"
 
     def test_alert_notification_channels_configured(self):
         """Verify alert policies have notification channels"""
         # In production, these would be email, Slack, or PagerDuty channels
         notification_channels = [
             "projects/improvOlympics/notificationChannels/123456",
-            "projects/improvOlympics/notificationChannels/789012"
+            "projects/improvOlympics/notificationChannels/789012",
         ]
 
         policy_config = {
@@ -258,7 +279,7 @@ class TestAlertPolicies:
                 "notification_rate_limit": {
                     "period": "300s"  # Limit to one notification per 5 minutes
                 }
-            }
+            },
         }
 
         assert len(policy_config["notification_channels"]) >= 1

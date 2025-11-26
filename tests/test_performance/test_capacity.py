@@ -10,6 +10,7 @@ Tests to validate system capacity planning assumptions:
 Run with:
     pytest tests/test_performance/test_capacity.py -v
 """
+
 import pytest
 import sys
 import time
@@ -17,7 +18,7 @@ from unittest.mock import Mock, patch
 from app.services.performance_tuning import (
     PerformanceConfig,
     ContextCompactor,
-    FirestoreBatchWriter
+    FirestoreBatchWriter,
 )
 from app.models.session import Session, SessionStatus
 from datetime import datetime, timezone, timedelta
@@ -43,7 +44,7 @@ class TestPerformanceConfig:
             agent_timeout_seconds=30,
             cache_ttl_seconds=300,
             max_context_tokens=4000,
-            batch_write_threshold=5
+            batch_write_threshold=5,
         )
 
         config.validate()
@@ -85,12 +86,15 @@ class TestPerformanceConfig:
 
     def test_config_from_env(self):
         """Test configuration from environment variables"""
-        with patch.dict('os.environ', {
-            'PERF_AGENT_TIMEOUT': '45',
-            'PERF_CACHE_TTL': '600',
-            'PERF_MAX_CONTEXT_TOKENS': '8000',
-            'PERF_BATCH_WRITE_THRESHOLD': '10'
-        }):
+        with patch.dict(
+            "os.environ",
+            {
+                "PERF_AGENT_TIMEOUT": "45",
+                "PERF_CACHE_TTL": "600",
+                "PERF_MAX_CONTEXT_TOKENS": "8000",
+                "PERF_BATCH_WRITE_THRESHOLD": "10",
+            },
+        ):
             config = PerformanceConfig.from_env()
 
             assert config.agent_timeout_seconds == 45
@@ -113,9 +117,21 @@ class TestContextCompactor:
         """Test compaction when history is already within limits"""
         compactor = ContextCompactor(max_tokens=4000)
         history = [
-            {"turn_number": 1, "user_input": "Test 1", "partner_response": "Response 1"},
-            {"turn_number": 2, "user_input": "Test 2", "partner_response": "Response 2"},
-            {"turn_number": 3, "user_input": "Test 3", "partner_response": "Response 3"}
+            {
+                "turn_number": 1,
+                "user_input": "Test 1",
+                "partner_response": "Response 1",
+            },
+            {
+                "turn_number": 2,
+                "user_input": "Test 2",
+                "partner_response": "Response 2",
+            },
+            {
+                "turn_number": 3,
+                "user_input": "Test 3",
+                "partner_response": "Response 3",
+            },
         ]
 
         result = compactor.compact_history(history)
@@ -127,7 +143,11 @@ class TestContextCompactor:
         """Test compaction when history exceeds token limits"""
         compactor = ContextCompactor(max_tokens=600)
         history = [
-            {"turn_number": i, "user_input": f"Test {i}", "partner_response": f"Response {i}"}
+            {
+                "turn_number": i,
+                "user_input": f"Test {i}",
+                "partner_response": f"Response {i}",
+            }
             for i in range(1, 21)
         ]
 
@@ -142,10 +162,7 @@ class TestContextCompactor:
     def test_compact_preserves_first_and_recent(self):
         """Test compaction preserves first turn and recent turns"""
         compactor = ContextCompactor(max_tokens=600)
-        history = [
-            {"turn_number": i, "user_input": f"Turn {i}"}
-            for i in range(1, 16)
-        ]
+        history = [{"turn_number": i, "user_input": f"Turn {i}"} for i in range(1, 16)]
 
         result = compactor.compact_history(history, keep_recent=3)
 
@@ -281,7 +298,7 @@ class TestMemoryUsage:
             expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
             conversation_history=[],
             metadata={},
-            turn_count=0
+            turn_count=0,
         )
 
         session_size = sys.getsizeof(session)
@@ -300,7 +317,7 @@ class TestMemoryUsage:
                 "partner_response": f"Partner response for turn {turn + 1}",
                 "room_vibe": {"analysis": "Engaged", "energy": "positive"},
                 "phase": "PHASE_1" if turn < 4 else "PHASE_2",
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
             base_history.append(turn_data)
             sizes.append(sys.getsizeof(str(base_history)))
@@ -339,8 +356,7 @@ class TestResponseTimeEstimates:
         compactor = ContextCompactor(max_tokens=4000)
 
         large_history = [
-            {"turn_number": i, "user_input": f"Turn {i}" * 50}
-            for i in range(50)
+            {"turn_number": i, "user_input": f"Turn {i}" * 50} for i in range(50)
         ]
 
         start_time = time.time()
@@ -366,11 +382,7 @@ class TestFirestoreOperationPatterns:
 
         Total: ~3 operations per turn
         """
-        operations_per_turn = {
-            "reads": 1,
-            "writes": 2,
-            "optional_writes": 1
-        }
+        operations_per_turn = {"reads": 1, "writes": 2, "optional_writes": 1}
 
         total_ops = sum(operations_per_turn.values())
         assert total_ops <= 5
@@ -392,11 +404,7 @@ class TestFirestoreOperationPatterns:
 
         Total: ~47 operations per session
         """
-        operations = {
-            "session_creation": 1,
-            "turns": 15 * 3,
-            "session_close": 1
-        }
+        operations = {"session_creation": 1, "turns": 15 * 3, "session_close": 1}
 
         total_ops = sum(operations.values())
 

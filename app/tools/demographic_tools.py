@@ -1,4 +1,5 @@
 """Demographic Tools - Async Functions for Audience Archetype Generation"""
+
 import random
 from app.utils.logger import get_logger
 
@@ -12,7 +13,7 @@ ARCHETYPE_TEMPLATES = [
         "personality": "High energy, loves to participate, first to volunteer",
         "engagement_style": "Vocal and expressive, laughs loudly",
         "improv_knowledge": "Familiar with improv, may have taken classes",
-        "preferences": "Fast-paced games, physical comedy, audience interaction"
+        "preferences": "Fast-paced games, physical comedy, audience interaction",
     },
     {
         "name": "The Skeptic",
@@ -20,7 +21,7 @@ ARCHETYPE_TEMPLATES = [
         "personality": "Reserved, needs to be won over, analytical",
         "engagement_style": "Quiet appreciation, selective laughter",
         "improv_knowledge": "Limited exposure, may compare to scripted comedy",
-        "preferences": "Clever wordplay, structured games, clear rules"
+        "preferences": "Clever wordplay, structured games, clear rules",
     },
     {
         "name": "The First-Timer",
@@ -28,7 +29,7 @@ ARCHETYPE_TEMPLATES = [
         "personality": "Curious and open-minded, slightly nervous",
         "engagement_style": "Observant, building confidence throughout show",
         "improv_knowledge": "No prior experience, learning as they watch",
-        "preferences": "Accessible games, clear explanations, supportive atmosphere"
+        "preferences": "Accessible games, clear explanations, supportive atmosphere",
     },
     {
         "name": "The Regular",
@@ -36,7 +37,7 @@ ARCHETYPE_TEMPLATES = [
         "personality": "Loyal fan, knows performers, understands format",
         "engagement_style": "Engaged but respectful, appreciates subtlety",
         "improv_knowledge": "Extensive, has seen many shows",
-        "preferences": "Creative risks, callbacks, performer showcase moments"
+        "preferences": "Creative risks, callbacks, performer showcase moments",
     },
     {
         "name": "The Social Butterfly",
@@ -44,7 +45,7 @@ ARCHETYPE_TEMPLATES = [
         "personality": "Here for the group experience, fun-loving",
         "engagement_style": "Laughs along with friends, contagious energy",
         "improv_knowledge": "Varies, but open to anything",
-        "preferences": "Group games, sing-alongs, memorable moments to discuss"
+        "preferences": "Group games, sing-alongs, memorable moments to discuss",
     },
     {
         "name": "The Intellectual",
@@ -52,7 +53,7 @@ ARCHETYPE_TEMPLATES = [
         "personality": "Appreciates craft and technique, thoughtful",
         "engagement_style": "Thoughtful laughter, notices details",
         "improv_knowledge": "May study theater or comedy theory",
-        "preferences": "Sophisticated humor, narrative structure, thematic coherence"
+        "preferences": "Sophisticated humor, narrative structure, thematic coherence",
     },
     {
         "name": "The Kid at Heart",
@@ -60,7 +61,7 @@ ARCHETYPE_TEMPLATES = [
         "personality": "Playful and imaginative, no cynicism",
         "engagement_style": "Genuine joy, childlike wonder",
         "improv_knowledge": "Doesn't matter, here for pure fun",
-        "preferences": "Silly games, physical comedy, absurdist humor"
+        "preferences": "Silly games, physical comedy, absurdist humor",
     },
     {
         "name": "The Professional",
@@ -68,7 +69,7 @@ ARCHETYPE_TEMPLATES = [
         "personality": "Works in comedy/entertainment, evaluating performance",
         "engagement_style": "Respectful acknowledgment, industry perspective",
         "improv_knowledge": "Professional level understanding",
-        "preferences": "Technical skill, innovative formats, ensemble work"
+        "preferences": "Technical skill, innovative formats, ensemble work",
     },
     {
         "name": "The Date Night Couple",
@@ -76,7 +77,7 @@ ARCHETYPE_TEMPLATES = [
         "personality": "Looking for shared experience, slightly distracted",
         "engagement_style": "Focused on each other, occasional attention to show",
         "improv_knowledge": "Minimal, chose improv as date activity",
-        "preferences": "Romantic moments, accessible humor, not too long"
+        "preferences": "Romantic moments, accessible humor, not too long",
     },
     {
         "name": "The Corporate Group",
@@ -84,8 +85,8 @@ ARCHETYPE_TEMPLATES = [
         "personality": "Team building event, varying interest levels",
         "engagement_style": "Polite appreciation, occasional forced laughter",
         "improv_knowledge": "Minimal, may be mandatory attendance",
-        "preferences": "Inclusive games, no individual spotlights, wrap on time"
-    }
+        "preferences": "Inclusive games, no individual spotlights, wrap on time",
+    },
 ]
 
 
@@ -102,7 +103,7 @@ async def generate_audience_sample(size: int = 5) -> list[dict]:
         logger.warning(
             "Requested size exceeds available archetypes",
             requested=size,
-            available=len(ARCHETYPE_TEMPLATES)
+            available=len(ARCHETYPE_TEMPLATES),
         )
         size = len(ARCHETYPE_TEMPLATES)
 
@@ -110,10 +111,7 @@ async def generate_audience_sample(size: int = 5) -> list[dict]:
 
     audience = []
     for i, archetype in enumerate(selected, 1):
-        member = {
-            "id": f"audience_member_{i}",
-            **archetype
-        }
+        member = {"id": f"audience_member_{i}", **archetype}
         audience.append(member)
 
     logger.info("Audience sample generated", size=size)
@@ -146,16 +144,28 @@ async def analyze_audience_traits(audience: list[dict]) -> dict:
     beginners = 0
 
     for member in audience:
-        all_preferences.extend(member['preferences'].split(', '))
+        all_preferences.extend(member["preferences"].split(", "))
 
-        if 'vocal' in member['engagement_style'].lower() or 'expressive' in member['engagement_style'].lower():
+        if (
+            "vocal" in member["engagement_style"].lower()
+            or "expressive" in member["engagement_style"].lower()
+        ):
             high_engagement += 1
-        elif 'quiet' in member['engagement_style'].lower() or 'reserved' in member['engagement_style'].lower():
+        elif (
+            "quiet" in member["engagement_style"].lower()
+            or "reserved" in member["engagement_style"].lower()
+        ):
             low_engagement += 1
 
-        if 'extensive' in member['improv_knowledge'].lower() or 'professional' in member['improv_knowledge'].lower():
+        if (
+            "extensive" in member["improv_knowledge"].lower()
+            or "professional" in member["improv_knowledge"].lower()
+        ):
             experienced += 1
-        elif 'no prior' in member['improv_knowledge'].lower() or 'limited' in member['improv_knowledge'].lower():
+        elif (
+            "no prior" in member["improv_knowledge"].lower()
+            or "limited" in member["improv_knowledge"].lower()
+        ):
             beginners += 1
 
     energy_profile = "mixed"
@@ -171,15 +181,42 @@ async def analyze_audience_traits(audience: list[dict]) -> dict:
         experience_profile = "beginner_friendly"
 
     recommendations = {
-        ("high_energy", "experienced"): "Try advanced games with audience participation. They'll appreciate creative risks.",
-        ("high_energy", "beginner_friendly"): "Focus on accessible, energetic games with clear rules. Build confidence early.",
-        ("high_energy", "mixed"): "Mix classic crowd-pleasers with a few adventurous choices. Read the room as you go.",
-        ("reserved", "experienced"): "Emphasize craft and subtlety. They'll appreciate technical skill and nuance.",
-        ("reserved", "beginner_friendly"): "Start with structured games and clear explanations. Warm them up gradually.",
-        ("reserved", "mixed"): "Begin with accessible material, then increase complexity. Watch for engagement cues.",
-        ("mixed", "experienced"): "Balance showcases with participation. Cater to different engagement styles.",
-        ("mixed", "beginner_friendly"): "Use variety in pacing and game types. Something for everyone approach.",
-        ("mixed", "mixed"): "Read the room continuously. Have backup options for energy and complexity shifts."
+        (
+            "high_energy",
+            "experienced",
+        ): "Try advanced games with audience participation. They'll appreciate creative risks.",
+        (
+            "high_energy",
+            "beginner_friendly",
+        ): "Focus on accessible, energetic games with clear rules. Build confidence early.",
+        (
+            "high_energy",
+            "mixed",
+        ): "Mix classic crowd-pleasers with a few adventurous choices. Read the room as you go.",
+        (
+            "reserved",
+            "experienced",
+        ): "Emphasize craft and subtlety. They'll appreciate technical skill and nuance.",
+        (
+            "reserved",
+            "beginner_friendly",
+        ): "Start with structured games and clear explanations. Warm them up gradually.",
+        (
+            "reserved",
+            "mixed",
+        ): "Begin with accessible material, then increase complexity. Watch for engagement cues.",
+        (
+            "mixed",
+            "experienced",
+        ): "Balance showcases with participation. Cater to different engagement styles.",
+        (
+            "mixed",
+            "beginner_friendly",
+        ): "Use variety in pacing and game types. Something for everyone approach.",
+        (
+            "mixed",
+            "mixed",
+        ): "Read the room continuously. Have backup options for energy and complexity shifts.",
     }
 
     traits = {
@@ -190,7 +227,10 @@ async def analyze_audience_traits(audience: list[dict]) -> dict:
         "low_engagement_count": low_engagement,
         "experienced_count": experienced,
         "beginner_count": beginners,
-        "recommendation": recommendations.get((energy_profile, experience_profile), "Stay flexible and adapt to audience response.")
+        "recommendation": recommendations.get(
+            (energy_profile, experience_profile),
+            "Stay flexible and adapt to audience response.",
+        ),
     }
 
     logger.info("Audience traits analyzed", **traits)
@@ -228,7 +268,7 @@ async def get_vibe_check(audience: list[dict]) -> dict:
         "overall_mood": traits["energy_profile"],
         "experience_level": traits["experience_profile"],
         "indicators": vibe_indicators,
-        "recommendation": traits["recommendation"]
+        "recommendation": traits["recommendation"],
     }
 
     logger.info("Vibe check generated", mood=vibe_check["overall_mood"])

@@ -4,6 +4,7 @@ Test Coverage:
 - TC-W9-003: OpenTelemetry Metrics Export
 - TC-W9-004: Trace Context Propagation
 """
+
 import pytest
 import time
 
@@ -103,7 +104,9 @@ class TestOpenTelemetryMetricsExport:
         monitoring.record_turn_latency(1.5, {"session_id": "session-123", "phase": 1})
 
         # Agent latency with agent name
-        monitoring.record_agent_latency(0.8, "partner", {"turn": 1, "session_id": "session-123"})
+        monitoring.record_agent_latency(
+            0.8, "partner", {"turn": 1, "session_id": "session-123"}
+        )
 
         # Cache operations with cache type
         monitoring.record_cache_hit("session_cache")
@@ -118,7 +121,7 @@ class TestOpenTelemetryMetricsExport:
     @pytest.mark.integration
     @pytest.mark.skipif(
         not pytest.config.getoption("--run-integration", default=False),
-        reason="Integration test - requires GCP credentials"
+        reason="Integration test - requires GCP credentials",
     )
     def test_metrics_exported_to_cloud_monitoring(self):
         """Integration test: Verify metrics appear in Cloud Monitoring"""
@@ -139,7 +142,7 @@ class TestOpenTelemetryMetricsExport:
             "cache_hits_total",
             "cache_misses_total",
             "errors_total",
-            "request_duration_seconds"
+            "request_duration_seconds",
         ]
 
         found_metrics = []
@@ -150,8 +153,9 @@ class TestOpenTelemetryMetricsExport:
                     found_metrics.append(expected)
 
         for expected_metric in expected_metrics:
-            assert expected_metric in found_metrics, \
-                f"Metric '{expected_metric}' not found in Cloud Monitoring"
+            assert (
+                expected_metric in found_metrics
+            ), f"Metric '{expected_metric}' not found in Cloud Monitoring"
 
 
 class TestTraceContextPropagation:
@@ -212,7 +216,7 @@ class TestTraceContextPropagation:
         test_attributes = {
             "session_id": "session-123",
             "turn_number": 5,
-            "agent": "partner"
+            "agent": "partner",
         }
 
         with monitoring.trace_operation("turn_execution", test_attributes) as span:
@@ -250,7 +254,9 @@ class TestTraceContextPropagation:
 
         with monitoring.trace_operation("async_parent"):
             parent_trace_id = monitoring.get_trace_id()
-            _child_trace_id = await async_operation()  # noqa: F841 - verifies propagation
+            _child_trace_id = (
+                await async_operation()
+            )  # noqa: F841 - verifies propagation
 
             # Trace ID should propagate to async operation
             # Note: This may require proper async context setup
@@ -259,7 +265,7 @@ class TestTraceContextPropagation:
     @pytest.mark.integration
     @pytest.mark.skipif(
         not pytest.config.getoption("--run-integration", default=False),
-        reason="Integration test - requires GCP credentials"
+        reason="Integration test - requires GCP credentials",
     )
     def test_traces_exported_to_cloud_trace(self):
         """Integration test: Verify traces appear in Cloud Trace"""
@@ -267,10 +273,13 @@ class TestTraceContextPropagation:
         from google.cloud import trace_v2
 
         project_id = os.getenv("GCP_PROJECT_ID", "improvOlympics")
-        _client = trace_v2.TraceServiceClient()  # noqa: F841 - validates client creation
+        _client = (
+            trace_v2.TraceServiceClient()
+        )  # noqa: F841 - validates client creation
 
         # Execute operation with trace
         from app.services.monitoring import MonitoringService
+
         monitoring = MonitoringService(enabled=True)
 
         with monitoring.trace_operation("integration_test_operation", {"test": "true"}):
@@ -280,7 +289,9 @@ class TestTraceContextPropagation:
         time.sleep(2)
 
         # Query for recent traces (last 1 hour)
-        _project_name = f"projects/{project_id}"  # noqa: F841 - documents expected format
+        _project_name = (
+            f"projects/{project_id}"  # noqa: F841 - documents expected format
+        )
 
         # Note: Actual trace query would use TraceServiceClient.list_traces()
         # This is a simplified test structure

@@ -32,7 +32,7 @@ class TestTurnEndpointValidInputs:
         request.headers = {
             "X-Goog-IAP-JWT-Assertion": "valid-jwt-token",
             "X-Goog-Authenticated-User-ID": "accounts.google.com:123456",
-            "X-Goog-Authenticated-User-Email": "test@example.com"
+            "X-Goog-Authenticated-User-Email": "test@example.com",
         }
         return request
 
@@ -60,7 +60,7 @@ class TestTurnEndpointValidInputs:
             expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
             conversation_history=[],
             turn_count=3,
-            current_phase="PHASE_1"
+            current_phase="PHASE_1",
         )
 
     @pytest.mark.asyncio
@@ -76,34 +76,35 @@ class TestTurnEndpointValidInputs:
         mock_session_manager.get_session.return_value = active_session
 
         turn_input = TurnInput(
-            user_input="Let's check the oxygen levels",
-            turn_number=4
+            user_input="Let's check the oxygen levels", turn_number=4
         )
 
         # Mock turn orchestrator
-        with patch('app.routers.sessions.get_turn_orchestrator') as mock_orchestrator:
+        with patch("app.routers.sessions.get_turn_orchestrator") as mock_orchestrator:
             mock_orch_instance = Mock()
-            mock_orch_instance.execute_turn = AsyncMock(return_value={
-                "turn_number": 4,
-                "partner_response": "Great idea! I'll grab the scanner.",
-                "room_vibe": {"analysis": "Engaged", "energy": "high"},
-                "current_phase": 2,
-                "timestamp": datetime.now(timezone.utc)
-            })
+            mock_orch_instance.execute_turn = AsyncMock(
+                return_value={
+                    "turn_number": 4,
+                    "partner_response": "Great idea! I'll grab the scanner.",
+                    "room_vibe": {"analysis": "Engaged", "energy": "high"},
+                    "current_phase": 2,
+                    "timestamp": datetime.now(timezone.utc),
+                }
+            )
             mock_orchestrator.return_value = mock_orch_instance
 
             # Mock authentication
-            with patch('app.routers.sessions.get_authenticated_user') as mock_auth:
+            with patch("app.routers.sessions.get_authenticated_user") as mock_auth:
                 mock_auth.return_value = {
                     "user_id": "123456",
-                    "user_email": "test@example.com"
+                    "user_email": "test@example.com",
                 }
 
                 response = await execute_turn(
                     session_id="sess-test-123",
                     turn_input=turn_input,
                     request=mock_request,
-                    session_manager=mock_session_manager
+                    session_manager=mock_session_manager,
                 )
 
                 assert isinstance(response, TurnResponse)
@@ -124,33 +125,32 @@ class TestTurnEndpointValidInputs:
         """
         mock_session_manager.get_session.return_value = active_session
 
-        turn_input = TurnInput(
-            user_input="Test input",
-            turn_number=4
-        )
+        turn_input = TurnInput(user_input="Test input", turn_number=4)
 
-        with patch('app.routers.sessions.get_turn_orchestrator') as mock_orchestrator:
+        with patch("app.routers.sessions.get_turn_orchestrator") as mock_orchestrator:
             mock_orch_instance = Mock()
-            mock_orch_instance.execute_turn = AsyncMock(return_value={
-                "turn_number": 4,
-                "partner_response": "Response text",
-                "room_vibe": {"analysis": "Good", "energy": "medium"},
-                "current_phase": 2,
-                "timestamp": datetime.now(timezone.utc)
-            })
+            mock_orch_instance.execute_turn = AsyncMock(
+                return_value={
+                    "turn_number": 4,
+                    "partner_response": "Response text",
+                    "room_vibe": {"analysis": "Good", "energy": "medium"},
+                    "current_phase": 2,
+                    "timestamp": datetime.now(timezone.utc),
+                }
+            )
             mock_orchestrator.return_value = mock_orch_instance
 
-            with patch('app.routers.sessions.get_authenticated_user') as mock_auth:
+            with patch("app.routers.sessions.get_authenticated_user") as mock_auth:
                 mock_auth.return_value = {
                     "user_id": "123456",
-                    "user_email": "test@example.com"
+                    "user_email": "test@example.com",
                 }
 
                 response = await execute_turn(
                     session_id="sess-test-123",
                     turn_input=turn_input,
                     request=mock_request,
-                    session_manager=mock_session_manager
+                    session_manager=mock_session_manager,
                 )
 
                 response_dict = response.model_dump()
@@ -184,7 +184,7 @@ class TestTurnEndpointAuthentication:
             updated_at=datetime.now(timezone.utc),
             expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
             conversation_history=[],
-            turn_count=2
+            turn_count=2,
         )
 
     @pytest.mark.asyncio
@@ -198,17 +198,14 @@ class TestTurnEndpointAuthentication:
         """
         mock_session_manager.get_session.return_value = valid_session
 
-        turn_input = TurnInput(
-            user_input="Unauthorized input",
-            turn_number=3
-        )
+        turn_input = TurnInput(user_input="Unauthorized input", turn_number=3)
 
         mock_request = Mock()
-        with patch('app.routers.sessions.get_authenticated_user') as mock_auth:
+        with patch("app.routers.sessions.get_authenticated_user") as mock_auth:
             # Different user trying to access
             mock_auth.return_value = {
                 "user_id": "attacker-999",
-                "user_email": "attacker@example.com"
+                "user_email": "attacker@example.com",
             }
 
             with pytest.raises(HTTPException) as exc_info:
@@ -216,7 +213,7 @@ class TestTurnEndpointAuthentication:
                     session_id="sess-test-123",
                     turn_input=turn_input,
                     request=mock_request,
-                    session_manager=mock_session_manager
+                    session_manager=mock_session_manager,
                 )
 
             assert exc_info.value.status_code == status.HTTP_403_FORBIDDEN
@@ -233,36 +230,35 @@ class TestTurnEndpointAuthentication:
         """
         mock_session_manager.get_session.return_value = valid_session
 
-        turn_input = TurnInput(
-            user_input="Owner input",
-            turn_number=3
-        )
+        turn_input = TurnInput(user_input="Owner input", turn_number=3)
 
         mock_request = Mock()
 
-        with patch('app.routers.sessions.get_turn_orchestrator') as mock_orchestrator:
+        with patch("app.routers.sessions.get_turn_orchestrator") as mock_orchestrator:
             mock_orch_instance = Mock()
-            mock_orch_instance.execute_turn = AsyncMock(return_value={
-                "turn_number": 3,
-                "partner_response": "Response",
-                "room_vibe": {"analysis": "Good", "energy": "medium"},
-                "current_phase": 1,
-                "timestamp": datetime.now(timezone.utc)
-            })
+            mock_orch_instance.execute_turn = AsyncMock(
+                return_value={
+                    "turn_number": 3,
+                    "partner_response": "Response",
+                    "room_vibe": {"analysis": "Good", "energy": "medium"},
+                    "current_phase": 1,
+                    "timestamp": datetime.now(timezone.utc),
+                }
+            )
             mock_orchestrator.return_value = mock_orch_instance
 
-            with patch('app.routers.sessions.get_authenticated_user') as mock_auth:
+            with patch("app.routers.sessions.get_authenticated_user") as mock_auth:
                 # Same user as session owner
                 mock_auth.return_value = {
                     "user_id": "owner-123",
-                    "user_email": "owner@example.com"
+                    "user_email": "owner@example.com",
                 }
 
                 response = await execute_turn(
                     session_id="sess-test-123",
                     turn_input=turn_input,
                     request=mock_request,
-                    session_manager=mock_session_manager
+                    session_manager=mock_session_manager,
                 )
 
                 # Should succeed
@@ -290,7 +286,7 @@ class TestTurnEndpointTurnNumberValidation:
             updated_at=datetime.now(timezone.utc),
             expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
             conversation_history=[],
-            turn_count=5  # Currently at turn 5
+            turn_count=5,  # Currently at turn 5
         )
 
     @pytest.mark.asyncio
@@ -305,15 +301,14 @@ class TestTurnEndpointTurnNumberValidation:
         mock_session_manager.get_session.return_value = session_at_turn_5
 
         turn_input = TurnInput(
-            user_input="Out of order input",
-            turn_number=3  # Wrong! Should be 6
+            user_input="Out of order input", turn_number=3  # Wrong! Should be 6
         )
 
         mock_request = Mock()
-        with patch('app.routers.sessions.get_authenticated_user') as mock_auth:
+        with patch("app.routers.sessions.get_authenticated_user") as mock_auth:
             mock_auth.return_value = {
                 "user_id": "user-123",
-                "user_email": "user@example.com"
+                "user_email": "user@example.com",
             }
 
             with pytest.raises(HTTPException) as exc_info:
@@ -321,7 +316,7 @@ class TestTurnEndpointTurnNumberValidation:
                     session_id="sess-test-123",
                     turn_input=turn_input,
                     request=mock_request,
-                    session_manager=mock_session_manager
+                    session_manager=mock_session_manager,
                 )
 
             assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
@@ -339,34 +334,35 @@ class TestTurnEndpointTurnNumberValidation:
         mock_session_manager.get_session.return_value = session_at_turn_5
 
         turn_input = TurnInput(
-            user_input="Correct sequence input",
-            turn_number=6  # Correct!
+            user_input="Correct sequence input", turn_number=6  # Correct!
         )
 
         mock_request = Mock()
 
-        with patch('app.routers.sessions.get_turn_orchestrator') as mock_orchestrator:
+        with patch("app.routers.sessions.get_turn_orchestrator") as mock_orchestrator:
             mock_orch_instance = Mock()
-            mock_orch_instance.execute_turn = AsyncMock(return_value={
-                "turn_number": 6,
-                "partner_response": "Response",
-                "room_vibe": {"analysis": "Good", "energy": "medium"},
-                "current_phase": 2,
-                "timestamp": datetime.now(timezone.utc)
-            })
+            mock_orch_instance.execute_turn = AsyncMock(
+                return_value={
+                    "turn_number": 6,
+                    "partner_response": "Response",
+                    "room_vibe": {"analysis": "Good", "energy": "medium"},
+                    "current_phase": 2,
+                    "timestamp": datetime.now(timezone.utc),
+                }
+            )
             mock_orchestrator.return_value = mock_orch_instance
 
-            with patch('app.routers.sessions.get_authenticated_user') as mock_auth:
+            with patch("app.routers.sessions.get_authenticated_user") as mock_auth:
                 mock_auth.return_value = {
                     "user_id": "user-123",
-                    "user_email": "user@example.com"
+                    "user_email": "user@example.com",
                 }
 
                 response = await execute_turn(
                     session_id="sess-test-123",
                     turn_input=turn_input,
                     request=mock_request,
-                    session_manager=mock_session_manager
+                    session_manager=mock_session_manager,
                 )
 
                 assert response.turn_number == 6
@@ -383,15 +379,14 @@ class TestTurnEndpointTurnNumberValidation:
         mock_session_manager.get_session.return_value = session_at_turn_5
 
         turn_input = TurnInput(
-            user_input="Skipping turn",
-            turn_number=7  # Skipping turn 6!
+            user_input="Skipping turn", turn_number=7  # Skipping turn 6!
         )
 
         mock_request = Mock()
-        with patch('app.routers.sessions.get_authenticated_user') as mock_auth:
+        with patch("app.routers.sessions.get_authenticated_user") as mock_auth:
             mock_auth.return_value = {
                 "user_id": "user-123",
-                "user_email": "user@example.com"
+                "user_email": "user@example.com",
             }
 
             with pytest.raises(HTTPException) as exc_info:
@@ -399,7 +394,7 @@ class TestTurnEndpointTurnNumberValidation:
                     session_id="sess-test-123",
                     turn_input=turn_input,
                     request=mock_request,
-                    session_manager=mock_session_manager
+                    session_manager=mock_session_manager,
                 )
 
             assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
@@ -425,16 +420,13 @@ class TestTurnEndpointSessionNotFound:
         """
         mock_session_manager.get_session.return_value = None
 
-        turn_input = TurnInput(
-            user_input="Test input",
-            turn_number=1
-        )
+        turn_input = TurnInput(user_input="Test input", turn_number=1)
 
         mock_request = Mock()
-        with patch('app.routers.sessions.get_authenticated_user') as mock_auth:
+        with patch("app.routers.sessions.get_authenticated_user") as mock_auth:
             mock_auth.return_value = {
                 "user_id": "user-123",
-                "user_email": "user@example.com"
+                "user_email": "user@example.com",
             }
 
             with pytest.raises(HTTPException) as exc_info:
@@ -442,7 +434,7 @@ class TestTurnEndpointSessionNotFound:
                     session_id="nonexistent-session",
                     turn_input=turn_input,
                     request=mock_request,
-                    session_manager=mock_session_manager
+                    session_manager=mock_session_manager,
                 )
 
             assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
@@ -459,9 +451,7 @@ class TestTurnEndpointExpiredSession:
         return manager
 
     @pytest.mark.asyncio
-    async def test_tc_api_05a_expired_session_returns_404(
-        self, mock_session_manager
-    ):
+    async def test_tc_api_05a_expired_session_returns_404(self, mock_session_manager):
         """
         TC-API-05a: Expired Session Returns 404
 
@@ -471,16 +461,13 @@ class TestTurnEndpointExpiredSession:
         # get_session returns None for expired sessions
         mock_session_manager.get_session.return_value = None
 
-        turn_input = TurnInput(
-            user_input="Test input",
-            turn_number=1
-        )
+        turn_input = TurnInput(user_input="Test input", turn_number=1)
 
         mock_request = Mock()
-        with patch('app.routers.sessions.get_authenticated_user') as mock_auth:
+        with patch("app.routers.sessions.get_authenticated_user") as mock_auth:
             mock_auth.return_value = {
                 "user_id": "user-123",
-                "user_email": "user@example.com"
+                "user_email": "user@example.com",
             }
 
             with pytest.raises(HTTPException) as exc_info:
@@ -488,11 +475,14 @@ class TestTurnEndpointExpiredSession:
                     session_id="expired-session",
                     turn_input=turn_input,
                     request=mock_request,
-                    session_manager=mock_session_manager
+                    session_manager=mock_session_manager,
                 )
 
             assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
-            assert "expired" in exc_info.value.detail.lower() or "not found" in exc_info.value.detail.lower()
+            assert (
+                "expired" in exc_info.value.detail.lower()
+                or "not found" in exc_info.value.detail.lower()
+            )
 
 
 class TestTurnEndpointHTTPStatusCodes:
@@ -516,7 +506,7 @@ class TestTurnEndpointHTTPStatusCodes:
             updated_at=datetime.now(timezone.utc),
             expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
             conversation_history=[],
-            turn_count=3
+            turn_count=3,
         )
 
     @pytest.mark.asyncio
@@ -530,35 +520,34 @@ class TestTurnEndpointHTTPStatusCodes:
         """
         mock_session_manager.get_session.return_value = valid_session
 
-        turn_input = TurnInput(
-            user_input="Valid input",
-            turn_number=4
-        )
+        turn_input = TurnInput(user_input="Valid input", turn_number=4)
 
         mock_request = Mock()
 
-        with patch('app.routers.sessions.get_turn_orchestrator') as mock_orchestrator:
+        with patch("app.routers.sessions.get_turn_orchestrator") as mock_orchestrator:
             mock_orch_instance = Mock()
-            mock_orch_instance.execute_turn = AsyncMock(return_value={
-                "turn_number": 4,
-                "partner_response": "Response",
-                "room_vibe": {"analysis": "Good", "energy": "medium"},
-                "current_phase": 2,
-                "timestamp": datetime.now(timezone.utc)
-            })
+            mock_orch_instance.execute_turn = AsyncMock(
+                return_value={
+                    "turn_number": 4,
+                    "partner_response": "Response",
+                    "room_vibe": {"analysis": "Good", "energy": "medium"},
+                    "current_phase": 2,
+                    "timestamp": datetime.now(timezone.utc),
+                }
+            )
             mock_orchestrator.return_value = mock_orch_instance
 
-            with patch('app.routers.sessions.get_authenticated_user') as mock_auth:
+            with patch("app.routers.sessions.get_authenticated_user") as mock_auth:
                 mock_auth.return_value = {
                     "user_id": "user-123",
-                    "user_email": "user@example.com"
+                    "user_email": "user@example.com",
                 }
 
                 response = await execute_turn(
                     session_id="sess-test-123",
                     turn_input=turn_input,
                     request=mock_request,
-                    session_manager=mock_session_manager
+                    session_manager=mock_session_manager,
                 )
 
                 # Should return TurnResponse without exception
@@ -575,24 +564,21 @@ class TestTurnEndpointHTTPStatusCodes:
         """
         mock_session_manager.get_session.return_value = valid_session
 
-        turn_input = TurnInput(
-            user_input="Input that causes failure",
-            turn_number=4
-        )
+        turn_input = TurnInput(user_input="Input that causes failure", turn_number=4)
 
         mock_request = Mock()
 
-        with patch('app.routers.sessions.get_turn_orchestrator') as mock_orchestrator:
+        with patch("app.routers.sessions.get_turn_orchestrator") as mock_orchestrator:
             mock_orch_instance = Mock()
             mock_orch_instance.execute_turn = AsyncMock(
                 side_effect=Exception("Agent execution failed")
             )
             mock_orchestrator.return_value = mock_orch_instance
 
-            with patch('app.routers.sessions.get_authenticated_user') as mock_auth:
+            with patch("app.routers.sessions.get_authenticated_user") as mock_auth:
                 mock_auth.return_value = {
                     "user_id": "user-123",
-                    "user_email": "user@example.com"
+                    "user_email": "user@example.com",
                 }
 
                 with pytest.raises(HTTPException) as exc_info:
@@ -600,10 +586,12 @@ class TestTurnEndpointHTTPStatusCodes:
                         session_id="sess-test-123",
                         turn_input=turn_input,
                         request=mock_request,
-                        session_manager=mock_session_manager
+                        session_manager=mock_session_manager,
                     )
 
-                assert exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+                assert (
+                    exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
                 assert "error occurred" in exc_info.value.detail.lower()
 
 
@@ -618,10 +606,7 @@ class TestTurnEndpointRequestValidation:
         TurnInput validation should reject empty user_input.
         """
         with pytest.raises(Exception):  # Pydantic ValidationError
-            TurnInput(
-                user_input="",  # Empty!
-                turn_number=1
-            )
+            TurnInput(user_input="", turn_number=1)  # Empty!
 
     @pytest.mark.asyncio
     async def test_tc_api_08b_turn_number_zero_rejected(self):
@@ -631,10 +616,7 @@ class TestTurnEndpointRequestValidation:
         Turn numbers must be >= 1.
         """
         with pytest.raises(Exception):  # Pydantic ValidationError
-            TurnInput(
-                user_input="Valid input",
-                turn_number=0  # Invalid!
-            )
+            TurnInput(user_input="Valid input", turn_number=0)  # Invalid!
 
     @pytest.mark.asyncio
     async def test_tc_api_08c_negative_turn_number_rejected(self):
@@ -644,10 +626,7 @@ class TestTurnEndpointRequestValidation:
         Turn numbers must be positive.
         """
         with pytest.raises(Exception):  # Pydantic ValidationError
-            TurnInput(
-                user_input="Valid input",
-                turn_number=-1  # Invalid!
-            )
+            TurnInput(user_input="Valid input", turn_number=-1)  # Invalid!
 
     @pytest.mark.asyncio
     async def test_tc_api_08d_user_input_max_length_enforced(self):
@@ -657,18 +636,12 @@ class TestTurnEndpointRequestValidation:
         TurnInput should enforce 1000 character maximum.
         """
         # Exactly 1000 chars should be OK
-        valid_input = TurnInput(
-            user_input="A" * 1000,
-            turn_number=1
-        )
+        valid_input = TurnInput(user_input="A" * 1000, turn_number=1)
         assert len(valid_input.user_input) == 1000
 
         # 1001 chars should be rejected
         with pytest.raises(Exception):  # Pydantic ValidationError
-            TurnInput(
-                user_input="A" * 1001,
-                turn_number=1
-            )
+            TurnInput(user_input="A" * 1001, turn_number=1)
 
     @pytest.mark.asyncio
     async def test_tc_api_08e_valid_input_accepted(self):
@@ -678,8 +651,7 @@ class TestTurnEndpointRequestValidation:
         Normal valid inputs should pass validation.
         """
         valid_input = TurnInput(
-            user_input="This is a valid scene contribution!",
-            turn_number=5
+            user_input="This is a valid scene contribution!", turn_number=5
         )
 
         assert valid_input.user_input == "This is a valid scene contribution!"
@@ -696,9 +668,7 @@ class TestTurnEndpointErrorMessages:
         return manager
 
     @pytest.mark.asyncio
-    async def test_tc_api_09a_error_messages_no_pii(
-        self, mock_session_manager
-    ):
+    async def test_tc_api_09a_error_messages_no_pii(self, mock_session_manager):
         """
         TC-API-09a: Error Messages Don't Leak PII
 
@@ -706,16 +676,13 @@ class TestTurnEndpointErrorMessages:
         """
         mock_session_manager.get_session.return_value = None
 
-        turn_input = TurnInput(
-            user_input="Test",
-            turn_number=1
-        )
+        turn_input = TurnInput(user_input="Test", turn_number=1)
 
         mock_request = Mock()
-        with patch('app.routers.sessions.get_authenticated_user') as mock_auth:
+        with patch("app.routers.sessions.get_authenticated_user") as mock_auth:
             mock_auth.return_value = {
                 "user_id": "secret-user-id-12345",
-                "user_email": "secret@example.com"
+                "user_email": "secret@example.com",
             }
 
             with pytest.raises(HTTPException) as exc_info:
@@ -723,7 +690,7 @@ class TestTurnEndpointErrorMessages:
                     session_id="nonexistent",
                     turn_input=turn_input,
                     request=mock_request,
-                    session_manager=mock_session_manager
+                    session_manager=mock_session_manager,
                 )
 
             # Error message should not contain user email or internal IDs
@@ -750,29 +717,28 @@ class TestTurnEndpointErrorMessages:
             updated_at=datetime.now(timezone.utc),
             expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
             conversation_history=[],
-            turn_count=3
+            turn_count=3,
         )
 
         mock_session_manager.get_session.return_value = valid_session
 
-        turn_input = TurnInput(
-            user_input="Test",
-            turn_number=4
-        )
+        turn_input = TurnInput(user_input="Test", turn_number=4)
 
         mock_request = Mock()
 
-        with patch('app.routers.sessions.get_turn_orchestrator') as mock_orchestrator:
+        with patch("app.routers.sessions.get_turn_orchestrator") as mock_orchestrator:
             mock_orch_instance = Mock()
             mock_orch_instance.execute_turn = AsyncMock(
-                side_effect=Exception("Internal database connection string: postgres://secret:password@host")
+                side_effect=Exception(
+                    "Internal database connection string: postgres://secret:password@host"
+                )
             )
             mock_orchestrator.return_value = mock_orch_instance
 
-            with patch('app.routers.sessions.get_authenticated_user') as mock_auth:
+            with patch("app.routers.sessions.get_authenticated_user") as mock_auth:
                 mock_auth.return_value = {
                     "user_id": "user-123",
-                    "user_email": "user@example.com"
+                    "user_email": "user@example.com",
                 }
 
                 with pytest.raises(HTTPException) as exc_info:
@@ -780,7 +746,7 @@ class TestTurnEndpointErrorMessages:
                         session_id="sess-test-123",
                         turn_input=turn_input,
                         request=mock_request,
-                        session_manager=mock_session_manager
+                        session_manager=mock_session_manager,
                     )
 
                 error_detail = exc_info.value.detail.lower()

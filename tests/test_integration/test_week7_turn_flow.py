@@ -52,7 +52,7 @@ class TestEndToEndTurnFlow:
             expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
             conversation_history=[],
             turn_count=0,
-            current_phase=None
+            current_phase=None,
         )
 
     @pytest.mark.asyncio
@@ -66,8 +66,10 @@ class TestEndToEndTurnFlow:
         Verify entire pipeline executes: context building → Stage Manager
         creation → agent execution → response parsing → state updates.
         """
-        with patch('app.services.turn_orchestrator.create_stage_manager') as mock_create_sm:
-            with patch('app.services.turn_orchestrator.Runner') as mock_runner_class:
+        with patch(
+            "app.services.turn_orchestrator.create_stage_manager"
+        ) as mock_create_sm:
+            with patch("app.services.turn_orchestrator.Runner") as mock_runner_class:
                 # Mock Stage Manager
                 mock_stage_manager = Mock()
                 mock_create_sm.return_value = mock_stage_manager
@@ -90,7 +92,7 @@ ROOM: The audience is buzzing with anticipation. Energy: High."""
                 result = await orchestrator.execute_turn(
                     session=initial_session,
                     user_input="Hi! I'm excited to start!",
-                    turn_number=1
+                    turn_number=1,
                 )
 
                 # Verify Stage Manager was created with correct turn count
@@ -139,7 +141,7 @@ class TestStageManagerTurnCount:
             updated_at=datetime.now(timezone.utc),
             expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
             conversation_history=[],
-            turn_count=0
+            turn_count=0,
         )
 
         test_cases = [
@@ -150,17 +152,18 @@ class TestStageManagerTurnCount:
         ]
 
         for turn_number, expected_turn_count in test_cases:
-            with patch('app.services.turn_orchestrator.create_stage_manager') as mock_create:
-                with patch('app.services.turn_orchestrator.Runner'):
+            with patch(
+                "app.services.turn_orchestrator.create_stage_manager"
+            ) as mock_create:
+                with patch("app.services.turn_orchestrator.Runner"):
+
                     async def mock_run(*args, **kwargs):
                         return "PARTNER: Test response\nROOM: Good energy"
 
                     orchestrator._run_agent_async = mock_run
 
                     await orchestrator.execute_turn(
-                        session=session,
-                        user_input="Test",
-                        turn_number=turn_number
+                        session=session, user_input="Test", turn_number=turn_number
                     )
 
                     # Verify create_stage_manager called with correct turn_count
@@ -206,20 +209,19 @@ class TestPhaseTransitionsAtTurnFour:
             expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
             conversation_history=[],
             turn_count=4,  # 4 turns completed, turn 5 will be Phase 2
-            current_phase="PHASE_1"  # Currently Phase 1
+            current_phase="PHASE_1",  # Currently Phase 1
         )
 
-        with patch('app.services.turn_orchestrator.create_stage_manager'):
-            with patch('app.services.turn_orchestrator.Runner'):
+        with patch("app.services.turn_orchestrator.create_stage_manager"):
+            with patch("app.services.turn_orchestrator.Runner"):
+
                 async def mock_run(*args, **kwargs):
                     return "PARTNER: Turn 5 response\nROOM: Energy shift detected"
 
                 orchestrator._run_agent_async = mock_run
 
                 result = await orchestrator.execute_turn(
-                    session=session,
-                    user_input="Turn 5 input",
-                    turn_number=5
+                    session=session, user_input="Turn 5 input", turn_number=5
                 )
 
                 assert result["current_phase"] == 2
@@ -250,20 +252,19 @@ class TestPhaseTransitionsAtTurnFour:
             expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
             conversation_history=[],
             turn_count=4,
-            current_phase="PHASE_2"  # Already Phase 2
+            current_phase="PHASE_2",  # Already Phase 2
         )
 
-        with patch('app.services.turn_orchestrator.create_stage_manager'):
-            with patch('app.services.turn_orchestrator.Runner'):
+        with patch("app.services.turn_orchestrator.create_stage_manager"):
+            with patch("app.services.turn_orchestrator.Runner"):
+
                 async def mock_run(*args, **kwargs):
                     return "PARTNER: Turn 5 response\nROOM: Continued energy"
 
                 orchestrator._run_agent_async = mock_run
 
                 await orchestrator.execute_turn(
-                    session=session,
-                    user_input="Turn 5 input",
-                    turn_number=5
+                    session=session, user_input="Turn 5 input", turn_number=5
                 )
 
                 session_manager_mock.update_session_atomic.assert_called_once()
@@ -307,12 +308,13 @@ class TestConversationHistoryAccumulation:
             updated_at=datetime.now(timezone.utc),
             expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
             conversation_history=[],
-            turn_count=0
+            turn_count=0,
         )
 
-        with patch('app.services.turn_orchestrator.create_stage_manager'):
-            with patch('app.services.turn_orchestrator.Runner'):
+        with patch("app.services.turn_orchestrator.create_stage_manager"):
+            with patch("app.services.turn_orchestrator.Runner"):
                 for turn_num in range(1, 6):
+
                     async def mock_run(*args, **kwargs):
                         return f"PARTNER: Response for turn {turn_num}\nROOM: Energy level {turn_num}"
 
@@ -321,7 +323,7 @@ class TestConversationHistoryAccumulation:
                     await orchestrator.execute_turn(
                         session=session,
                         user_input=f"Input for turn {turn_num}",
-                        turn_number=turn_num
+                        turn_number=turn_num,
                     )
 
                     # Add the turn to mock history (simulate Firestore behavior)
@@ -344,9 +346,7 @@ class TestConversationHistoryAccumulation:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_tc_int_04b_context_includes_recent_history(
-        self, orchestrator
-    ):
+    async def test_tc_int_04b_context_includes_recent_history(self, orchestrator):
         """
         TC-INT-04b: Context Building Includes Recent History
 
@@ -366,31 +366,29 @@ class TestConversationHistoryAccumulation:
                 {
                     "turn_number": 1,
                     "user_input": "Turn 1 input",
-                    "partner_response": "Turn 1 response"
+                    "partner_response": "Turn 1 response",
                 },
                 {
                     "turn_number": 2,
                     "user_input": "Turn 2 input",
-                    "partner_response": "Turn 2 response"
+                    "partner_response": "Turn 2 response",
                 },
                 {
                     "turn_number": 3,
                     "user_input": "Turn 3 input",
-                    "partner_response": "Turn 3 response"
+                    "partner_response": "Turn 3 response",
                 },
                 {
                     "turn_number": 4,
                     "user_input": "Turn 4 input",
-                    "partner_response": "Turn 4 response"
-                }
+                    "partner_response": "Turn 4 response",
+                },
             ],
-            turn_count=4
+            turn_count=4,
         )
 
         context = orchestrator._build_context(
-            session=session,
-            user_input="Turn 5 input",
-            turn_number=5
+            session=session, user_input="Turn 5 input", turn_number=5
         )
 
         # Should include turns 2, 3, 4 (last 3)
@@ -438,20 +436,19 @@ class TestSessionStatusTransitions:
             updated_at=datetime.now(timezone.utc),
             expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
             conversation_history=[],
-            turn_count=0
+            turn_count=0,
         )
 
-        with patch('app.services.turn_orchestrator.create_stage_manager'):
-            with patch('app.services.turn_orchestrator.Runner'):
+        with patch("app.services.turn_orchestrator.create_stage_manager"):
+            with patch("app.services.turn_orchestrator.Runner"):
+
                 async def mock_run(*args, **kwargs):
                     return "PARTNER: First turn response\nROOM: Initial energy"
 
                 orchestrator._run_agent_async = mock_run
 
                 await orchestrator.execute_turn(
-                    session=session,
-                    user_input="First turn input",
-                    turn_number=1
+                    session=session, user_input="First turn input", turn_number=1
                 )
 
                 # Verify status update to ACTIVE via atomic update
@@ -479,20 +476,19 @@ class TestSessionStatusTransitions:
             updated_at=datetime.now(timezone.utc),
             expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
             conversation_history=[],
-            turn_count=14
+            turn_count=14,
         )
 
-        with patch('app.services.turn_orchestrator.create_stage_manager'):
-            with patch('app.services.turn_orchestrator.Runner'):
+        with patch("app.services.turn_orchestrator.create_stage_manager"):
+            with patch("app.services.turn_orchestrator.Runner"):
+
                 async def mock_run(*args, **kwargs):
                     return "PARTNER: Final turn\nROOM: Complete\nCOACH: Great work!"
 
                 orchestrator._run_agent_async = mock_run
 
                 await orchestrator.execute_turn(
-                    session=session,
-                    user_input="Final turn input",
-                    turn_number=15
+                    session=session, user_input="Final turn input", turn_number=15
                 )
 
                 # Verify status update to SCENE_COMPLETE via atomic update
@@ -543,7 +539,7 @@ class TestMultiTurnSessionSimulation:
             expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
             conversation_history=[],
             turn_count=0,
-            current_phase=None
+            current_phase=None,
         )
 
         atomic_updates = []
@@ -553,14 +549,16 @@ class TestMultiTurnSessionSimulation:
 
         session_manager_mock.update_session_atomic.side_effect = record_atomic_update
 
-        with patch('app.services.turn_orchestrator.create_stage_manager'):
-            with patch('app.services.turn_orchestrator.Runner'):
+        with patch("app.services.turn_orchestrator.create_stage_manager"):
+            with patch("app.services.turn_orchestrator.Runner"):
                 for turn_num in range(1, 16):
                     # Simulate agent response
                     if turn_num >= 15:
                         agent_response = f"PARTNER: Turn {turn_num} response\nROOM: Energy\nCOACH: Feedback!"
                     else:
-                        agent_response = f"PARTNER: Turn {turn_num} response\nROOM: Energy"
+                        agent_response = (
+                            f"PARTNER: Turn {turn_num} response\nROOM: Energy"
+                        )
 
                     async def mock_run(*args, **kwargs):
                         return agent_response
@@ -570,7 +568,7 @@ class TestMultiTurnSessionSimulation:
                     result = await orchestrator.execute_turn(
                         session=session,
                         user_input=f"Turn {turn_num} input",
-                        turn_number=turn_num
+                        turn_number=turn_num,
                     )
 
                     # Update session for next iteration
@@ -598,8 +596,14 @@ class TestMultiTurnSessionSimulation:
         assert len(phase_2_updates) == 1
 
         # Verify status transitions (ACTIVE at turn 1, SCENE_COMPLETE at turn 15)
-        active_updates = [u for u in atomic_updates if u.get("new_status") == SessionStatus.ACTIVE]
-        complete_updates = [u for u in atomic_updates if u.get("new_status") == SessionStatus.SCENE_COMPLETE]
+        active_updates = [
+            u for u in atomic_updates if u.get("new_status") == SessionStatus.ACTIVE
+        ]
+        complete_updates = [
+            u
+            for u in atomic_updates
+            if u.get("new_status") == SessionStatus.SCENE_COMPLETE
+        ]
         assert len(active_updates) == 1
         assert len(complete_updates) == 1
 
@@ -636,11 +640,12 @@ class TestPerformanceAndLatency:
             updated_at=datetime.now(timezone.utc),
             expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
             conversation_history=[],
-            turn_count=3
+            turn_count=3,
         )
 
-        with patch('app.services.turn_orchestrator.create_stage_manager'):
-            with patch('app.services.turn_orchestrator.Runner'):
+        with patch("app.services.turn_orchestrator.create_stage_manager"):
+            with patch("app.services.turn_orchestrator.Runner"):
+
                 async def mock_run(*args, **kwargs):
                     # Simulate 1 second agent execution
                     await asyncio.sleep(0.01)
@@ -651,16 +656,16 @@ class TestPerformanceAndLatency:
                 start_time = asyncio.get_event_loop().time()
 
                 await orchestrator.execute_turn(
-                    session=session,
-                    user_input="Performance test input",
-                    turn_number=4
+                    session=session, user_input="Performance test input", turn_number=4
                 )
 
                 end_time = asyncio.get_event_loop().time()
                 execution_time = end_time - start_time
 
                 # Orchestration overhead should be minimal (< 0.1s)
-                assert execution_time < 1.0, f"Execution took {execution_time}s, should be < 1.0s"
+                assert (
+                    execution_time < 1.0
+                ), f"Execution took {execution_time}s, should be < 1.0s"
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -678,8 +683,7 @@ COACH: {"Very long coaching feedback " * 30}"""
         start_time = asyncio.get_event_loop().time()
 
         parsed = orchestrator._parse_agent_response(
-            response=large_response,
-            turn_number=15
+            response=large_response, turn_number=15
         )
 
         end_time = asyncio.get_event_loop().time()

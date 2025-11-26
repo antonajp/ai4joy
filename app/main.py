@@ -11,12 +11,15 @@ AI-powered social gym, featuring:
 - Workload Identity for secure API access
 - OpenTelemetry observability with Cloud Trace integration
 """
+
 import os
 
 # Configure google-genai for Vertex AI BEFORE any ADK imports
 # This must happen at module load time, before Agent classes are imported
 os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "true")
-os.environ.setdefault("GOOGLE_CLOUD_PROJECT", os.getenv("GCP_PROJECT_ID", "coherent-answer-479115-e1"))
+os.environ.setdefault(
+    "GOOGLE_CLOUD_PROJECT", os.getenv("GCP_PROJECT_ID", "coherent-answer-479115-e1")
+)
 os.environ.setdefault("GOOGLE_CLOUD_LOCATION", os.getenv("GCP_LOCATION", "us-central1"))
 
 from fastapi import FastAPI, Request
@@ -29,7 +32,10 @@ from app.config import get_settings
 from app.utils.logger import get_logger
 from app.middleware.oauth_auth import OAuthSessionMiddleware
 from app.middleware.performance import PerformanceMiddleware
-from app.services.adk_observability import initialize_adk_observability, get_adk_observability
+from app.services.adk_observability import (
+    initialize_adk_observability,
+    get_adk_observability,
+)
 from app.routers import health, sessions, auth, static
 
 settings = get_settings()
@@ -47,19 +53,23 @@ app = FastAPI(
     description="AI-powered social gym for rebuilding collaboration skills",
     version="1.0.0",
     docs_url="/api/docs",
-    redoc_url="/api/redoc"
+    redoc_url="/api/redoc",
 )
 
 logger.info(
     "Application starting",
     app_name=settings.app_name,
     gcp_project=settings.gcp_project_id,
-    debug=settings.debug
+    debug=settings.debug,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://ai4joy.org", "https://www.ai4joy.org", "http://localhost:8080"],
+    allow_origins=[
+        "https://ai4joy.org",
+        "https://www.ai4joy.org",
+        "http://localhost:8080",
+    ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
@@ -69,7 +79,7 @@ app.add_middleware(
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.session_secret_key or "dev-secret-key-change-in-production",
-    max_age=3600  # 1 hour for OAuth state
+    max_age=3600,  # 1 hour for OAuth state
 )
 
 app.add_middleware(OAuthSessionMiddleware)
@@ -95,15 +105,15 @@ async def global_exception_handler(request: Request, exc: Exception):
         path=request.url.path,
         method=request.method,
         error=str(exc),
-        error_type=type(exc).__name__
+        error_type=type(exc).__name__,
     )
 
     return JSONResponse(
         status_code=500,
         content={
             "error": "Internal server error",
-            "detail": "An unexpected error occurred. Please try again later."
-        }
+            "detail": "An unexpected error occurred. Please try again later.",
+        },
     )
 
 
@@ -117,7 +127,7 @@ async def startup_event():
         "Vertex AI configuration",
         use_vertexai=os.environ.get("GOOGLE_GENAI_USE_VERTEXAI"),
         project=os.environ.get("GOOGLE_CLOUD_PROJECT"),
-        location=os.environ.get("GOOGLE_CLOUD_LOCATION")
+        location=os.environ.get("GOOGLE_CLOUD_LOCATION"),
     )
 
     logger.info("Initializing singleton Runner")
@@ -137,7 +147,7 @@ async def startup_event():
         "Application startup complete",
         python_version=sys.version,
         project=settings.gcp_project_id,
-        firestore_db=settings.firestore_database
+        firestore_db=settings.firestore_database,
     )
 
 
@@ -172,5 +182,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8080,
         log_level=settings.log_level.lower(),
-        access_log=True
+        access_log=True,
     )

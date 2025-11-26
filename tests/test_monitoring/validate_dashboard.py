@@ -38,7 +38,9 @@ def validate_dashboard_widgets(project_id: str, dashboard_name: str) -> bool:
     print(f"✅ Dashboard '{target_dashboard.display_name}' found")
 
     # Verify widgets
-    widgets = target_dashboard.grid_layout.widgets if target_dashboard.grid_layout else []
+    widgets = (
+        target_dashboard.grid_layout.widgets if target_dashboard.grid_layout else []
+    )
     widget_count = len(widgets)
 
     print(f"\nWidget Count: {widget_count}")
@@ -62,7 +64,7 @@ def validate_dashboard_widgets(project_id: str, dashboard_name: str) -> bool:
         "Error Rate",
         "Cache",
         "Session",
-        "Request"
+        "Request",
     ]
 
     widget_titles = " ".join([w.title.lower() for w in widgets if w.title])
@@ -93,7 +95,7 @@ def validate_alert_policies(project_id: str) -> bool:
     expected_policies = [
         "High P95 Turn Latency",
         "High Error Rate",
-        "Low Cache Hit Rate"
+        "Low Cache Hit Rate",
     ]
 
     all_found = True
@@ -118,7 +120,10 @@ def validate_metrics(project_id: str) -> bool:
     # Filter for custom metrics
     custom_metrics = []
     for descriptor in metric_descriptors:
-        if "custom.googleapis.com" in descriptor.type or "workload.googleapis.com" in descriptor.type:
+        if (
+            "custom.googleapis.com" in descriptor.type
+            or "workload.googleapis.com" in descriptor.type
+        ):
             custom_metrics.append(descriptor.type)
 
     print(f"\n{len(custom_metrics)} custom metrics found")
@@ -129,7 +134,7 @@ def validate_metrics(project_id: str) -> bool:
         "agent_latency_seconds",
         "cache_hits_total",
         "cache_misses_total",
-        "errors_total"
+        "errors_total",
     ]
 
     found_metrics = []
@@ -150,8 +155,11 @@ def validate_metrics(project_id: str) -> bool:
 def main():
     parser = argparse.ArgumentParser(description="Validate Cloud Monitoring Dashboard")
     parser.add_argument("--project", required=True, help="GCP Project ID")
-    parser.add_argument("--dashboard-name", default="Improv Olympics Production",
-                       help="Dashboard display name")
+    parser.add_argument(
+        "--dashboard-name",
+        default="Improv Olympics Production",
+        help="Dashboard display name",
+    )
 
     args = parser.parse_args()
 
@@ -181,7 +189,7 @@ def main():
     results = {
         "Dashboard": dashboard_valid,
         "Alert Policies": alerts_valid,
-        "Custom Metrics": metrics_valid
+        "Custom Metrics": metrics_valid,
     }
 
     for component, is_valid in results.items():

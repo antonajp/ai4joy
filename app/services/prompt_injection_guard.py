@@ -1,4 +1,5 @@
 """Prompt Injection Detection and Prevention Service"""
+
 import re
 from typing import Dict, List, Optional
 from app.utils.logger import get_logger
@@ -14,7 +15,7 @@ class InjectionDetectionResult:
         is_safe: bool,
         threat_level: str,
         detections: List[str],
-        sanitized_input: str
+        sanitized_input: str,
     ):
         self.is_safe = is_safe
         self.threat_level = threat_level
@@ -35,78 +36,73 @@ class PromptInjectionGuard:
     """
 
     SYSTEM_PROMPT_LEAK_PATTERNS = [
-        r'(?i)ignore\s+(previous|all|above)\s+(instructions|prompts?|commands?)',
-        r'(?i)show\s+(me\s+)?(your|the)\s+(system\s+)?(prompt|instructions?)',
-        r'(?i)what\s+(are|is)\s+your\s+(instructions?|system\s+prompt)',
-        r'(?i)repeat\s+(your|the)\s+(instructions?|system\s+prompt)',
-        r'(?i)disregard\s+(previous|all|prior)',
+        r"(?i)ignore\s+(previous|all|above)\s+(instructions|prompts?|commands?)",
+        r"(?i)show\s+(me\s+)?(your|the)\s+(system\s+)?(prompt|instructions?)",
+        r"(?i)what\s+(are|is)\s+your\s+(instructions?|system\s+prompt)",
+        r"(?i)repeat\s+(your|the)\s+(instructions?|system\s+prompt)",
+        r"(?i)disregard\s+(previous|all|prior)",
     ]
 
     ROLE_HIJACKING_PATTERNS = [
-        r'(?i)you\s+are\s+now\s+(a|an)',
-        r'(?i)act\s+as\s+(if\s+)?you',
-        r'(?i)pretend\s+(to\s+be|you\s+are)',
-        r'(?i)from\s+now\s+on,?\s+you',
-        r'(?i)system:\s',
-        r'(?i)assistant:\s',
-        r'(?i)user:\s',
-        r'(?i)\[system\]',
-        r'(?i)\[assistant\]',
-        r'(?i)<\s*system\s*>',
+        r"(?i)you\s+are\s+now\s+(a|an)",
+        r"(?i)act\s+as\s+(if\s+)?you",
+        r"(?i)pretend\s+(to\s+be|you\s+are)",
+        r"(?i)from\s+now\s+on,?\s+you",
+        r"(?i)system:\s",
+        r"(?i)assistant:\s",
+        r"(?i)user:\s",
+        r"(?i)\[system\]",
+        r"(?i)\[assistant\]",
+        r"(?i)<\s*system\s*>",
     ]
 
     INSTRUCTION_OVERRIDE_PATTERNS = [
-        r'(?i)new\s+instructions?:',
-        r'(?i)override\s+(previous|all|existing)',
-        r'(?i)instead,?\s+(do|say|respond|tell)',
-        r'(?i)forget\s+(everything|all|previous)',
-        r'(?i)start\s+over',
-        r'(?i)reset\s+(your|the)\s+(instructions?|context)',
+        r"(?i)new\s+instructions?:",
+        r"(?i)override\s+(previous|all|existing)",
+        r"(?i)instead,?\s+(do|say|respond|tell)",
+        r"(?i)forget\s+(everything|all|previous)",
+        r"(?i)start\s+over",
+        r"(?i)reset\s+(your|the)\s+(instructions?|context)",
     ]
 
     CONTEXT_MANIPULATION_PATTERNS = [
-        r'(?i)end\s+of\s+(conversation|session)',
-        r'(?i)session\s+(ended|complete|over)',
-        r'(?i)terminate\s+(this|the)\s+(session|conversation)',
-        r'(?i)exit\s+(simulation|mode)',
+        r"(?i)end\s+of\s+(conversation|session)",
+        r"(?i)session\s+(ended|complete|over)",
+        r"(?i)terminate\s+(this|the)\s+(session|conversation)",
+        r"(?i)exit\s+(simulation|mode)",
     ]
 
     JAILBREAK_PATTERNS = [
-        r'(?i)for\s+(research|educational|testing)\s+purposes',
-        r'(?i)in\s+a\s+hypothetical\s+(scenario|world)',
-        r'(?i)without\s+any\s+(ethical|moral)\s+constraints',
-        r'(?i)ignore\s+(safety|ethical|content)\s+(guidelines|filters?)',
-        r'(?i)bypass\s+(restrictions?|filters?|safety)',
-        r'(?i)sudo\s+',
-        r'(?i)admin\s+mode',
-        r'(?i)developer\s+mode',
+        r"(?i)for\s+(research|educational|testing)\s+purposes",
+        r"(?i)in\s+a\s+hypothetical\s+(scenario|world)",
+        r"(?i)without\s+any\s+(ethical|moral)\s+constraints",
+        r"(?i)ignore\s+(safety|ethical|content)\s+(guidelines|filters?)",
+        r"(?i)bypass\s+(restrictions?|filters?|safety)",
+        r"(?i)sudo\s+",
+        r"(?i)admin\s+mode",
+        r"(?i)developer\s+mode",
     ]
 
     SUSPICIOUS_ENCODING_PATTERNS = [
-        r'\\x[0-9a-fA-F]{2}',
-        r'&#\d{2,4};',
-        r'\\u[0-9a-fA-F]{4}',
-        r'%[0-9a-fA-F]{2}',
+        r"\\x[0-9a-fA-F]{2}",
+        r"&#\d{2,4};",
+        r"\\u[0-9a-fA-F]{4}",
+        r"%[0-9a-fA-F]{2}",
     ]
 
     def __init__(self):
         self._stats = {
             "total_checks": 0,
             "blocked": 0,
-            "by_threat_level": {
-                "critical": 0,
-                "high": 0,
-                "medium": 0,
-                "low": 0
-            },
+            "by_threat_level": {"critical": 0, "high": 0, "medium": 0, "low": 0},
             "by_type": {
                 "system_leak": 0,
                 "role_hijack": 0,
                 "instruction_override": 0,
                 "context_manipulation": 0,
                 "jailbreak": 0,
-                "encoding": 0
-            }
+                "encoding": 0,
+            },
         }
 
     def check_injection(self, user_input: str) -> InjectionDetectionResult:
@@ -135,12 +131,10 @@ class PromptInjectionGuard:
             is_safe=is_safe,
             threat_level=threat_level,
             detections=detections,
-            sanitized_input=sanitized
+            sanitized_input=sanitized,
         )
 
-    def _run_all_detection_checks(
-        self, user_input: str, detections: List[str]
-    ) -> str:
+    def _run_all_detection_checks(self, user_input: str, detections: List[str]) -> str:
         """Run all detection pattern checks and return threat level."""
         threat_level = "none"
 
@@ -175,7 +169,7 @@ class PromptInjectionGuard:
             "Prompt injection attempt detected",
             threat_level=threat_level,
             detections=detections,
-            input_length=input_length
+            input_length=input_length,
         )
 
     def sanitize_input(self, user_input: str) -> str:
@@ -190,13 +184,13 @@ class PromptInjectionGuard:
         """
         sanitized = user_input
 
-        sanitized = re.sub(r'(?i)system:\s*', '', sanitized)
-        sanitized = re.sub(r'(?i)assistant:\s*', '', sanitized)
-        sanitized = re.sub(r'(?i)user:\s*', '', sanitized)
-        sanitized = re.sub(r'\[system\]', '', sanitized, flags=re.IGNORECASE)
-        sanitized = re.sub(r'\[assistant\]', '', sanitized, flags=re.IGNORECASE)
-        sanitized = re.sub(r'<\s*system\s*>', '', sanitized, flags=re.IGNORECASE)
-        sanitized = re.sub(r'<\s*/\s*system\s*>', '', sanitized, flags=re.IGNORECASE)
+        sanitized = re.sub(r"(?i)system:\s*", "", sanitized)
+        sanitized = re.sub(r"(?i)assistant:\s*", "", sanitized)
+        sanitized = re.sub(r"(?i)user:\s*", "", sanitized)
+        sanitized = re.sub(r"\[system\]", "", sanitized, flags=re.IGNORECASE)
+        sanitized = re.sub(r"\[assistant\]", "", sanitized, flags=re.IGNORECASE)
+        sanitized = re.sub(r"<\s*system\s*>", "", sanitized, flags=re.IGNORECASE)
+        sanitized = re.sub(r"<\s*/\s*system\s*>", "", sanitized, flags=re.IGNORECASE)
 
         sanitized = sanitized.strip()
 
@@ -229,7 +223,7 @@ class PromptInjectionGuard:
                 else 0.0
             ),
             "by_threat_level": self._stats["by_threat_level"].copy(),
-            "by_type": self._stats["by_type"].copy()
+            "by_type": self._stats["by_type"].copy(),
         }
 
 

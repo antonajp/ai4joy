@@ -1,4 +1,5 @@
 """Partner Agent - Adaptive Improv Scene Partner using Google ADK"""
+
 from google.adk.agents import Agent
 from app.config import get_settings
 from app.utils.logger import get_logger
@@ -191,7 +192,7 @@ def create_partner_agent(phase: int = 1) -> Agent:
         description=f"Adaptive improv scene partner ({phase_name}) - Phase {phase}",
         model=settings.vertexai_pro_model,  # Use Pro for creative scene work
         instruction=instruction,
-        tools=[]  # Partner doesn't need external tools
+        tools=[],  # Partner doesn't need external tools
     )
 
     logger.info("Partner Agent created successfully", phase=phase)

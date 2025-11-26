@@ -22,12 +22,13 @@ from app.config import get_settings
 
 settings = get_settings()
 
+
 def get_db():
     print(f"Connecting to Firestore project: {settings.gcp_project_id}")
     return firestore.Client(
-        project=settings.gcp_project_id,
-        database=settings.firestore_database
+        project=settings.gcp_project_id, database=settings.firestore_database
     )
+
 
 def reset_user(db, user_id, reset_daily=True, reset_concurrent=True):
     print(f"Resetting limits for user: {user_id}")
@@ -43,18 +44,12 @@ def reset_user(db, user_id, reset_daily=True, reset_concurrent=True):
 
         # Reset concurrent sessions
         if reset_concurrent:
-            updates["concurrent_sessions"] = {
-                "count": 0,
-                "active_session_ids": []
-            }
+            updates["concurrent_sessions"] = {"count": 0, "active_session_ids": []}
             print(f"  - Reset concurrent sessions for {user_id}")
 
         # Reset daily sessions
         if reset_daily:
-            updates["daily_sessions"] = {
-                "count": 0,
-                "reset_time": None
-            }
+            updates["daily_sessions"] = {"count": 0, "reset_time": None}
             print(f"  - Reset daily sessions for {user_id}")
 
         if updates:
@@ -64,9 +59,11 @@ def reset_user(db, user_id, reset_daily=True, reset_concurrent=True):
     except Exception as e:
         print(f"Error resetting user {user_id}: {e}")
 
+
 def get_user_email(db, user_id):
     """Look up user email from sessions collection."""
     from google.cloud.firestore_v1.base_query import FieldFilter
+
     sessions = db.collection(settings.firestore_sessions_collection)
     # Find any session with this user_id to get their email
     query = sessions.where(filter=FieldFilter("user_id", "==", user_id)).limit(1)
@@ -74,6 +71,7 @@ def get_user_email(db, user_id):
         data = session.to_dict()
         return data.get("user_email", "")
     return ""
+
 
 def _print_users_table(users_with_limits, user_emails):
     """Print the users table header and rows."""
@@ -85,21 +83,23 @@ def _print_users_table(users_with_limits, user_emails):
     for uid, (email, active_count, daily_count) in user_emails.items():
         email_display = email[:33] + ".." if len(email) > 35 else email
         user_id_display = uid[:28] + ".." if len(uid) > 30 else uid
-        print(f"{email_display:<35} | {user_id_display:<30} | {active_count:<10} | {daily_count:<8}")
+        print(
+            f"{email_display:<35} | {user_id_display:<30} | {active_count:<10} | {daily_count:<8}"
+        )
 
 
 def _handle_reset_choice(db, choice, users_with_limits, reset_daily, reset_concurrent):
     """Handle the user's reset choice."""
-    if choice.lower() == 'q':
+    if choice.lower() == "q":
         return
-    if choice.lower() == 'all':
+    if choice.lower() == "all":
         for uid in users_with_limits:
             reset_user(db, uid, reset_daily, reset_concurrent)
     elif choice in users_with_limits:
         reset_user(db, choice, reset_daily, reset_concurrent)
     else:
         print("User ID not in list.")
-        if input("Try to reset anyway? (y/n): ").lower() == 'y':
+        if input("Try to reset anyway? (y/n): ").lower() == "y":
             reset_user(db, choice, reset_daily, reset_concurrent)
 
 
@@ -136,15 +136,26 @@ def list_and_prompt(db, reset_daily=True, reset_concurrent=True):
         reset_type.append("concurrent")
     print(f"Will reset: {', '.join(reset_type)} limits")
 
-    choice = input("\nEnter User ID to reset, 'all' to reset all listed, or 'q' to quit: ").strip()
+    choice = input(
+        "\nEnter User ID to reset, 'all' to reset all listed, or 'q' to quit: "
+    ).strip()
     _handle_reset_choice(db, choice, users_with_limits, reset_daily, reset_concurrent)
+
 
 def main():
     parser = argparse.ArgumentParser(description="Reset Improv Olympics User Limits")
     parser.add_argument("user_id", nargs="?", help="User ID to reset")
-    parser.add_argument("--daily", action="store_true", help="Reset daily session limits only")
-    parser.add_argument("--concurrent", action="store_true", help="Reset concurrent session limits only")
-    parser.add_argument("--all-limits", action="store_true", help="Reset both daily and concurrent limits")
+    parser.add_argument(
+        "--daily", action="store_true", help="Reset daily session limits only"
+    )
+    parser.add_argument(
+        "--concurrent", action="store_true", help="Reset concurrent session limits only"
+    )
+    parser.add_argument(
+        "--all-limits",
+        action="store_true",
+        help="Reset both daily and concurrent limits",
+    )
     args = parser.parse_args()
 
     # Determine what to reset
@@ -166,6 +177,7 @@ def main():
         print(f"Error: {e}")
         print("Make sure you have Google Cloud credentials set up:")
         print("  gcloud auth application-default login")
+
 
 if __name__ == "__main__":
     main()

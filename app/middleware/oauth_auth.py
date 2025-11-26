@@ -1,4 +1,5 @@
 """Google OAuth 2.0 Authentication Middleware"""
+
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 from typing import Optional
@@ -47,8 +48,7 @@ class OAuthSessionMiddleware:
 
         if not session_data:
             logger.warning(
-                "No valid session - redirecting to login",
-                path=request.url.path
+                "No valid session - redirecting to login", path=request.url.path
             )
             # Redirect to login with return URL
             login_url = f"/auth/login?next={request.url.path}"
@@ -60,7 +60,7 @@ class OAuthSessionMiddleware:
         logger.debug(
             "Valid session found",
             user_email=session_data.get("email"),
-            path=request.url.path
+            path=request.url.path,
         )
 
         scope["state"] = {
@@ -73,8 +73,8 @@ class OAuthSessionMiddleware:
 
     def _should_bypass_auth(self, path: str) -> bool:
         """Check if path should bypass authentication"""
-        clean_path = path.split('?')[0].rstrip('/')
-        bypass_paths = [p.rstrip('/') for p in settings.auth_bypass_paths]
+        clean_path = path.split("?")[0].rstrip("/")
+        bypass_paths = [p.rstrip("/") for p in settings.auth_bypass_paths]
         return clean_path in bypass_paths
 
     def _get_session_data(self, request: Request) -> Optional[dict]:
@@ -89,10 +89,7 @@ class OAuthSessionMiddleware:
 
         try:
             # Validate and deserialize the session cookie
-            session_data = self.serializer.loads(
-                session_cookie,
-                max_age=self.max_age
-            )
+            session_data = self.serializer.loads(session_cookie, max_age=self.max_age)
             return session_data
         except SignatureExpired:
             logger.info("Session expired")
@@ -116,10 +113,7 @@ class OAuthSessionMiddleware:
             Signed session cookie value
         """
         # Add timestamp for session tracking
-        session_data = {
-            **user_info,
-            "created_at": int(time.time())
-        }
+        session_data = {**user_info, "created_at": int(time.time())}
         return self.serializer.dumps(session_data)
 
 
@@ -135,11 +129,12 @@ def get_authenticated_user(request: Request) -> dict:
     """
     from fastapi import HTTPException, status
 
-    if not hasattr(request.state, "user_email") or not hasattr(request.state, "user_id"):
+    if not hasattr(request.state, "user_email") or not hasattr(
+        request.state, "user_id"
+    ):
         logger.error("Attempted to access user info without authentication")
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not authenticated"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated"
         )
 
     return {

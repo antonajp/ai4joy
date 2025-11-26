@@ -1,4 +1,5 @@
 """OAuth Authentication Endpoints"""
+
 from fastapi import APIRouter, Request, HTTPException, status
 from fastapi.responses import RedirectResponse, HTMLResponse
 from authlib.integrations.starlette_client import OAuth
@@ -14,19 +15,21 @@ settings = get_settings()
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
 # Initialize OAuth client
-starlette_config = StarletteConfig(environ={
-    "GOOGLE_CLIENT_ID": settings.oauth_client_id,
-    "GOOGLE_CLIENT_SECRET": settings.oauth_client_secret,
-})
+starlette_config = StarletteConfig(
+    environ={
+        "GOOGLE_CLIENT_ID": settings.oauth_client_id,
+        "GOOGLE_CLIENT_SECRET": settings.oauth_client_secret,
+    }
+)
 
 oauth = OAuth(starlette_config)
 oauth.register(
-    name='google',
-    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    name="google",
+    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
     client_kwargs={
-        'scope': 'openid email profile',
-        'prompt': 'select_account',  # Always show account selection
-    }
+        "scope": "openid email profile",
+        "prompt": "select_account",  # Always show account selection
+    },
 )
 
 # Middleware instance for creating session cookies
@@ -53,22 +56,18 @@ async def login(request: Request, next: str = "/"):
         redirect_uri = f"https://{request.url.hostname}/auth/callback"
 
     logger.debug(
-        "OAuth redirect configuration",
-        redirect_uri=redirect_uri,
-        next_url=next
+        "OAuth redirect configuration", redirect_uri=redirect_uri, next_url=next
     )
 
     try:
         return await oauth.google.authorize_redirect(
-            request,
-            redirect_uri,
-            state=next  # Pass 'next' URL as state parameter
+            request, redirect_uri, state=next  # Pass 'next' URL as state parameter
         )
     except Exception as e:
         logger.error("OAuth login initiation failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to initiate login. Please try again."
+            detail="Failed to initiate login. Please try again.",
         )
 
 
@@ -88,29 +87,29 @@ async def auth_callback(request: Request):
         token = await oauth.google.authorize_access_token(request)
 
         # Get user info from Google
-        user_info = token.get('userinfo')
+        user_info = token.get("userinfo")
         if not user_info:
             logger.error("No user info in OAuth token response")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Failed to retrieve user information"
+                detail="Failed to retrieve user information",
             )
 
         logger.info(
             "OAuth authentication successful",
-            user_email=user_info.get('email'),
-            user_id=user_info.get('sub')
+            user_email=user_info.get("email"),
+            user_id=user_info.get("sub"),
         )
 
         # Check if user is allowed to access the application
-        user_email = user_info.get('email', '')
+        user_email = user_info.get("email", "")
         allowed_users = settings.allowed_users_list
 
         if allowed_users and user_email not in allowed_users:
             logger.warning(
                 "Access denied - user not in whitelist",
                 user_email=user_email,
-                whitelist_count=len(allowed_users)
+                whitelist_count=len(allowed_users),
             )
             # Return user-friendly HTML error page
             html_content = f"""
@@ -176,7 +175,7 @@ async def auth_callback(request: Request):
         session_cookie = session_middleware.create_session_cookie(user_info)
 
         # Get the 'next' URL from state parameter
-        next_url = request.query_params.get('state', '/')
+        next_url = request.query_params.get("state", "/")
 
         # Create redirect response with session cookie
         response = RedirectResponse(url=next_url, status_code=302)
@@ -187,7 +186,9 @@ async def auth_callback(request: Request):
         # Determine the domain for the cookie
         # For ai4joy.org, use the base domain so cookie works across subdomains
         cookie_domain = None
-        if request.url.hostname == "ai4joy.org" or request.url.hostname.endswith(".ai4joy.org"):
+        if request.url.hostname == "ai4joy.org" or request.url.hostname.endswith(
+            ".ai4joy.org"
+        ):
             cookie_domain = "ai4joy.org"
 
         response.set_cookie(
@@ -197,23 +198,27 @@ async def auth_callback(request: Request):
             path="/",  # Make cookie valid for entire site
             httponly=True,  # Prevent JavaScript access
             secure=is_production,  # HTTPS only in production
-            samesite="lax", # CSRF protection
+            samesite="lax",  # CSRF protection
             max_age=86400,  # 24 hours
         )
 
         logger.info(
             "Session created successfully",
-            user_email=user_info.get('email'),
-            redirect_to=next_url
+            user_email=user_info.get("email"),
+            redirect_to=next_url,
         )
 
         return response
 
     except Exception as e:
-        logger.error("OAuth callback processing failed", error=str(e), error_type=type(e).__name__)
+        logger.error(
+            "OAuth callback processing failed",
+            error=str(e),
+            error_type=type(e).__name__,
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Authentication failed: {str(e)}"
+            detail=f"Authentication failed: {str(e)}",
         )
 
 
@@ -230,7 +235,9 @@ async def logout(request: Request):
 
     # Delete the session cookie (must match path and domain used when setting it)
     # Delete with domain specified for ai4joy.org
-    if request.url.hostname == "ai4joy.org" or request.url.hostname.endswith(".ai4joy.org"):
+    if request.url.hostname == "ai4joy.org" or request.url.hostname.endswith(
+        ".ai4joy.org"
+    ):
         response.delete_cookie(key="session", path="/", domain="ai4joy.org")
     # Also delete without domain to clear any legacy cookies
     response.delete_cookie(key="session", path="/")
@@ -255,16 +262,12 @@ async def get_current_user(request: Request):
     # Read session cookie directly since this endpoint bypasses middleware
     session_cookie = request.cookies.get("session")
     if not session_cookie:
-        return {
-            "authenticated": False,
-            "user": None
-        }
+        return {"authenticated": False, "user": None}
 
     try:
         # Validate and deserialize the session cookie
         session_data = session_middleware.serializer.loads(
-            session_cookie,
-            max_age=session_middleware.max_age
+            session_cookie, max_age=session_middleware.max_age
         )
         return {
             "authenticated": True,
@@ -272,11 +275,8 @@ async def get_current_user(request: Request):
                 "user_email": session_data.get("email"),
                 "user_id": session_data.get("sub"),
                 "user_name": session_data.get("name"),
-            }
+            },
         }
     except Exception as e:
         logger.warning("Session validation failed", error=str(e))
-        return {
-            "authenticated": False,
-            "user": None
-        }
+        return {"authenticated": False, "user": None}

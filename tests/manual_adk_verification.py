@@ -8,6 +8,7 @@ ADK-first architecture principles:
 - Uses ADK native observability (CloudTraceCallback)
 - Uses singleton Runner pattern with InMemoryRunner
 """
+
 import asyncio
 import inspect
 import time
@@ -17,7 +18,13 @@ async def test_a_import_and_create_agents():
     """Test A: Import and Create Agents"""
     print("\n=== Test A: Import and Create Agents ===")
 
-    from app.agents import create_mc_agent, create_room_agent, create_stage_manager, create_partner_agent, create_coach_agent
+    from app.agents import (
+        create_mc_agent,
+        create_room_agent,
+        create_stage_manager,
+        create_partner_agent,
+        create_coach_agent,
+    )
     from google.adk.agents import Agent
 
     mc = create_mc_agent()
@@ -28,10 +35,18 @@ async def test_a_import_and_create_agents():
 
     # Verify all are Agent instances
     assert isinstance(mc, Agent), f"MC Agent is {type(mc)}, not google.adk.agents.Agent"
-    assert isinstance(room, Agent), f"Room Agent is {type(room)}, not google.adk.agents.Agent"
-    assert isinstance(partner, Agent), f"Partner Agent is {type(partner)}, not google.adk.agents.Agent"
-    assert isinstance(coach, Agent), f"Coach Agent is {type(coach)}, not google.adk.agents.Agent"
-    assert isinstance(stage, Agent), f"Stage Manager is {type(stage)}, not google.adk.agents.Agent"
+    assert isinstance(
+        room, Agent
+    ), f"Room Agent is {type(room)}, not google.adk.agents.Agent"
+    assert isinstance(
+        partner, Agent
+    ), f"Partner Agent is {type(partner)}, not google.adk.agents.Agent"
+    assert isinstance(
+        coach, Agent
+    ), f"Coach Agent is {type(coach)}, not google.adk.agents.Agent"
+    assert isinstance(
+        stage, Agent
+    ), f"Stage Manager is {type(stage)}, not google.adk.agents.Agent"
 
     print("✅ All agents are google.adk.agents.Agent instances")
     print(f"   - MC Agent: {type(mc).__name__}")
@@ -55,9 +70,15 @@ async def test_b_verify_tools_are_functions():
     assert inspect.iscoroutinefunction(game_database_tools.search_games)
 
     print("✅ All game database tools are async functions")
-    print(f"   - get_all_games: {inspect.iscoroutinefunction(game_database_tools.get_all_games)}")
-    print(f"   - get_game_by_id: {inspect.iscoroutinefunction(game_database_tools.get_game_by_id)}")
-    print(f"   - search_games: {inspect.iscoroutinefunction(game_database_tools.search_games)}")
+    print(
+        f"   - get_all_games: {inspect.iscoroutinefunction(game_database_tools.get_all_games)}"
+    )
+    print(
+        f"   - get_game_by_id: {inspect.iscoroutinefunction(game_database_tools.get_game_by_id)}"
+    )
+    print(
+        f"   - search_games: {inspect.iscoroutinefunction(game_database_tools.search_games)}"
+    )
 
     return True
 
@@ -70,7 +91,9 @@ async def test_c_verify_sub_agent_orchestration():
 
     stage = create_stage_manager(current_turn=1)
 
-    assert len(stage.sub_agents) == 3, f"Expected 3 sub-agents, got {len(stage.sub_agents)}"
+    assert (
+        len(stage.sub_agents) == 3
+    ), f"Expected 3 sub-agents, got {len(stage.sub_agents)}"
     sub_agent_names = [agent.name for agent in stage.sub_agents]
     assert "room_agent" in sub_agent_names, "room_agent not found in sub-agents"
     assert "partner_agent" in sub_agent_names, "partner_agent not found in sub-agents"
@@ -98,12 +121,20 @@ async def test_d_verify_no_custom_wrappers():
     # Check that BaseImprovAgent is NOT in source
     assert "BaseImprovAgent" not in source_mc, "MC Agent still uses BaseImprovAgent"
     assert "BaseImprovAgent" not in source_room, "Room Agent still uses BaseImprovAgent"
-    assert "BaseImprovAgent" not in source_partner, "Partner Agent still uses BaseImprovAgent"
+    assert (
+        "BaseImprovAgent" not in source_partner
+    ), "Partner Agent still uses BaseImprovAgent"
 
     # Check that google.adk.agents imports ARE present
-    assert "from google.adk.agents import Agent" in source_mc, "MC Agent doesn't import from google.adk.agents"
-    assert "from google.adk.agents import Agent" in source_room, "Room Agent doesn't import from google.adk.agents"
-    assert "from google.adk.agents import Agent" in source_partner, "Partner Agent doesn't import from google.adk.agents"
+    assert (
+        "from google.adk.agents import Agent" in source_mc
+    ), "MC Agent doesn't import from google.adk.agents"
+    assert (
+        "from google.adk.agents import Agent" in source_room
+    ), "Room Agent doesn't import from google.adk.agents"
+    assert (
+        "from google.adk.agents import Agent" in source_partner
+    ), "Partner Agent doesn't import from google.adk.agents"
 
     print("✅ No custom wrappers detected - using pure ADK")
     print("   - No BaseImprovAgent imports found")
@@ -131,7 +162,9 @@ async def test_e_tool_function_execution():
 
     # Test search_games
     high_energy_games = await game_database_tools.search_games(energy_level="high")
-    assert isinstance(high_energy_games, list), f"search_games returned {type(high_energy_games)}, not list"
+    assert isinstance(
+        high_energy_games, list
+    ), f"search_games returned {type(high_energy_games)}, not list"
 
     print("✅ All tool functions execute successfully")
     print(f"   - Total games: {len(games)}")
@@ -149,19 +182,27 @@ async def test_f_agent_configuration_validation():
 
     mc = create_mc_agent()
     assert mc.name == "mc_agent", f"MC name is {mc.name}, not mc_agent"
-    assert mc.model == "gemini-2.0-flash-exp", f"MC model is {mc.model}, not gemini-2.0-flash-exp"
+    assert (
+        mc.model == "gemini-2.0-flash-exp"
+    ), f"MC model is {mc.model}, not gemini-2.0-flash-exp"
     assert len(mc.tools) == 3, f"MC has {len(mc.tools)} tools, expected 3"
     assert mc.instruction != "", "MC has empty instruction"
 
     room = create_room_agent()
     assert room.name == "room_agent", f"Room name is {room.name}, not room_agent"
-    assert room.model == "gemini-2.0-flash-exp", f"Room model is {room.model}, not gemini-2.0-flash-exp"
+    assert (
+        room.model == "gemini-2.0-flash-exp"
+    ), f"Room model is {room.model}, not gemini-2.0-flash-exp"
     assert len(room.tools) == 6, f"Room has {len(room.tools)} tools, expected 6"
     assert room.instruction != "", "Room has empty instruction"
 
     partner = create_partner_agent(current_turn=1)
-    assert partner.name == "partner_agent", f"Partner name is {partner.name}, not partner_agent"
-    assert partner.model == "gemini-2.0-flash-exp", f"Partner model is {partner.model}, not gemini-2.0-flash-exp"
+    assert (
+        partner.name == "partner_agent"
+    ), f"Partner name is {partner.name}, not partner_agent"
+    assert (
+        partner.model == "gemini-2.0-flash-exp"
+    ), f"Partner model is {partner.model}, not gemini-2.0-flash-exp"
     assert partner.instruction != "", "Partner has empty instruction"
 
     print("✅ All agent configurations are valid")
@@ -176,7 +217,13 @@ async def test_i_agent_creation_performance():
     """Test I: Agent Creation Performance"""
     print("\n=== Test I: Agent Creation Performance ===")
 
-    from app.agents import create_mc_agent, create_room_agent, create_partner_agent, create_coach_agent, create_stage_manager
+    from app.agents import (
+        create_mc_agent,
+        create_room_agent,
+        create_partner_agent,
+        create_coach_agent,
+        create_stage_manager,
+    )
 
     start = time.time()
     # Create agents (results not used - testing creation time only)
@@ -201,9 +248,9 @@ async def test_i_agent_creation_performance():
 
 async def main():
     """Run all manual verification tests"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("MANUAL ADK VERIFICATION TESTS - ADK-FIRST ARCHITECTURE")
-    print("="*60)
+    print("=" * 60)
 
     tests = [
         test_a_import_and_create_agents,
@@ -227,9 +274,9 @@ async def main():
             failed += 1
             print(f"❌ {test.__name__} FAILED: {e}")
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print(f"MANUAL TESTS COMPLETED: {passed} passed, {failed} failed")
-    print("="*60 + "\n")
+    print("=" * 60 + "\n")
 
 
 if __name__ == "__main__":

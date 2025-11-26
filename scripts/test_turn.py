@@ -27,6 +27,7 @@ async def main():
         # but we can check if the orchestrator initializes correctly.
 
         from app.services.turn_orchestrator import get_singleton_runner
+
         print("Initializing singleton runner...")
         _runner = get_singleton_runner()
         print("Singleton runner initialized.")
@@ -34,7 +35,9 @@ async def main():
     except Exception as e:
         print(f"ERROR: {e}")
         import traceback
+
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

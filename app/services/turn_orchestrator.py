@@ -1,4 +1,5 @@
 """Turn Orchestration Service - Coordinates ADK Agents for Session Turns"""
+
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 import asyncio
@@ -53,7 +54,7 @@ def get_singleton_runner(memory_service=None) -> Runner:
                 app_name=settings.app_name,
                 artifact_service=None,
                 session_service=get_adk_session_service(),
-                memory_service=memory_svc
+                memory_service=memory_svc,
             )
 
             if memory_svc:
@@ -104,7 +105,7 @@ class TurnOrchestrator:
         self,
         session_manager: SessionManager,
         use_cache: bool = True,
-        use_parallel: bool = True
+        use_parallel: bool = True,
     ):
         self.session_manager = session_manager
         self.use_cache = use_cache
@@ -114,10 +115,7 @@ class TurnOrchestrator:
         # Use shared DatabaseSessionService instead of per-request InMemorySessionService
 
     async def execute_turn(
-        self,
-        session: Session,
-        user_input: str,
-        turn_number: int
+        self, session: Session, user_input: str, turn_number: int
     ) -> Dict[str, Any]:
         """
         Execute a single turn in the improv session.
@@ -141,7 +139,7 @@ class TurnOrchestrator:
             turn_number=turn_number,
             # NOTE: turn_number is 1-indexed (user-facing), but determine_partner_phase expects
             # 0-indexed turn_count. User turns 1-4 map to Phase 1, turns 5+ map to Phase 2.
-            phase=determine_partner_phase(turn_number - 1)
+            phase=determine_partner_phase(turn_number - 1),
         )
 
         try:
@@ -157,32 +155,31 @@ class TurnOrchestrator:
                 logger.error(
                     "Failed to ensure ADK session exists",
                     session_id=session.session_id,
-                    user_id=session.user_id
+                    user_id=session.user_id,
                 )
-                raise ValueError(f"Could not create ADK session for {session.session_id}")
+                raise ValueError(
+                    f"Could not create ADK session for {session.session_id}"
+                )
 
             logger.debug(
                 "ADK session ready for turn execution",
                 session_id=session.session_id,
-                events_count=len(adk_session.events)
+                events_count=len(adk_session.events),
             )
 
             scene_prompt = await self._construct_scene_prompt(
-                session=session,
-                user_input=user_input,
-                turn_number=turn_number
+                session=session, user_input=user_input, turn_number=turn_number
             )
 
             response = await self._run_agent_async(
                 runner=runner,
                 prompt=scene_prompt,
                 user_id=session.user_id,
-                session_id=session.session_id
+                session_id=session.session_id,
             )
 
             turn_response = self._parse_agent_response(
-                response=response,
-                turn_number=turn_number
+                response=response, turn_number=turn_number
             )
 
             # Update session state
@@ -190,14 +187,14 @@ class TurnOrchestrator:
                 session=session,
                 user_input=user_input,
                 turn_response=turn_response,
-                turn_number=turn_number
+                turn_number=turn_number,
             )
 
             logger.info(
                 "Turn executed successfully",
                 session_id=session.session_id,
                 turn_number=turn_number,
-                phase=turn_response["current_phase"]
+                phase=turn_response["current_phase"],
             )
 
             return turn_response
@@ -207,21 +204,15 @@ class TurnOrchestrator:
                 "Turn execution failed",
                 session_id=session.session_id,
                 turn_number=turn_number,
-                error=str(e)
+                error=str(e),
             )
             raise
 
     def _build_context(
-        self,
-        session: Session,
-        user_input: str,
-        turn_number: int
+        self, session: Session, user_input: str, turn_number: int
     ) -> str:
         """Build conversation context for agent"""
-        context_parts = [
-            f"Location: {session.location}",
-            f"Turn {turn_number}"
-        ]
+        context_parts = [f"Location: {session.location}", f"Turn {turn_number}"]
 
         # Add recent conversation history (last 3 turns for context)
         if session.conversation_history:
@@ -231,17 +222,12 @@ class TurnOrchestrator:
                 context_parts.append(
                     f"Turn {turn['turn_number']}: User: {turn['user_input']}"
                 )
-                context_parts.append(
-                    f"Partner: {turn['partner_response']}"
-                )
+                context_parts.append(f"Partner: {turn['partner_response']}")
 
         return "\n".join(context_parts)
 
     async def _construct_scene_prompt(
-        self,
-        session: Session,
-        user_input: str,
-        turn_number: int
+        self, session: Session, user_input: str, turn_number: int
     ) -> str:
         """Construct prompt for Stage Manager with optional memory context"""
         phase = determine_partner_phase(turn_number - 1)
@@ -252,12 +238,16 @@ class TurnOrchestrator:
             memories = await search_user_memories(
                 user_id=session.user_id,
                 query=f"improv techniques preferences performance {session.location}",
-                limit=3
+                limit=3,
             )
             if memories:
                 memory_context = "\nPast session insights about this user:\n"
                 for memory in memories:
-                    content = memory.get('content', str(memory)) if isinstance(memory, dict) else str(memory)
+                    content = (
+                        memory.get("content", str(memory))
+                        if isinstance(memory, dict)
+                        else str(memory)
+                    )
                     memory_context += f"- {content[:200]}\n"
 
         prompt = f"""Scene Turn {turn_number} - {phase_name}
@@ -284,7 +274,7 @@ ROOM: [Audience vibe analysis]
         prompt: str,
         user_id: str,
         session_id: str,
-        timeout: int = 30
+        timeout: int = 30,
     ) -> str:
         """Run agent asynchronously with ADK Runner with timeout protection.
 
@@ -306,22 +296,19 @@ ROOM: [Audience vibe analysis]
         """
         try:
             new_message = types.Content(
-                role="user",
-                parts=[types.Part.from_text(text=prompt)]
+                role="user", parts=[types.Part.from_text(text=prompt)]
             )
 
             response_parts = []
 
             async def run_with_timeout():
                 async for event in runner.run_async(
-                    user_id=user_id,
-                    session_id=session_id,
-                    new_message=new_message
+                    user_id=user_id, session_id=session_id, new_message=new_message
                 ):
-                    if hasattr(event, 'content') and event.content:
-                        if hasattr(event.content, 'parts'):
+                    if hasattr(event, "content") and event.content:
+                        if hasattr(event.content, "parts"):
                             for part in event.content.parts:
-                                if hasattr(part, 'text') and part.text:
+                                if hasattr(part, "text") and part.text:
                                     response_parts.append(part.text)
 
             await asyncio.wait_for(run_with_timeout(), timeout=timeout)
@@ -330,17 +317,11 @@ ROOM: [Audience vibe analysis]
 
         except asyncio.TimeoutError:
             logger.error(
-                "Agent execution timed out",
-                timeout=timeout,
-                prompt_length=len(prompt)
+                "Agent execution timed out", timeout=timeout, prompt_length=len(prompt)
             )
             raise
 
-    def _parse_agent_response(
-        self,
-        response: str,
-        turn_number: int
-    ) -> Dict[str, Any]:
+    def _parse_agent_response(self, response: str, turn_number: int) -> Dict[str, Any]:
         """Parse structured response from Stage Manager using robust regex patterns.
 
         Args:
@@ -362,14 +343,14 @@ ROOM: [Audience vibe analysis]
             "room_vibe": {},
             "coach_feedback": None,
             "current_phase": determine_partner_phase(turn_number - 1),
-            "timestamp": datetime.now(timezone.utc)
+            "timestamp": datetime.now(timezone.utc),
         }
 
         # Define section patterns with flexible whitespace and case-insensitive matching
         # Use word boundaries (\b) and non-greedy matching (.*?) to prevent false matches
-        partner_pattern = r'\bPARTNER\s*:\s*(.*?)(?=\n\s*\b(?:ROOM|COACH)\s*:|$)'
-        room_pattern = r'\bROOM\s*:\s*(.*?)(?=\n\s*\bCOACH\s*:|$)'
-        coach_pattern = r'\bCOACH\s*:\s*(.*?)$'
+        partner_pattern = r"\bPARTNER\s*:\s*(.*?)(?=\n\s*\b(?:ROOM|COACH)\s*:|$)"
+        room_pattern = r"\bROOM\s*:\s*(.*?)(?=\n\s*\bCOACH\s*:|$)"
+        coach_pattern = r"\bCOACH\s*:\s*(.*?)$"
 
         # Parse PARTNER section (required)
         partner_match = re.search(partner_pattern, response, re.IGNORECASE | re.DOTALL)
@@ -380,7 +361,7 @@ ROOM: [Audience vibe analysis]
             logger.warning(
                 "Failed to parse PARTNER section, using full response",
                 response_preview=response[:200],
-                turn_number=turn_number
+                turn_number=turn_number,
             )
             turn_response["partner_response"] = response.strip()
 
@@ -389,7 +370,7 @@ ROOM: [Audience vibe analysis]
             logger.error(
                 "Empty partner response after parsing",
                 raw_response=response,
-                turn_number=turn_number
+                turn_number=turn_number,
             )
             raise ValueError("Partner response cannot be empty")
 
@@ -399,16 +380,15 @@ ROOM: [Audience vibe analysis]
             room_analysis = room_match.group(1).strip()
             turn_response["room_vibe"] = {
                 "analysis": room_analysis,
-                "energy": "engaged"  # Default for now
+                "energy": "engaged",  # Default for now
             }
         else:
             logger.debug(
-                "No ROOM section found, using default",
-                turn_number=turn_number
+                "No ROOM section found, using default", turn_number=turn_number
             )
             turn_response["room_vibe"] = {
                 "analysis": "Audience is engaged and enjoying the scene",
-                "energy": "positive"
+                "energy": "positive",
             }
 
         # Parse COACH section (optional, only expected at turn >= 15)
@@ -418,8 +398,7 @@ ROOM: [Audience vibe analysis]
                 turn_response["coach_feedback"] = coach_match.group(1).strip()
             else:
                 logger.debug(
-                    "No COACH section found at turn >= 15",
-                    turn_number=turn_number
+                    "No COACH section found at turn >= 15", turn_number=turn_number
                 )
 
         return turn_response
@@ -429,7 +408,7 @@ ROOM: [Audience vibe analysis]
         session: Session,
         user_input: str,
         turn_response: Dict[str, Any],
-        turn_number: int
+        turn_number: int,
     ) -> None:
         """Update session state in Firestore atomically after turn execution"""
         # Prepare turn data for history
@@ -439,7 +418,7 @@ ROOM: [Audience vibe analysis]
             "partner_response": turn_response["partner_response"],
             "room_vibe": turn_response["room_vibe"],
             "phase": f"Phase {turn_response['current_phase']}",
-            "timestamp": turn_response["timestamp"].isoformat()
+            "timestamp": turn_response["timestamp"].isoformat(),
         }
 
         if turn_response.get("coach_feedback"):
@@ -460,7 +439,7 @@ ROOM: [Audience vibe analysis]
             session_id=session.session_id,
             turn_data=turn_data,
             new_phase=new_phase if phase_updated else None,
-            new_status=new_status
+            new_status=new_status,
         )
 
         if phase_updated:
@@ -469,9 +448,8 @@ ROOM: [Audience vibe analysis]
                 session_id=session.session_id,
                 old_phase=session.current_phase,
                 new_phase=new_phase,
-                turn_number=turn_number
+                turn_number=turn_number,
             )
-
 
     def get_cache_stats(self) -> Optional[Dict[str, Any]]:
         if not self.use_cache or not self.agent_cache:
@@ -485,13 +463,9 @@ ROOM: [Audience vibe analysis]
 
 
 def get_turn_orchestrator(
-    session_manager: SessionManager,
-    use_cache: bool = True,
-    use_parallel: bool = True
+    session_manager: SessionManager, use_cache: bool = True, use_parallel: bool = True
 ) -> TurnOrchestrator:
     """Factory function for TurnOrchestrator"""
     return TurnOrchestrator(
-        session_manager=session_manager,
-        use_cache=use_cache,
-        use_parallel=use_parallel
+        session_manager=session_manager, use_cache=use_cache, use_parallel=use_parallel
     )

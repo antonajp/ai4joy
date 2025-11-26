@@ -1,4 +1,5 @@
 """Room Agent - Collective Sentiment Analyzer using Google ADK"""
+
 from google.adk.agents import Agent
 from app.tools import sentiment_gauge_tools, demographic_tools
 from app.config import get_settings
@@ -68,8 +69,8 @@ def create_room_agent() -> Agent:
             sentiment_gauge_tools.analyze_collective_mood,
             demographic_tools.generate_audience_sample,
             demographic_tools.analyze_audience_traits,
-            demographic_tools.get_vibe_check
-        ]
+            demographic_tools.get_vibe_check,
+        ],
     )
 
     logger.info("Room Agent created successfully")

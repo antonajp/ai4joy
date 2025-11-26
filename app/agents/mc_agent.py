@@ -1,4 +1,5 @@
 """MC Agent - High-Energy Game Host using Google ADK"""
+
 from google.adk.agents import Agent
 from app.tools import game_database_tools
 from app.config import get_settings
@@ -57,8 +58,8 @@ def create_mc_agent() -> Agent:
         tools=[
             game_database_tools.get_all_games,
             game_database_tools.get_game_by_id,
-            game_database_tools.search_games
-        ]
+            game_database_tools.search_games,
+        ],
     )
 
     logger.info("MC Agent created successfully")

@@ -1,4 +1,5 @@
 """Tests for monitoring and observability features"""
+
 import pytest
 import time
 
@@ -87,7 +88,7 @@ class TestAlertingService:
         alerting = AlertingService(
             latency_threshold=8.0,
             error_rate_threshold=0.05,
-            cache_hit_rate_threshold=0.50
+            cache_hit_rate_threshold=0.50,
         )
         assert alerting.latency_threshold == 8.0
         assert alerting.error_rate_threshold == 0.05
@@ -217,7 +218,7 @@ class TestCloudLogger:
             operation="generate_response",
             duration=1.5,
             success=True,
-            turn=1
+            turn=1,
         )
 
     def test_log_agent_execution_failure(self):
@@ -228,27 +229,21 @@ class TestCloudLogger:
             operation="analyze_scene",
             duration=0.5,
             success=False,
-            error="Timeout"
+            error="Timeout",
         )
 
     def test_log_cache_operation_hit(self):
         """Test logging cache hit"""
         logger = CloudLogger("test-logger")
         logger.log_cache_operation(
-            operation="get",
-            cache_type="session",
-            hit=True,
-            key="session:123"
+            operation="get", cache_type="session", hit=True, key="session:123"
         )
 
     def test_log_cache_operation_miss(self):
         """Test logging cache miss"""
         logger = CloudLogger("test-logger")
         logger.log_cache_operation(
-            operation="get",
-            cache_type="session",
-            hit=False,
-            key="session:456"
+            operation="get", cache_type="session", hit=False, key="session:456"
         )
 
 
@@ -263,7 +258,9 @@ class TestPerformanceMiddleware:
 
         app = FastAPI()
 
-        _middleware = PerformanceMiddleware(app, slow_request_threshold=1.0)  # noqa: F841 - tests instantiation
+        _middleware = PerformanceMiddleware(
+            app, slow_request_threshold=1.0
+        )  # noqa: F841 - tests instantiation
         app.add_middleware(PerformanceMiddleware, slow_request_threshold=1.0)
 
         @app.get("/test")

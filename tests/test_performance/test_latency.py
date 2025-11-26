@@ -2,6 +2,7 @@
 TC-301: Multi-Agent Response Latency
 Measures end-to-end latency for agent orchestration.
 """
+
 import pytest
 import time
 import statistics
@@ -18,14 +19,16 @@ class TestLatency:
 
     @pytest.mark.performance
     @pytest.mark.slow
-    def test_turn_latency_measurement(self, session_client, test_session_config, latency_thresholds):
+    def test_turn_latency_measurement(
+        self, session_client, test_session_config, latency_thresholds
+    ):
         """
         Measure latency for 50 user turns.
         Core test for TC-301.
         """
         # Setup session
         session = session_client.start_session(test_session_config)
-        session_id = session['session_id']
+        session_id = session["session_id"]
         session_client.get_mc_intro(session_id)
         session_client.submit_suggestion(session_id, "Two astronauts")
 
@@ -37,15 +40,15 @@ class TestLatency:
             result = session_client.submit_turn(
                 session_id=session_id,
                 user_input=f"Yes! And let's try approach number {turn}!",
-                turn_number=turn
+                turn_number=turn,
             )
 
             latency = time.time() - start_time
             latencies.append(latency)
 
             # Ensure we got valid response
-            assert 'partner_response' in result
-            assert 'room_vibe' in result
+            assert "partner_response" in result
+            assert "room_vibe" in result
 
         # Calculate percentiles
         p50 = statistics.median(latencies)
@@ -60,18 +63,21 @@ class TestLatency:
         print(f"  max: {max(latencies):.2f}s")
 
         # Assert against thresholds
-        assert p50 < latency_thresholds['p50'], \
-            f"p50 latency {p50:.2f}s exceeds threshold {latency_thresholds['p50']}s"
-        assert p95 < latency_thresholds['p95'], \
-            f"p95 latency {p95:.2f}s exceeds threshold {latency_thresholds['p95']}s"
-        assert p99 < latency_thresholds['p99'], \
-            f"p99 latency {p99:.2f}s exceeds threshold {latency_thresholds['p99']}s"
+        assert (
+            p50 < latency_thresholds["p50"]
+        ), f"p50 latency {p50:.2f}s exceeds threshold {latency_thresholds['p50']}s"
+        assert (
+            p95 < latency_thresholds["p95"]
+        ), f"p95 latency {p95:.2f}s exceeds threshold {latency_thresholds['p95']}s"
+        assert (
+            p99 < latency_thresholds["p99"]
+        ), f"p99 latency {p99:.2f}s exceeds threshold {latency_thresholds['p99']}s"
 
     @pytest.mark.performance
     def test_component_latency_breakdown(self, session_client, test_session_config):
         """Measure latency breakdown by component."""
         session = session_client.start_session(test_session_config)
-        session_id = session['session_id']
+        session_id = session["session_id"]
 
         # MC initialization
         start = time.time()
@@ -112,7 +118,7 @@ class TestLatency:
         session1 = session_client.start_session(test_session_config)
         cold_start_latency = time.time() - start
 
-        session_client.close_session(session1['session_id'])
+        session_client.close_session(session1["session_id"])
 
         # Wait a moment
         time.sleep(1)
@@ -122,7 +128,7 @@ class TestLatency:
         session2 = session_client.start_session(test_session_config)
         warm_start_latency = time.time() - start
 
-        session_client.close_session(session2['session_id'])
+        session_client.close_session(session2["session_id"])
 
         print(f"Cold start: {cold_start_latency:.2f}s")
         print(f"Warm start: {warm_start_latency:.2f}s")
@@ -136,7 +142,7 @@ class TestLatency:
     def test_phase_transition_latency(self, session_client, test_session_config):
         """Measure latency impact of phase transitions."""
         session = session_client.start_session(test_session_config)
-        session_id = session['session_id']
+        session_id = session["session_id"]
         session_client.get_mc_intro(session_id)
         session_client.submit_suggestion(session_id, "Two astronauts")
 
@@ -164,15 +170,18 @@ class TestLatency:
         print(f"PHASE_2 avg latency: {avg_phase2:.2f}s")
 
         # Phase transition shouldn't significantly impact latency
-        assert abs(avg_phase1 - avg_phase2) < 2.0, \
-            "Phase transition causes significant latency change"
+        assert (
+            abs(avg_phase1 - avg_phase2) < 2.0
+        ), "Phase transition causes significant latency change"
 
     @pytest.mark.performance
     @pytest.mark.slow
-    def test_sustained_load_latency_degradation(self, session_client, test_session_config):
+    def test_sustained_load_latency_degradation(
+        self, session_client, test_session_config
+    ):
         """Test latency degradation under sustained load."""
         session = session_client.start_session(test_session_config)
-        session_id = session['session_id']
+        session_id = session["session_id"]
         session_client.get_mc_intro(session_id)
         session_client.submit_suggestion(session_id, "Two astronauts")
 
@@ -200,14 +209,15 @@ class TestLatency:
         print(f"Latency degradation: {degradation_pct:.1f}%")
 
         # Allow up to 20% degradation under sustained load
-        assert degradation_pct < 20, \
-            f"Latency degraded {degradation_pct:.1f}%, expected <20%"
+        assert (
+            degradation_pct < 20
+        ), f"Latency degraded {degradation_pct:.1f}%, expected <20%"
 
     @pytest.mark.performance
     def test_timeout_handling(self, session_client, test_session_config):
         """Test that requests timeout appropriately if latency is excessive."""
         session = session_client.start_session(test_session_config)
-        session_id = session['session_id']
+        session_id = session["session_id"]
         session_client.get_mc_intro(session_id)
         session_client.submit_suggestion(session_id, "Two astronauts")
 

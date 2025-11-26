@@ -10,6 +10,7 @@ ADK automatically instruments:
 This service adds custom metrics for cache operations and custom spans for
 application-specific operations not covered by ADK.
 """
+
 import asyncio
 import time
 import functools
@@ -59,37 +60,33 @@ class MonitoringService:
         self.turn_latency_histogram = self.meter.create_histogram(
             name="turn_latency_seconds",
             description="Turn execution latency in seconds",
-            unit="s"
+            unit="s",
         )
 
         self.agent_latency_histogram = self.meter.create_histogram(
             name="agent_latency_seconds",
             description="Individual agent execution latency in seconds",
-            unit="s"
+            unit="s",
         )
 
         self.cache_hit_counter = self.meter.create_counter(
-            name="cache_hits_total",
-            description="Total number of cache hits",
-            unit="1"
+            name="cache_hits_total", description="Total number of cache hits", unit="1"
         )
 
         self.cache_miss_counter = self.meter.create_counter(
             name="cache_misses_total",
             description="Total number of cache misses",
-            unit="1"
+            unit="1",
         )
 
         self.error_counter = self.meter.create_counter(
-            name="errors_total",
-            description="Total number of errors",
-            unit="1"
+            name="errors_total", description="Total number of errors", unit="1"
         )
 
         self.request_duration_histogram = self.meter.create_histogram(
             name="request_duration_seconds",
             description="HTTP request duration in seconds",
-            unit="s"
+            unit="s",
         )
 
     def _setup_noop_metrics(self):
@@ -108,7 +105,9 @@ class MonitoringService:
         self.turn_latency_histogram.record(duration, attributes=attributes or {})
         logger.debug("Turn latency recorded", duration=duration, attributes=attributes)
 
-    def record_agent_latency(self, duration: float, agent_name: str, attributes: Optional[dict] = None):
+    def record_agent_latency(
+        self, duration: float, agent_name: str, attributes: Optional[dict] = None
+    ):
         """Record individual agent execution latency"""
         if not self.enabled or not self.agent_latency_histogram:
             return
@@ -132,7 +131,9 @@ class MonitoringService:
         self.cache_miss_counter.add(1, {"cache_type": cache_type})
         logger.debug("Cache miss recorded", cache_type=cache_type)
 
-    def record_error(self, error_type: str = "unknown", attributes: Optional[dict] = None):
+    def record_error(
+        self, error_type: str = "unknown", attributes: Optional[dict] = None
+    ):
         """Record error occurrence"""
         if not self.enabled or not self.error_counter:
             return
@@ -142,17 +143,15 @@ class MonitoringService:
         self.error_counter.add(1, attrs)
         logger.error("Error recorded", error_type=error_type, attributes=attributes)
 
-    def record_request_duration(self, duration: float, method: str, path: str, status_code: int):
+    def record_request_duration(
+        self, duration: float, method: str, path: str, status_code: int
+    ):
         """Record HTTP request duration"""
         if not self.enabled or not self.request_duration_histogram:
             return
         self.request_duration_histogram.record(
             duration,
-            attributes={
-                "method": method,
-                "path": path,
-                "status_code": status_code
-            }
+            attributes={"method": method, "path": path, "status_code": status_code},
         )
 
     @contextmanager
@@ -199,7 +198,9 @@ class MonitoringService:
             if metric_name == "turn":
                 self.record_turn_latency(duration, attributes)
             elif metric_name == "agent":
-                agent_name = attributes.get("agent", "unknown") if attributes else "unknown"
+                agent_name = (
+                    attributes.get("agent", "unknown") if attributes else "unknown"
+                )
                 self.record_agent_latency(duration, agent_name, attributes)
 
     def get_trace_id(self) -> Optional[str]:
@@ -209,7 +210,7 @@ class MonitoringService:
 
         span = trace.get_current_span()
         if span and span.get_span_context().is_valid:
-            return format(span.get_span_context().trace_id, '032x')
+            return format(span.get_span_context().trace_id, "032x")
         return None
 
 
@@ -233,6 +234,7 @@ def trace_operation(operation_name: str):
         async def execute_turn(session, user_input):
             pass
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs):
@@ -262,6 +264,7 @@ def measure_latency(metric_name: str, **metric_attributes):
         async def execute_turn(session, user_input):
             pass
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs):

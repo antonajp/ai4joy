@@ -55,14 +55,13 @@ class TestRealFirestorePersistence:
         Create session in Firestore and retrieve it with all fields intact.
         """
         session_data = SessionCreate(
-            location="Firestore Test Location",
-            user_name="Test User"
+            location="Firestore Test Location", user_name="Test User"
         )
 
         created_session = await manager.create_session(
             user_id="firestore_test_user_123",
             user_email="firestore-test@example.com",
-            session_data=session_data
+            session_data=session_data,
         )
 
         cleanup_sessions.append(created_session.session_id)
@@ -85,9 +84,7 @@ class TestRealFirestorePersistence:
         assert len(retrieved_session.conversation_history) == 0
 
     @pytest.mark.asyncio
-    async def test_tc_firestore_02_atomic_turn_update(
-        self, manager, cleanup_sessions
-    ):
+    async def test_tc_firestore_02_atomic_turn_update(self, manager, cleanup_sessions):
         """
         TC-FIRESTORE-02: Atomic Turn Update
 
@@ -98,7 +95,7 @@ class TestRealFirestorePersistence:
         session = await manager.create_session(
             user_id="atomic_test_user",
             user_email="atomic@example.com",
-            session_data=session_data
+            session_data=session_data,
         )
 
         cleanup_sessions.append(session.session_id)
@@ -109,16 +106,16 @@ class TestRealFirestorePersistence:
             "partner_response": "Hi there! I'm excited to improvise with you.",
             "room_vibe": {
                 "analysis": "Audience is engaged and curious",
-                "energy": "positive"
+                "energy": "positive",
             },
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         await manager.update_session_atomic(
             session_id=session.session_id,
             turn_data=turn_data,
             new_phase="PHASE_1",
-            new_status=SessionStatus.ACTIVE
+            new_status=SessionStatus.ACTIVE,
         )
 
         updated_session = await manager.get_session(session.session_id)
@@ -148,7 +145,7 @@ class TestRealFirestorePersistence:
         session = await manager.create_session(
             user_id="concurrent_test_user",
             user_email="concurrent@example.com",
-            session_data=session_data
+            session_data=session_data,
         )
 
         cleanup_sessions.append(session.session_id)
@@ -159,34 +156,37 @@ class TestRealFirestorePersistence:
                 "turn_number": turn_num,
                 "user_input": f"Concurrent input {turn_num}",
                 "partner_response": f"Concurrent response {turn_num}",
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             await manager.update_session_atomic(
-                session_id=session.session_id,
-                turn_data=turn_data
+                session_id=session.session_id, turn_data=turn_data
             )
 
         await asyncio.gather(*[update_turn(i) for i in range(1, 6)])
 
         final_session = await manager.get_session(session.session_id)
 
-        assert final_session.turn_count == 5, \
-            "All 5 concurrent updates should be recorded"
-        assert len(final_session.conversation_history) == 5, \
-            "All 5 turns should be in history"
+        assert (
+            final_session.turn_count == 5
+        ), "All 5 concurrent updates should be recorded"
+        assert (
+            len(final_session.conversation_history) == 5
+        ), "All 5 turns should be in history"
 
         turn_numbers = [
-            turn["turn_number"]
-            for turn in final_session.conversation_history
+            turn["turn_number"] for turn in final_session.conversation_history
         ]
-        assert sorted(turn_numbers) == [1, 2, 3, 4, 5], \
-            "All turn numbers should be present"
+        assert sorted(turn_numbers) == [
+            1,
+            2,
+            3,
+            4,
+            5,
+        ], "All turn numbers should be present"
 
     @pytest.mark.asyncio
-    async def test_tc_firestore_04_session_expiration(
-        self, manager, cleanup_sessions
-    ):
+    async def test_tc_firestore_04_session_expiration(self, manager, cleanup_sessions):
         """
         TC-FIRESTORE-04: Session Expiration
 
@@ -197,21 +197,18 @@ class TestRealFirestorePersistence:
         session = await manager.create_session(
             user_id="expiration_test_user",
             user_email="expiration@example.com",
-            session_data=session_data
+            session_data=session_data,
         )
 
         cleanup_sessions.append(session.session_id)
 
         doc_ref = manager.collection.document(session.session_id)
         expired_time = datetime.now(timezone.utc) - timedelta(seconds=10)
-        doc_ref.update({
-            "expires_at": expired_time.isoformat()
-        })
+        doc_ref.update({"expires_at": expired_time.isoformat()})
 
         retrieved_session = await manager.get_session(session.session_id)
 
-        assert retrieved_session is None, \
-            "Expired session should return None"
+        assert retrieved_session is None, "Expired session should return None"
 
     @pytest.mark.asyncio
     async def test_tc_firestore_05_conversation_history_ordering(
@@ -227,7 +224,7 @@ class TestRealFirestorePersistence:
         session = await manager.create_session(
             user_id="history_test_user",
             user_email="history@example.com",
-            session_data=session_data
+            session_data=session_data,
         )
 
         cleanup_sessions.append(session.session_id)
@@ -237,12 +234,11 @@ class TestRealFirestorePersistence:
                 "turn_number": turn_num,
                 "user_input": f"Input {turn_num}",
                 "partner_response": f"Response {turn_num}",
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             await manager.add_conversation_turn(
-                session_id=session.session_id,
-                turn_data=turn_data
+                session_id=session.session_id, turn_data=turn_data
             )
 
         final_session = await manager.get_session(session.session_id)
@@ -250,14 +246,13 @@ class TestRealFirestorePersistence:
         assert len(final_session.conversation_history) == 5
 
         for idx, turn in enumerate(final_session.conversation_history, start=1):
-            assert turn["turn_number"] == idx, \
-                f"Turn order should be preserved (expected {idx}, got {turn['turn_number']})"
+            assert (
+                turn["turn_number"] == idx
+            ), f"Turn order should be preserved (expected {idx}, got {turn['turn_number']})"
             assert turn["user_input"] == f"Input {idx}"
 
     @pytest.mark.asyncio
-    async def test_tc_firestore_06_phase_persistence(
-        self, manager, cleanup_sessions
-    ):
+    async def test_tc_firestore_06_phase_persistence(self, manager, cleanup_sessions):
         """
         TC-FIRESTORE-06: Phase Persistence
 
@@ -268,31 +263,27 @@ class TestRealFirestorePersistence:
         session = await manager.create_session(
             user_id="phase_test_user",
             user_email="phase@example.com",
-            session_data=session_data
+            session_data=session_data,
         )
 
         cleanup_sessions.append(session.session_id)
 
         await manager.update_session_phase(
-            session_id=session.session_id,
-            phase="PHASE_1"
+            session_id=session.session_id, phase="PHASE_1"
         )
 
         retrieved = await manager.get_session(session.session_id)
         assert retrieved.current_phase == "PHASE_1"
 
         await manager.update_session_phase(
-            session_id=session.session_id,
-            phase="PHASE_2"
+            session_id=session.session_id, phase="PHASE_2"
         )
 
         retrieved = await manager.get_session(session.session_id)
         assert retrieved.current_phase == "PHASE_2"
 
     @pytest.mark.asyncio
-    async def test_tc_firestore_07_status_transitions(
-        self, manager, cleanup_sessions
-    ):
+    async def test_tc_firestore_07_status_transitions(self, manager, cleanup_sessions):
         """
         TC-FIRESTORE-07: Status Transitions
 
@@ -303,24 +294,20 @@ class TestRealFirestorePersistence:
         session = await manager.create_session(
             user_id="status_test_user",
             user_email="status@example.com",
-            session_data=session_data
+            session_data=session_data,
         )
 
         cleanup_sessions.append(session.session_id)
 
         assert session.status == SessionStatus.INITIALIZED
 
-        await manager.update_session_status(
-            session.session_id,
-            SessionStatus.ACTIVE
-        )
+        await manager.update_session_status(session.session_id, SessionStatus.ACTIVE)
 
         retrieved = await manager.get_session(session.session_id)
         assert retrieved.status == SessionStatus.ACTIVE
 
         await manager.update_session_status(
-            session.session_id,
-            SessionStatus.SCENE_COMPLETE
+            session.session_id, SessionStatus.SCENE_COMPLETE
         )
 
         retrieved = await manager.get_session(session.session_id)
@@ -340,7 +327,7 @@ class TestRealFirestorePersistence:
         session = await manager.create_session(
             user_id="marathon_test_user",
             user_email="marathon@example.com",
-            session_data=session_data
+            session_data=session_data,
         )
 
         cleanup_sessions.append(session.session_id)
@@ -352,17 +339,16 @@ class TestRealFirestorePersistence:
                 "partner_response": f"This is the partner's response for turn {turn_num}, which should also be substantial.",
                 "room_vibe": {
                     "analysis": f"Room analysis for turn {turn_num}",
-                    "energy": "engaged"
+                    "energy": "engaged",
                 },
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             if turn_num >= 15:
                 turn_data["coach_feedback"] = f"Coach feedback for turn {turn_num}"
 
             await manager.add_conversation_turn(
-                session_id=session.session_id,
-                turn_data=turn_data
+                session_id=session.session_id, turn_data=turn_data
             )
 
         final_session = await manager.get_session(session.session_id)
@@ -384,6 +370,7 @@ class TestFirestoreEmulator:
     async def test_emulator_connection(self):
         """Verify Firestore emulator connection works"""
         import os
+
         os.environ["FIRESTORE_EMULATOR_HOST"] = "localhost:8080"
 
         manager = SessionManager()

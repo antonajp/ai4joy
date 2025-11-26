@@ -30,19 +30,19 @@ class TestDailyRateLimiting:
     @pytest.fixture
     def service_url(self, config) -> str:
         """Base URL for the deployed service."""
-        return config.get('service_url', 'https://ai4joy.org')
+        return config.get("service_url", "https://ai4joy.org")
 
     @pytest.fixture
     def firestore_client(self, config) -> firestore.Client:
         """Firestore client for direct database access."""
-        project_id = config.get('project_id', 'improvOlympics')
+        project_id = config.get("project_id", "improvOlympics")
         return firestore.Client(project=project_id)
 
     def test_tc_rate_01_daily_limit_enforcement(
         self,
         service_url: str,
         authenticated_session: Optional[requests.Session],
-        test_user_id: str
+        test_user_id: str,
     ):
         """
         TC-RATE-01: Daily Rate Limit Enforcement
@@ -68,44 +68,49 @@ class TestDailyRateLimiting:
                 f"{service_url}/session/start",
                 json={
                     "location": f"Test Location {i}",
-                    "user_relationship": "colleagues"
+                    "user_relationship": "colleagues",
                 },
-                timeout=30
+                timeout=30,
             )
 
-            assert response.status_code == 200, \
-                f"Session {i}/{daily_limit} creation failed: {response.status_code}"
+            assert (
+                response.status_code == 200
+            ), f"Session {i}/{daily_limit} creation failed: {response.status_code}"
 
             session_data = response.json()
-            session_id = session_data.get('session_id')
+            session_id = session_data.get("session_id")
             assert session_id, f"Session {i} should have session_id"
 
             created_sessions.append(session_id)
             print(f"✓ Created session {i}/{daily_limit}: {session_id}")
 
-        assert len(created_sessions) == daily_limit, \
-            f"Should have created {daily_limit} sessions"
+        assert (
+            len(created_sessions) == daily_limit
+        ), f"Should have created {daily_limit} sessions"
 
         # Attempt to create 11th session (should be rate limited)
         response_11th = authenticated_session.post(
             f"{service_url}/session/start",
             json={"location": "Test Location 11"},
-            timeout=30
+            timeout=30,
         )
 
-        assert response_11th.status_code == 429, \
-            f"11th session should return 429, got {response_11th.status_code}"
+        assert (
+            response_11th.status_code == 429
+        ), f"11th session should return 429, got {response_11th.status_code}"
 
         error_data = response_11th.json()
-        assert 'error' in error_data or 'message' in error_data, \
-            "Error response should contain error message"
+        assert (
+            "error" in error_data or "message" in error_data
+        ), "Error response should contain error message"
 
-        error_message = error_data.get('error') or error_data.get('message')
-        assert 'limit' in error_message.lower(), \
-            f"Error message should mention limit: {error_message}"
+        error_message = error_data.get("error") or error_data.get("message")
+        assert (
+            "limit" in error_message.lower()
+        ), f"Error message should mention limit: {error_message}"
 
         # Check for Retry-After header (seconds until reset)
-        retry_after = response_11th.headers.get('Retry-After')
+        retry_after = response_11th.headers.get("Retry-After")
         if retry_after:
             assert int(retry_after) > 0, "Retry-After should be positive"
             print(f"✓ Retry-After header present: {retry_after} seconds")
@@ -116,14 +121,11 @@ class TestDailyRateLimiting:
         # Cleanup: Mark sessions as completed to avoid affecting concurrent limit tests
         for session_id in created_sessions:
             authenticated_session.post(
-                f"{service_url}/session/{session_id}/complete",
-                timeout=10
+                f"{service_url}/session/{session_id}/complete", timeout=10
             )
 
     def test_tc_rate_02_rate_limit_data_in_firestore(
-        self,
-        firestore_client: firestore.Client,
-        test_user_id: str
+        self, firestore_client: firestore.Client, test_user_id: str
     ):
         """
         TC-RATE-02: Rate Limit Data Persists in Firestore
@@ -141,31 +143,42 @@ class TestDailyRateLimiting:
             "total_cost_estimate": 20.00
         }
         """
-        user_limits_ref = firestore_client.collection('user_limits').document(test_user_id)
+        user_limits_ref = firestore_client.collection("user_limits").document(
+            test_user_id
+        )
         user_limit_doc = user_limits_ref.get()
 
-        assert user_limit_doc.exists, \
-            f"user_limits document should exist for user {test_user_id}"
+        assert (
+            user_limit_doc.exists
+        ), f"user_limits document should exist for user {test_user_id}"
 
         limit_data = user_limit_doc.to_dict()
 
         # Validate required fields
-        required_fields = ['user_id', 'sessions_today', 'last_reset', 'active_sessions']
+        required_fields = ["user_id", "sessions_today", "last_reset", "active_sessions"]
         for field in required_fields:
             assert field in limit_data, f"user_limits document missing field: {field}"
 
         # Validate data types and values
-        assert limit_data['user_id'] == test_user_id, "user_id should match"
-        assert isinstance(limit_data['sessions_today'], int), "sessions_today should be int"
-        assert limit_data['sessions_today'] >= 0, "sessions_today should be non-negative"
-        assert isinstance(limit_data['active_sessions'], int), "active_sessions should be int"
+        assert limit_data["user_id"] == test_user_id, "user_id should match"
+        assert isinstance(
+            limit_data["sessions_today"], int
+        ), "sessions_today should be int"
+        assert (
+            limit_data["sessions_today"] >= 0
+        ), "sessions_today should be non-negative"
+        assert isinstance(
+            limit_data["active_sessions"], int
+        ), "active_sessions should be int"
 
         # Validate last_reset is a recent timestamp
-        last_reset = limit_data['last_reset']
+        last_reset = limit_data["last_reset"]
         if isinstance(last_reset, datetime):
             now = datetime.now(timezone.utc)
             assert last_reset <= now, "last_reset should not be in the future"
-            assert (now - last_reset).days < 2, "last_reset should be within last 2 days"
+            assert (
+                now - last_reset
+            ).days < 2, "last_reset should be within last 2 days"
 
         print(f"✓ user_limits document found for user {test_user_id}")
         print(f"  - sessions_today: {limit_data['sessions_today']}")
@@ -173,9 +186,7 @@ class TestDailyRateLimiting:
         print(f"  - last_reset: {limit_data['last_reset']}")
 
     def test_tc_rate_03_daily_counter_reset_logic(
-        self,
-        firestore_client: firestore.Client,
-        test_user_id: str
+        self, firestore_client: firestore.Client, test_user_id: str
     ):
         """
         TC-RATE-03: Daily Counter Reset at Midnight UTC
@@ -189,16 +200,20 @@ class TestDailyRateLimiting:
         4. Verify sessions_today reset to 1
         5. Verify last_reset updated to today
         """
-        user_limits_ref = firestore_client.collection('user_limits').document(test_user_id)
+        user_limits_ref = firestore_client.collection("user_limits").document(
+            test_user_id
+        )
 
         # Set up test data: yesterday's date with 10 sessions
         yesterday = datetime.now(timezone.utc) - timedelta(days=1)
-        user_limits_ref.set({
-            'user_id': test_user_id,
-            'sessions_today': 10,  # At limit
-            'last_reset': yesterday,
-            'active_sessions': 0
-        })
+        user_limits_ref.set(
+            {
+                "user_id": test_user_id,
+                "sessions_today": 10,  # At limit
+                "last_reset": yesterday,
+                "active_sessions": 0,
+            }
+        )
 
         print("✓ Set test data: 10 sessions from yesterday")
 
@@ -212,27 +227,25 @@ class TestDailyRateLimiting:
         )
 
         # Simulate the reset logic
-        if limit_data['last_reset'] < today_midnight:
+        if limit_data["last_reset"] < today_midnight:
             # Reset should occur
-            user_limits_ref.update({
-                'sessions_today': 0,
-                'last_reset': datetime.now(timezone.utc)
-            })
+            user_limits_ref.update(
+                {"sessions_today": 0, "last_reset": datetime.now(timezone.utc)}
+            )
             print("✓ Counter reset triggered (last_reset was yesterday)")
 
             # Verify reset
             updated_doc = user_limits_ref.get()
             updated_data = updated_doc.to_dict()
-            assert updated_data['sessions_today'] == 0, \
-                "sessions_today should reset to 0"
+            assert (
+                updated_data["sessions_today"] == 0
+            ), "sessions_today should reset to 0"
             print("✓ sessions_today correctly reset to 0")
         else:
             print("ℹ Counter does not need reset (last_reset is today)")
 
     def test_tc_rate_04_rate_limit_error_response_format(
-        self,
-        service_url: str,
-        authenticated_session: Optional[requests.Session]
+        self, service_url: str, authenticated_session: Optional[requests.Session]
     ):
         """
         TC-RATE-04: Rate Limit Error Response Format
@@ -254,9 +267,7 @@ class TestDailyRateLimiting:
 
         # This assumes user is already at rate limit
         response = authenticated_session.post(
-            f"{service_url}/session/start",
-            json={"location": "Test"},
-            timeout=10
+            f"{service_url}/session/start", json={"location": "Test"}, timeout=10
         )
 
         if response.status_code != 429:
@@ -265,15 +276,16 @@ class TestDailyRateLimiting:
         error_data = response.json()
 
         # Validate error response structure
-        expected_fields = ['error', 'message']
+        expected_fields = ["error", "message"]
         for field in expected_fields:
             assert field in error_data, f"Error response missing field: {field}"
 
         # Validate error message is helpful
-        message = error_data['message']
-        assert 'limit' in message.lower(), "Message should mention limit"
-        assert 'reset' in message.lower() or 'midnight' in message.lower(), \
-            "Message should explain when limit resets"
+        message = error_data["message"]
+        assert "limit" in message.lower(), "Message should mention limit"
+        assert (
+            "reset" in message.lower() or "midnight" in message.lower()
+        ), "Message should explain when limit resets"
 
         print("✓ Rate limit error response well-formed")
         print(f"  Error: {error_data.get('error')}")
@@ -293,7 +305,7 @@ class TestConcurrentSessionLimiting:
         self,
         service_url: str,
         authenticated_session: Optional[requests.Session],
-        test_user_id: str
+        test_user_id: str,
     ):
         """
         TC-RATE-05: Concurrent Session Limit Enforcement
@@ -316,14 +328,15 @@ class TestConcurrentSessionLimiting:
             response = authenticated_session.post(
                 f"{service_url}/session/start",
                 json={"location": f"Concurrent Test {i}"},
-                timeout=30
+                timeout=30,
             )
 
-            assert response.status_code == 200, \
-                f"Concurrent session {i}/{concurrent_limit} creation failed"
+            assert (
+                response.status_code == 200
+            ), f"Concurrent session {i}/{concurrent_limit} creation failed"
 
             session_data = response.json()
-            session_id = session_data.get('session_id')
+            session_id = session_data.get("session_id")
             active_sessions.append(session_id)
             print(f"✓ Created concurrent session {i}/{concurrent_limit}: {session_id}")
 
@@ -331,27 +344,27 @@ class TestConcurrentSessionLimiting:
         response_4th = authenticated_session.post(
             f"{service_url}/session/start",
             json={"location": "Concurrent Test 4"},
-            timeout=30
+            timeout=30,
         )
 
-        assert response_4th.status_code == 429, \
-            f"4th concurrent session should return 429, got {response_4th.status_code}"
+        assert (
+            response_4th.status_code == 429
+        ), f"4th concurrent session should return 429, got {response_4th.status_code}"
 
         error_data = response_4th.json()
-        error_message = error_data.get('error') or error_data.get('message')
-        assert 'concurrent' in error_message.lower(), \
-            f"Error should mention concurrent limit: {error_message}"
+        error_message = error_data.get("error") or error_data.get("message")
+        assert (
+            "concurrent" in error_message.lower()
+        ), f"Error should mention concurrent limit: {error_message}"
 
         print(f"✓ Concurrent limit enforced: {error_message}")
 
         # Complete one session
         complete_response = authenticated_session.post(
-            f"{service_url}/session/{active_sessions[0]}/complete",
-            timeout=10
+            f"{service_url}/session/{active_sessions[0]}/complete", timeout=10
         )
 
-        assert complete_response.status_code == 200, \
-            "Session completion should succeed"
+        assert complete_response.status_code == 200, "Session completion should succeed"
 
         print(f"✓ Completed session {active_sessions[0]}")
 
@@ -359,25 +372,23 @@ class TestConcurrentSessionLimiting:
         response_after_complete = authenticated_session.post(
             f"{service_url}/session/start",
             json={"location": "After Completion"},
-            timeout=30
+            timeout=30,
         )
 
-        assert response_after_complete.status_code == 200, \
-            "Should be able to create session after completing one"
+        assert (
+            response_after_complete.status_code == 200
+        ), "Should be able to create session after completing one"
 
         print("✓ Can create new session after completing one")
 
         # Cleanup remaining sessions
         for session_id in active_sessions[1:]:
             authenticated_session.post(
-                f"{service_url}/session/{session_id}/complete",
-                timeout=10
+                f"{service_url}/session/{session_id}/complete", timeout=10
             )
 
     def test_tc_rate_06_concurrent_limit_independent_of_daily(
-        self,
-        service_url: str,
-        authenticated_session: Optional[requests.Session]
+        self, service_url: str, authenticated_session: Optional[requests.Session]
     ):
         """
         TC-RATE-06: Concurrent Limit Independent of Daily Limit
@@ -404,21 +415,22 @@ class TestConcurrentSessionLimiting:
                 response = authenticated_session.post(
                     f"{service_url}/session/start",
                     json={"location": f"Batch {batch} Session {i}"},
-                    timeout=30
+                    timeout=30,
                 )
 
                 if response.status_code != 200:
-                    pytest.fail(f"Batch {batch} session {i} failed: {response.status_code}")
+                    pytest.fail(
+                        f"Batch {batch} session {i} failed: {response.status_code}"
+                    )
 
-                sessions.append(response.json()['session_id'])
+                sessions.append(response.json()["session_id"])
 
             print(f"✓ Batch {batch}: Created 3 sessions")
 
             # Complete all sessions to free concurrent slots
             for session_id in sessions:
                 authenticated_session.post(
-                    f"{service_url}/session/{session_id}/complete",
-                    timeout=10
+                    f"{service_url}/session/{session_id}/complete", timeout=10
                 )
 
             print(f"✓ Batch {batch}: Completed 3 sessions")
@@ -431,9 +443,7 @@ class TestRateLimitEdgeCases:
     """Test edge cases and error handling for rate limiting."""
 
     def test_tc_rate_07_abandoned_session_cleanup(
-        self,
-        firestore_client: firestore.Client,
-        test_user_id: str
+        self, firestore_client: firestore.Client, test_user_id: str
     ):
         """
         TC-RATE-07: Abandoned Session Cleanup
@@ -458,9 +468,7 @@ class TestRateLimitEdgeCases:
         print("✓ Test case defined for invalid limit value rejection")
 
     def test_tc_rate_09_admin_override_capability(
-        self,
-        firestore_client: firestore.Client,
-        test_user_id: str
+        self, firestore_client: firestore.Client, test_user_id: str
     ):
         """
         TC-RATE-09: Admin Override for Testing
@@ -473,28 +481,34 @@ class TestRateLimitEdgeCases:
         - Custom limits respected by rate limiter
         - Override logged for audit
         """
-        user_limits_ref = firestore_client.collection('user_limits').document(test_user_id)
+        user_limits_ref = firestore_client.collection("user_limits").document(
+            test_user_id
+        )
 
         # Set custom limits
-        user_limits_ref.update({
-            'custom_daily_limit': 50,
-            'custom_concurrent_limit': 10,
-            'override_reason': 'Testing',
-            'override_by': 'admin@ai4joy.org'
-        })
+        user_limits_ref.update(
+            {
+                "custom_daily_limit": 50,
+                "custom_concurrent_limit": 10,
+                "override_reason": "Testing",
+                "override_by": "admin@ai4joy.org",
+            }
+        )
 
         print("✓ Admin override capability tested")
 
 
 # Fixtures
 
+
 @pytest.fixture
 def config() -> Dict:
     """Configuration for rate limiting tests."""
     import os
+
     return {
-        'service_url': os.getenv('SERVICE_URL', 'https://ai4joy.org'),
-        'project_id': os.getenv('GCP_PROJECT_ID', 'improvOlympics'),
+        "service_url": os.getenv("SERVICE_URL", "https://ai4joy.org"),
+        "project_id": os.getenv("GCP_PROJECT_ID", "improvOlympics"),
     }
 
 
@@ -506,7 +520,8 @@ def test_user_id() -> str:
     Should be set via environment variable: TEST_USER_ID
     """
     import os
-    user_id = os.getenv('TEST_USER_ID')
+
+    user_id = os.getenv("TEST_USER_ID")
     if not user_id:
         pytest.skip("TEST_USER_ID environment variable not set")
     return user_id

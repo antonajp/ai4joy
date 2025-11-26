@@ -3,6 +3,7 @@
 These tests use a real SQLite database to verify that sessions actually
 persist across simulated Cloud Run instance restarts.
 """
+
 import pytest
 import os
 import tempfile
@@ -14,7 +15,7 @@ from app.models.session import Session, SessionStatus
 @pytest.fixture
 def temp_db_path():
     """Create temporary database file for testing."""
-    with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
 
     yield f"sqlite+aiosqlite:///{db_path}"
@@ -42,12 +43,12 @@ def sample_session():
             {
                 "turn_number": 1,
                 "user_input": "Test input",
-                "partner_response": "Test response"
+                "partner_response": "Test response",
             }
         ],
         metadata={"test_key": "test_value"},
         current_phase="PHASE_1",
-        turn_count=1
+        turn_count=1,
     )
 
 
@@ -55,6 +56,7 @@ def sample_session():
 def reset_singleton():
     """Reset the singleton before and after each test for isolation."""
     from app.services import adk_session_service
+
     adk_session_service._session_service = None
     yield
     adk_session_service._session_service = None
@@ -74,7 +76,7 @@ class TestSessionPersistence:
         """
         from unittest.mock import patch
 
-        with patch('app.services.adk_session_service.settings') as mock_settings:
+        with patch("app.services.adk_session_service.settings") as mock_settings:
             mock_settings.adk_database_url = temp_db_path
             mock_settings.app_name = "Improv Olympics"
 
@@ -82,7 +84,7 @@ class TestSessionPersistence:
                 create_adk_session,
                 get_adk_session,
                 close_adk_session_service,
-                reset_adk_session_service
+                reset_adk_session_service,
             )
 
             created_session = await create_adk_session(sample_session)
@@ -94,8 +96,7 @@ class TestSessionPersistence:
             reset_adk_session_service()
 
             retrieved_session = await get_adk_session(
-                session_id="sess_integration_test",
-                user_id="user_integration_123"
+                session_id="sess_integration_test", user_id="user_integration_123"
             )
 
             assert retrieved_session is not None
@@ -111,18 +112,17 @@ class TestSessionPersistence:
         """Test that retrieving non-existent session returns None."""
         from unittest.mock import patch
 
-        with patch('app.services.adk_session_service.settings') as mock_settings:
+        with patch("app.services.adk_session_service.settings") as mock_settings:
             mock_settings.adk_database_url = temp_db_path
             mock_settings.app_name = "Improv Olympics"
 
             from app.services.adk_session_service import (
                 get_adk_session,
-                close_adk_session_service
+                close_adk_session_service,
             )
 
             retrieved_session = await get_adk_session(
-                session_id="nonexistent_session",
-                user_id="nonexistent_user"
+                session_id="nonexistent_session", user_id="nonexistent_user"
             )
 
             assert retrieved_session is None
@@ -134,14 +134,14 @@ class TestSessionPersistence:
         """Test multiple concurrent sessions for the same user."""
         from unittest.mock import patch
 
-        with patch('app.services.adk_session_service.settings') as mock_settings:
+        with patch("app.services.adk_session_service.settings") as mock_settings:
             mock_settings.adk_database_url = temp_db_path
             mock_settings.app_name = "Improv Olympics"
 
             from app.services.adk_session_service import (
                 create_adk_session,
                 get_adk_session,
-                close_adk_session_service
+                close_adk_session_service,
             )
 
             session1 = Session(
@@ -157,7 +157,7 @@ class TestSessionPersistence:
                 conversation_history=[],
                 metadata={},
                 current_phase="PHASE_1",
-                turn_count=2
+                turn_count=2,
             )
 
             session2 = Session(
@@ -173,19 +173,17 @@ class TestSessionPersistence:
                 conversation_history=[],
                 metadata={},
                 current_phase="PHASE_2",
-                turn_count=7
+                turn_count=7,
             )
 
             await create_adk_session(session1)
             await create_adk_session(session2)
 
             retrieved1 = await get_adk_session(
-                session_id="sess_multi_1",
-                user_id="user_multi_test"
+                session_id="sess_multi_1", user_id="user_multi_test"
             )
             retrieved2 = await get_adk_session(
-                session_id="sess_multi_2",
-                user_id="user_multi_test"
+                session_id="sess_multi_2", user_id="user_multi_test"
             )
 
             assert retrieved1.state["location"] == "Location 1"

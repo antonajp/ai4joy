@@ -6,6 +6,7 @@ Test Coverage:
 - TC-W11-004: Error State Handling
 - TC-W11-007: OAuth Flow with Frontend
 """
+
 import pytest
 from playwright.sync_api import Page, expect
 
@@ -14,6 +15,7 @@ from playwright.sync_api import Page, expect
 def base_url():
     """Base URL for testing"""
     import os
+
     return os.getenv("TEST_BASE_URL", "http://localhost:8080")
 
 
@@ -26,20 +28,26 @@ class TestChatInterfaceIntegration:
         page.goto(f"{base_url}/chat")  # Assume /chat is the chat interface route
 
         # Fill in session creation form
-        location_input = page.locator("input[name='location'], input[placeholder*='location']")
+        location_input = page.locator(
+            "input[name='location'], input[placeholder*='location']"
+        )
         expect(location_input).to_be_visible()
 
         location_input.fill("Test Location")
 
         # Submit form
-        start_button = page.locator("button:has-text('Start Session'), button:has-text('Begin')")
+        start_button = page.locator(
+            "button:has-text('Start Session'), button:has-text('Begin')"
+        )
         start_button.click()
 
         # Wait for session to be created
         page.wait_for_timeout(2000)
 
         # Chat interface should appear
-        chat_container = page.locator("[data-testid='chat-container'], .chat-container, #chat")
+        chat_container = page.locator(
+            "[data-testid='chat-container'], .chat-container, #chat"
+        )
         expect(chat_container).to_be_visible()
 
     @pytest.mark.skip(reason="Requires authenticated session")
@@ -49,7 +57,9 @@ class TestChatInterfaceIntegration:
         page.goto(f"{base_url}/chat")
 
         # Find message input
-        message_input = page.locator("input[type='text'][placeholder*='message'], textarea[placeholder*='message']")
+        message_input = page.locator(
+            "input[type='text'][placeholder*='message'], textarea[placeholder*='message']"
+        )
         expect(message_input).to_be_visible()
 
         # Type message
@@ -84,7 +94,9 @@ class TestChatInterfaceIntegration:
 
         # Partner response should appear
         # Look for message from partner (not user)
-        partner_message = page.locator(".message.partner, .message.agent, [data-role='partner']")
+        partner_message = page.locator(
+            ".message.partner, .message.agent, [data-role='partner']"
+        )
         expect(partner_message.first).to_be_visible()
 
     @pytest.mark.skip(reason="Requires authenticated session")
@@ -195,7 +207,9 @@ class TestErrorStateHandling:
             page.wait_for_timeout(2000)
 
             # Error message should appear
-            _error_message = page.locator(".error, .error-message, [role='alert']")  # noqa: F841
+            _error_message = page.locator(
+                ".error, .error-message, [role='alert']"
+            )  # noqa: F841
             # May not be visible if handled gracefully
         except Exception:
             pass
@@ -212,12 +226,14 @@ class TestErrorStateHandling:
         page.goto(f"{base_url}/chat")
 
         # Simulate error by injecting error state
-        page.evaluate("""
+        page.evaluate(
+            """
             const errorDiv = document.createElement('div');
             errorDiv.className = 'error-message';
             errorDiv.textContent = 'Daily session limit reached. Please try again tomorrow.';
             document.body.appendChild(errorDiv);
-        """)
+        """
+        )
 
         # Error message should be visible
         error_message = page.locator(".error-message")
@@ -244,13 +260,15 @@ class TestErrorStateHandling:
         page.goto(base_url)
 
         # Inject error message for testing
-        page.evaluate("""
+        page.evaluate(
+            """
             const errorDiv = document.createElement('div');
             errorDiv.className = 'error-message';
             errorDiv.textContent = 'Something went wrong. Please try again later.';
             errorDiv.setAttribute('data-testid', 'server-error');
             document.body.appendChild(errorDiv);
-        """)
+        """
+        )
 
         # Error message should be user-friendly (not technical)
         error_message = page.locator("[data-testid='server-error']")
@@ -270,7 +288,9 @@ class TestOAuthFlowIntegration:
         page.goto(base_url)
 
         # Click login button
-        login_button = page.locator("button:has-text('Sign in with Google'), a:has-text('Sign in with Google')")
+        login_button = page.locator(
+            "button:has-text('Sign in with Google'), a:has-text('Sign in with Google')"
+        )
         expect(login_button).to_be_visible()
 
         # Click and check for redirect
@@ -281,7 +301,11 @@ class TestOAuthFlowIntegration:
 
         # Should redirect to /auth/login or Google
         current_url = page.url
-        assert "auth" in current_url or "google" in current_url or "accounts.google.com" in current_url
+        assert (
+            "auth" in current_url
+            or "google" in current_url
+            or "accounts.google.com" in current_url
+        )
 
     @pytest.mark.skip(reason="Requires Google OAuth credentials")
     def test_oauth_callback_establishes_session(self, page: Page, base_url: str):
@@ -301,7 +325,9 @@ class TestOAuthFlowIntegration:
 
         # Check for session cookie
         cookies = page.context.cookies()
-        _session_cookie = next((c for c in cookies if "session" in c["name"].lower()), None)  # noqa: F841
+        _session_cookie = next(
+            (c for c in cookies if "session" in c["name"].lower()), None
+        )  # noqa: F841
 
         # Session cookie should exist
         # (This may vary based on implementation)
@@ -317,10 +343,7 @@ class TestOAuthFlowIntegration:
 
         def handle_request(request):
             if "/session/" in request.url or "/api/" in request.url:
-                api_requests.append({
-                    "url": request.url,
-                    "headers": request.headers
-                })
+                api_requests.append({"url": request.url, "headers": request.headers})
 
         page.on("request", handle_request)
 
@@ -341,7 +364,9 @@ class TestOAuthFlowIntegration:
         page.goto(base_url)
 
         # Look for logout button (may not be visible if not logged in)
-        logout_button = page.locator("button:has-text('Logout'), a:has-text('Logout'), button:has-text('Sign out')")
+        logout_button = page.locator(
+            "button:has-text('Logout'), a:has-text('Logout'), button:has-text('Sign out')"
+        )
 
         if logout_button.count() > 0:
             logout_button.first.click()
@@ -355,5 +380,7 @@ class TestOAuthFlowIntegration:
 
             # Session cookie should be cleared
             cookies = page.context.cookies()
-            _session_cookie = next((c for c in cookies if "session" in c["name"].lower()), None)  # noqa: F841
+            _session_cookie = next(
+                (c for c in cookies if "session" in c["name"].lower()), None
+            )  # noqa: F841
             # Cookie should be expired or deleted

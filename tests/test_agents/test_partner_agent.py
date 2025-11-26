@@ -38,22 +38,26 @@ class TestPartnerAgentCreation:
         partner = create_partner_agent(phase=1)
 
         # Verify ADK Agent instance
-        assert isinstance(partner, Agent), \
-            f"Partner should be google.adk.Agent, got {type(partner)}"
+        assert isinstance(
+            partner, Agent
+        ), f"Partner should be google.adk.Agent, got {type(partner)}"
 
         # Verify configuration
-        assert partner.name == "partner_agent", \
-            f"Name should be 'partner_agent', got '{partner.name}'"
+        assert (
+            partner.name == "partner_agent"
+        ), f"Name should be 'partner_agent', got '{partner.name}'"
 
-        assert partner.model == settings.vertexai_pro_model, \
-            f"Model should be '{settings.vertexai_pro_model}', got '{partner.model}'"
+        assert (
+            partner.model == settings.vertexai_pro_model
+        ), f"Model should be '{settings.vertexai_pro_model}', got '{partner.model}'"
 
         # Verify no tools (Partner uses creativity, not tool calls)
-        assert len(partner.tools) == 0, \
-            f"Partner should have 0 tools, got {len(partner.tools)}"
+        assert (
+            len(partner.tools) == 0
+        ), f"Partner should have 0 tools, got {len(partner.tools)}"
 
         # Verify has instruction
-        assert hasattr(partner, 'instruction'), "Partner missing instruction attribute"
+        assert hasattr(partner, "instruction"), "Partner missing instruction attribute"
         assert isinstance(partner.instruction, str), "Instruction should be string"
         assert len(partner.instruction) > 100, "Instruction seems too short"
 
@@ -104,22 +108,32 @@ class TestPartnerPhase1Behavior:
         instruction = partner.instruction.lower()
 
         # Check for supportive keywords
-        supportive_keywords = ["support", "help", "encourage", "build", "scaffold", "guide"]
+        supportive_keywords = [
+            "support",
+            "help",
+            "encourage",
+            "build",
+            "scaffold",
+            "guide",
+        ]
         found_supportive = [kw for kw in supportive_keywords if kw in instruction]
 
-        assert len(found_supportive) >= 2, \
-            f"Phase 1 prompt should contain supportive keywords. Found: {found_supportive}"
+        assert (
+            len(found_supportive) >= 2
+        ), f"Phase 1 prompt should contain supportive keywords. Found: {found_supportive}"
 
         # Should emphasize "yes, and"
-        assert "yes" in instruction or "accept" in instruction, \
-            "Phase 1 should emphasize acceptance"
+        assert (
+            "yes" in instruction or "accept" in instruction
+        ), "Phase 1 should emphasize acceptance"
 
         # Should NOT have fallible keywords
         fallible_keywords = ["mistake", "forget", "fallible", "error"]
         found_fallible = [kw for kw in fallible_keywords if kw in instruction]
 
-        assert len(found_fallible) == 0, \
-            f"Phase 1 should NOT mention mistakes/fallibility. Found: {found_fallible}"
+        assert (
+            len(found_fallible) == 0
+        ), f"Phase 1 should NOT mention mistakes/fallibility. Found: {found_fallible}"
 
         print("✓ Phase 1 prompt is appropriately supportive")
         print(f"  - Supportive keywords found: {found_supportive}")
@@ -137,12 +151,20 @@ class TestPartnerPhase1Behavior:
         instruction = partner.instruction.lower()
 
         # Check for beginner-oriented language
-        beginner_keywords = ["beginner", "learn", "student", "new", "first time", "starting"]
+        beginner_keywords = [
+            "beginner",
+            "learn",
+            "student",
+            "new",
+            "first time",
+            "starting",
+        ]
         found_beginner = [kw for kw in beginner_keywords if kw in instruction]
 
         # At least some reference to learning/beginners
-        assert len(found_beginner) >= 1, \
-            f"Phase 1 should reference beginners or learning. Instruction: {instruction[:200]}"
+        assert (
+            len(found_beginner) >= 1
+        ), f"Phase 1 should reference beginners or learning. Instruction: {instruction[:200]}"
 
         print(f"✓ Phase 1 emphasizes beginner support: {found_beginner}")
 
@@ -170,19 +192,30 @@ class TestPartnerPhase2Behavior:
         instruction = partner.instruction.lower()
 
         # Check for fallible/realistic keywords
-        fallible_keywords = ["fallible", "realistic", "human", "real", "authentic", "forget", "miss"]
+        fallible_keywords = [
+            "fallible",
+            "realistic",
+            "human",
+            "real",
+            "authentic",
+            "forget",
+            "miss",
+        ]
         found_fallible = [kw for kw in fallible_keywords if kw in instruction]
 
-        assert len(found_fallible) >= 2, \
-            f"Phase 2 prompt should contain fallible/realistic keywords. Found: {found_fallible}"
+        assert (
+            len(found_fallible) >= 2
+        ), f"Phase 2 prompt should contain fallible/realistic keywords. Found: {found_fallible}"
 
         # Should still be collaborative
-        assert "partner" in instruction or "scene" in instruction, \
-            "Phase 2 should still emphasize partnership"
+        assert (
+            "partner" in instruction or "scene" in instruction
+        ), "Phase 2 should still emphasize partnership"
 
         # Should NOT be overly supportive/scaffolding
-        assert instruction.count("help") < 3, \
-            "Phase 2 should reduce scaffolding language"
+        assert (
+            instruction.count("help") < 3
+        ), "Phase 2 should reduce scaffolding language"
 
         print("✓ Phase 2 prompt is appropriately fallible")
         print(f"  - Fallible keywords found: {found_fallible}")
@@ -207,9 +240,10 @@ class TestPartnerPhase2Behavior:
         p1_scaffolding_count = sum(inst_p1.count(word) for word in scaffolding_words)
         p2_scaffolding_count = sum(inst_p2.count(word) for word in scaffolding_words)
 
-        assert p2_scaffolding_count < p1_scaffolding_count, \
-            f"Phase 2 should have less scaffolding than Phase 1. " \
+        assert p2_scaffolding_count < p1_scaffolding_count, (
+            f"Phase 2 should have less scaffolding than Phase 1. "
             f"P1: {p1_scaffolding_count}, P2: {p2_scaffolding_count}"
+        )
 
         print("✓ Scaffolding reduced from Phase 1 to Phase 2")
         print(f"  - Phase 1 scaffolding words: {p1_scaffolding_count}")
@@ -287,8 +321,9 @@ class TestPartnerConfiguration:
 
         partner = create_partner_agent(phase=1)
 
-        assert partner.model == settings.vertexai_pro_model, \
-            f"Partner should use {settings.vertexai_pro_model} for creativity, got {partner.model}"
+        assert (
+            partner.model == settings.vertexai_pro_model
+        ), f"Partner should use {settings.vertexai_pro_model} for creativity, got {partner.model}"
 
         print("✓ Partner correctly uses Gemini Pro model")
 
@@ -303,11 +338,13 @@ class TestPartnerConfiguration:
         partner_p1 = create_partner_agent(phase=1)
         partner_p2 = create_partner_agent(phase=2)
 
-        assert len(partner_p1.tools) == 0, \
-            f"Phase 1 Partner should have 0 tools, got {len(partner_p1.tools)}"
+        assert (
+            len(partner_p1.tools) == 0
+        ), f"Phase 1 Partner should have 0 tools, got {len(partner_p1.tools)}"
 
-        assert len(partner_p2.tools) == 0, \
-            f"Phase 2 Partner should have 0 tools, got {len(partner_p2.tools)}"
+        assert (
+            len(partner_p2.tools) == 0
+        ), f"Phase 2 Partner should have 0 tools, got {len(partner_p2.tools)}"
 
         print("✓ Partner has no tools (creativity-focused)")
 
@@ -323,8 +360,9 @@ class TestPartnerConfiguration:
         partner_p2 = create_partner_agent(phase=2)
 
         # Prompts should be different
-        assert partner_p1.instruction != partner_p2.instruction, \
-            "Phase 1 and Phase 2 should have different system prompts"
+        assert (
+            partner_p1.instruction != partner_p2.instruction
+        ), "Phase 1 and Phase 2 should have different system prompts"
 
         # Calculate similarity (simple check: different words)
         words_p1 = set(partner_p1.instruction.lower().split())
@@ -353,8 +391,9 @@ class TestPartnerPromptQuality:
             partner = create_partner_agent(phase=phase)
             instruction = partner.instruction.lower()
 
-            assert "improv" in instruction or "scene" in instruction, \
-                f"Phase {phase} prompt should mention improv or scene work"
+            assert (
+                "improv" in instruction or "scene" in instruction
+            ), f"Phase {phase} prompt should mention improv or scene work"
 
         print("✓ Both phases reference improv/scene work")
 
@@ -369,8 +408,7 @@ class TestPartnerPromptQuality:
             role_keywords = ["partner", "scene partner", "you are", "your role"]
             has_role = any(kw in instruction for kw in role_keywords)
 
-            assert has_role, \
-                f"Phase {phase} prompt should establish Partner's role"
+            assert has_role, f"Phase {phase} prompt should establish Partner's role"
 
         print("✓ Both phases establish Partner's role")
 
@@ -378,9 +416,9 @@ class TestPartnerPromptQuality:
 # Pytest collection
 def test_summary():
     """Print test summary"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("PARTNER AGENT TEST SUMMARY")
-    print("="*60)
+    print("=" * 60)
     print("\nTest Coverage:")
     print("  ✓ TC-PARTNER-01: Agent creation and configuration")
     print("  ✓ TC-PARTNER-02: Phase 1 supportive behavior")
@@ -388,7 +426,7 @@ def test_summary():
     print("  ✓ TC-PARTNER-04: Phase parameter validation")
     print("  ✓ TC-PARTNER-05: Configuration details")
     print("  ✓ TC-PARTNER-06: Prompt quality checks")
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
 
 
 if __name__ == "__main__":

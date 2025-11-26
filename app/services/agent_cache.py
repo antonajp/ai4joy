@@ -1,4 +1,5 @@
 """Agent Instance Caching Service for Performance Optimization"""
+
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 from threading import Lock
@@ -41,7 +42,7 @@ class AgentCacheStats:
                 "misses": self.misses,
                 "evictions": self.evictions,
                 "total_requests": total,
-                "hit_rate_pct": round(hit_rate, 2)
+                "hit_rate_pct": round(hit_rate, 2),
             }
 
     def reset(self):
@@ -94,7 +95,7 @@ class AgentCache:
                     "Stage Manager cache hit",
                     turn_count=turn_count,
                     phase=phase,
-                    access_count=cached.access_count + 1
+                    access_count=cached.access_count + 1,
                 )
                 return cached.access()
 
@@ -121,7 +122,7 @@ class AgentCache:
                 logger.debug(
                     "Partner Agent cache hit",
                     phase=phase,
-                    access_count=cached.access_count + 1
+                    access_count=cached.access_count + 1,
                 )
                 return cached.access()
 
@@ -143,7 +144,7 @@ class AgentCache:
                 self.stats.record_hit()
                 logger.debug(
                     "Room Agent cache hit",
-                    access_count=self._room_cache.access_count + 1
+                    access_count=self._room_cache.access_count + 1,
                 )
                 return self._room_cache.access()
 
@@ -165,7 +166,7 @@ class AgentCache:
                 self.stats.record_hit()
                 logger.debug(
                     "Coach Agent cache hit",
-                    access_count=self._coach_cache.access_count + 1
+                    access_count=self._coach_cache.access_count + 1,
                 )
                 return self._coach_cache.access()
 
@@ -185,10 +186,10 @@ class AgentCache:
         with self._cache_lock:
             if agent_type is None:
                 count = (
-                    len(self._stage_manager_cache) +
-                    len(self._partner_cache) +
-                    (1 if self._room_cache else 0) +
-                    (1 if self._coach_cache else 0)
+                    len(self._stage_manager_cache)
+                    + len(self._partner_cache)
+                    + (1 if self._room_cache else 0)
+                    + (1 if self._coach_cache else 0)
                 )
                 self._stage_manager_cache.clear()
                 self._partner_cache.clear()
@@ -210,17 +211,19 @@ class AgentCache:
                 self._coach_cache = None
                 logger.info("Coach Agent cache invalidated")
             else:
-                logger.warning("Unknown agent type for invalidation", agent_type=agent_type)
+                logger.warning(
+                    "Unknown agent type for invalidation", agent_type=agent_type
+                )
 
     def get_cache_stats(self) -> Dict[str, Any]:
         stats = self.stats.get_stats()
 
         with self._cache_lock:
             total_cached = (
-                len(self._stage_manager_cache) +
-                len(self._partner_cache) +
-                (1 if self._room_cache else 0) +
-                (1 if self._coach_cache else 0)
+                len(self._stage_manager_cache)
+                + len(self._partner_cache)
+                + (1 if self._room_cache else 0)
+                + (1 if self._coach_cache else 0)
             )
 
             cache_sizes = {
@@ -228,21 +231,23 @@ class AgentCache:
                 "partner_entries": len(self._partner_cache),
                 "room_cached": self._room_cache is not None,
                 "coach_cached": self._coach_cache is not None,
-                "total_cached_agents": total_cached
+                "total_cached_agents": total_cached,
             }
 
             phase_breakdown = {}
             for phase, cached_agent in self._stage_manager_cache.items():
                 phase_breakdown[f"phase_{phase}_accesses"] = cached_agent.access_count
                 phase_breakdown[f"phase_{phase}_age_seconds"] = int(
-                    (datetime.now(timezone.utc) - cached_agent.created_at).total_seconds()
+                    (
+                        datetime.now(timezone.utc) - cached_agent.created_at
+                    ).total_seconds()
                 )
 
         return {
             **stats,
             **cache_sizes,
             "phase_details": phase_breakdown,
-            "ttl_seconds": self.ttl_seconds
+            "ttl_seconds": self.ttl_seconds,
         }
 
 

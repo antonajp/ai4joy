@@ -26,12 +26,10 @@ from app.models.session import SessionCreate
 def pytest_configure(config):
     """Register custom markers"""
     config.addinivalue_line(
-        "markers",
-        "integration: Integration tests requiring real infrastructure"
+        "markers", "integration: Integration tests requiring real infrastructure"
     )
     config.addinivalue_line(
-        "markers",
-        "slow: Tests that take significant time to execute"
+        "markers", "slow: Tests that take significant time to execute"
     )
 
 
@@ -41,7 +39,7 @@ def pytest_addoption(parser):
         "--run-integration",
         action="store_true",
         default=False,
-        help="Run integration tests (requires real infrastructure)"
+        help="Run integration tests (requires real infrastructure)",
     )
 
 
@@ -84,14 +82,13 @@ async def integration_test_session(integration_session_manager) -> AsyncGenerato
             # Use session for testing
     """
     session_data = SessionCreate(
-        location="Integration Test Location",
-        user_name="Integration Test User"
+        location="Integration Test Location", user_name="Integration Test User"
     )
 
     session = await integration_session_manager.create_session(
         user_id=f"integration_test_{datetime.now(timezone.utc).timestamp()}",
         user_email="integration-test@example.com",
-        session_data=session_data
+        session_data=session_data,
     )
 
     yield session
@@ -136,7 +133,7 @@ def integration_auth_headers():
     """
     return {
         "X-Goog-Authenticated-User-Id": "integration-test-user",
-        "X-Goog-Authenticated-User-Email": "integration-test@example.com"
+        "X-Goog-Authenticated-User-Email": "integration-test@example.com",
     }
 
 
@@ -158,7 +155,7 @@ def integration_test_inputs():
         "We're making progress though.",
         "Let's keep pushing forward.",
         "I think we're almost there.",
-        "This is it, the final moment!"
+        "This is it, the final moment!",
     ]
 
 
@@ -172,15 +169,9 @@ def check_integration_requirements():
     - Project ID
     - Firestore access
     """
-    required_env_vars = [
-        "GCP_PROJECT_ID",
-        "GOOGLE_APPLICATION_CREDENTIALS"
-    ]
+    required_env_vars = ["GCP_PROJECT_ID", "GOOGLE_APPLICATION_CREDENTIALS"]
 
-    missing_vars = [
-        var for var in required_env_vars
-        if not os.getenv(var)
-    ]
+    missing_vars = [var for var in required_env_vars if not os.getenv(var)]
 
     if missing_vars:
         pytest.skip(
@@ -189,9 +180,7 @@ def check_integration_requirements():
 
     credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
     if credentials_path and not os.path.exists(credentials_path):
-        pytest.skip(
-            f"Credentials file not found: {credentials_path}"
-        )
+        pytest.skip(f"Credentials file not found: {credentials_path}")
 
 
 @pytest.fixture
@@ -209,7 +198,7 @@ def integration_test_config():
         "phase_2_start": 5,
         "coach_start_turn": 15,
         "session_timeout_minutes": 60,
-        "turn_timeout_seconds": 30
+        "turn_timeout_seconds": 30,
     }
 
 
@@ -221,9 +210,7 @@ class IntegrationTestSession:
         self.session_ids: List[str] = []
 
     async def create_session(
-        self,
-        location: str = "Test Location",
-        user_id: str = "integration_test_user"
+        self, location: str = "Test Location", user_id: str = "integration_test_user"
     ):
         """Create test session and track for cleanup"""
         session_data = SessionCreate(location=location)
@@ -231,7 +218,7 @@ class IntegrationTestSession:
         session = await self.manager.create_session(
             user_id=user_id,
             user_email=f"{user_id}@example.com",
-            session_data=session_data
+            session_data=session_data,
         )
 
         self.session_ids.append(session.session_id)
@@ -278,6 +265,7 @@ def skip_if_no_adk():
 def integration_test_logging(caplog):
     """Enable detailed logging for integration tests"""
     import logging
+
     caplog.set_level(logging.DEBUG)
 
 
@@ -303,10 +291,12 @@ def assert_turn_response_valid():
         assert "timestamp" in response
 
         if turn_number >= 15:
-            assert response.get("coach_feedback") is not None, \
-                f"Coach feedback missing at turn {turn_number}"
+            assert (
+                response.get("coach_feedback") is not None
+            ), f"Coach feedback missing at turn {turn_number}"
         else:
-            assert response.get("coach_feedback") is None, \
-                f"Coach feedback should not appear before turn 15 (turn {turn_number})"
+            assert (
+                response.get("coach_feedback") is None
+            ), f"Coach feedback should not appear before turn 15 (turn {turn_number})"
 
     return validate

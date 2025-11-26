@@ -33,7 +33,7 @@ class TestE2ETurnFlow:
         """Mock IAP authentication headers"""
         return {
             "X-Goog-Authenticated-User-Id": "e2e-test-user-123",
-            "X-Goog-Authenticated-User-Email": "e2e-test@example.com"
+            "X-Goog-Authenticated-User-Email": "e2e-test@example.com",
         }
 
     @pytest.fixture
@@ -69,7 +69,7 @@ class TestE2ETurnFlow:
         response = await async_client.post(
             "/api/v1/session/start",
             json={"location": "E2E Test Spaceship Bridge"},
-            headers=auth_headers
+            headers=auth_headers,
         )
 
         assert response.status_code == 201
@@ -96,7 +96,7 @@ class TestE2ETurnFlow:
             "We're making progress on the thruster issue.",
             "Almost there, just need to calibrate.",
             "The thruster is back online!",
-            "Mission accomplished, ready for landing sequence."
+            "Mission accomplished, ready for landing sequence.",
         ]
 
         turn_responses = []
@@ -104,47 +104,46 @@ class TestE2ETurnFlow:
         for turn_num, user_input in enumerate(user_inputs, start=1):
             turn_response = await async_client.post(
                 f"/api/v1/session/{session_id}/turn",
-                json={
-                    "user_input": user_input,
-                    "turn_number": turn_num
-                },
+                json={"user_input": user_input, "turn_number": turn_num},
                 headers=auth_headers,
-                timeout=30.0
+                timeout=30.0,
             )
 
-            assert turn_response.status_code == 200, \
-                f"Turn {turn_num} failed: {turn_response.status_code}"
+            assert (
+                turn_response.status_code == 200
+            ), f"Turn {turn_num} failed: {turn_response.status_code}"
 
             data = turn_response.json()
             turn_responses.append(data)
 
             assert "partner_response" in data
-            assert data["partner_response"], \
-                f"Partner response empty for turn {turn_num}"
+            assert data[
+                "partner_response"
+            ], f"Partner response empty for turn {turn_num}"
 
             assert "room_vibe" in data
             assert "analysis" in data["room_vibe"]
 
             assert "current_phase" in data
             if turn_num <= 4:
-                assert data["current_phase"] == 1, \
-                    f"Turn {turn_num} should be Phase 1"
+                assert data["current_phase"] == 1, f"Turn {turn_num} should be Phase 1"
             else:
-                assert data["current_phase"] == 2, \
-                    f"Turn {turn_num} should be Phase 2"
+                assert data["current_phase"] == 2, f"Turn {turn_num} should be Phase 2"
 
             if turn_num >= 15:
-                assert data["coach_feedback"] is not None, \
-                    f"Coach feedback missing at turn {turn_num}"
-                assert len(data["coach_feedback"]) > 50, \
-                    "Coach feedback should be substantial"
+                assert (
+                    data["coach_feedback"] is not None
+                ), f"Coach feedback missing at turn {turn_num}"
+                assert (
+                    len(data["coach_feedback"]) > 50
+                ), "Coach feedback should be substantial"
             else:
-                assert data.get("coach_feedback") is None, \
-                    f"Coach feedback should not appear before turn 15 (turn {turn_num})"
+                assert (
+                    data.get("coach_feedback") is None
+                ), f"Coach feedback should not appear before turn 15 (turn {turn_num})"
 
         get_response = await async_client.get(
-            f"/api/v1/session/{session_id}",
-            headers=auth_headers
+            f"/api/v1/session/{session_id}", headers=auth_headers
         )
 
         assert get_response.status_code == 200
@@ -152,8 +151,7 @@ class TestE2ETurnFlow:
         assert session_info["turn_count"] == 15
 
         close_response = await async_client.post(
-            f"/api/v1/session/{session_id}/close",
-            headers=auth_headers
+            f"/api/v1/session/{session_id}/close", headers=auth_headers
         )
 
         assert close_response.status_code == 200
@@ -161,9 +159,7 @@ class TestE2ETurnFlow:
         assert close_data["status"] == "closed"
 
     @pytest.mark.asyncio
-    async def test_tc_e2e_02_error_handling(
-        self, async_client, auth_headers
-    ):
+    async def test_tc_e2e_02_error_handling(self, async_client, auth_headers):
         """
         TC-E2E-02: Error Handling Scenarios
 
@@ -174,11 +170,8 @@ class TestE2ETurnFlow:
         """
         response = await async_client.post(
             "/api/v1/session/invalid-session-id/turn",
-            json={
-                "user_input": "Test input",
-                "turn_number": 1
-            },
-            headers=auth_headers
+            json={"user_input": "Test input", "turn_number": 1},
+            headers=auth_headers,
         )
 
         assert response.status_code == 404
@@ -186,7 +179,7 @@ class TestE2ETurnFlow:
         create_response = await async_client.post(
             "/api/v1/session/start",
             json={"location": "Error Test Arena"},
-            headers=auth_headers
+            headers=auth_headers,
         )
 
         session_id = create_response.json()["session_id"]
@@ -194,35 +187,28 @@ class TestE2ETurnFlow:
         try:
             out_of_sequence_response = await async_client.post(
                 f"/api/v1/session/{session_id}/turn",
-                json={
-                    "user_input": "Skipped turn",
-                    "turn_number": 5
-                },
-                headers=auth_headers
+                json={"user_input": "Skipped turn", "turn_number": 5},
+                headers=auth_headers,
             )
 
             assert out_of_sequence_response.status_code == 400
 
             wrong_user_headers = {
                 "X-Goog-Authenticated-User-Id": "different-user-456",
-                "X-Goog-Authenticated-User-Email": "different@example.com"
+                "X-Goog-Authenticated-User-Email": "different@example.com",
             }
 
             unauthorized_response = await async_client.post(
                 f"/api/v1/session/{session_id}/turn",
-                json={
-                    "user_input": "Unauthorized",
-                    "turn_number": 1
-                },
-                headers=wrong_user_headers
+                json={"user_input": "Unauthorized", "turn_number": 1},
+                headers=wrong_user_headers,
             )
 
             assert unauthorized_response.status_code == 403
 
         finally:
             await async_client.post(
-                f"/api/v1/session/{session_id}/close",
-                headers=auth_headers
+                f"/api/v1/session/{session_id}/close", headers=auth_headers
             )
 
     @pytest.mark.asyncio
@@ -237,15 +223,14 @@ class TestE2ETurnFlow:
         create_response = await async_client.post(
             "/api/v1/session/start",
             json={"location": "Retrieval Test Zone"},
-            headers=auth_headers
+            headers=auth_headers,
         )
 
         session_id = create_response.json()["session_id"]
         cleanup_session(session_id)
 
         get_response = await async_client.get(
-            f"/api/v1/session/{session_id}",
-            headers=auth_headers
+            f"/api/v1/session/{session_id}", headers=auth_headers
         )
 
         assert get_response.status_code == 200
@@ -257,17 +242,13 @@ class TestE2ETurnFlow:
 
         await async_client.post(
             f"/api/v1/session/{session_id}/turn",
-            json={
-                "user_input": "First turn",
-                "turn_number": 1
-            },
+            json={"user_input": "First turn", "turn_number": 1},
             headers=auth_headers,
-            timeout=30.0
+            timeout=30.0,
         )
 
         get_after_turn = await async_client.get(
-            f"/api/v1/session/{session_id}",
-            headers=auth_headers
+            f"/api/v1/session/{session_id}", headers=auth_headers
         )
 
         assert get_after_turn.status_code == 200
@@ -275,18 +256,13 @@ class TestE2ETurnFlow:
         assert updated_data["turn_count"] == 1
 
     @pytest.mark.asyncio
-    async def test_tc_e2e_04_rate_limits(
-        self, async_client, auth_headers
-    ):
+    async def test_tc_e2e_04_rate_limits(self, async_client, auth_headers):
         """
         TC-E2E-04: Rate Limit Status
 
         Verify rate limit endpoint returns current status.
         """
-        response = await async_client.get(
-            "/api/v1/user/limits",
-            headers=auth_headers
-        )
+        response = await async_client.get("/api/v1/user/limits", headers=auth_headers)
 
         assert response.status_code == 200
         limits_data = response.json()
@@ -297,9 +273,7 @@ class TestE2ETurnFlow:
         assert "concurrent_sessions_count" in limits_data["limits"]
 
     @pytest.mark.asyncio
-    async def test_tc_e2e_05_health_endpoints(
-        self, async_client
-    ):
+    async def test_tc_e2e_05_health_endpoints(self, async_client):
         """
         TC-E2E-05: Health Endpoints
 
@@ -325,9 +299,7 @@ class TestE2ETurnFlow:
         Verify API validates input parameters correctly.
         """
         invalid_location = await async_client.post(
-            "/api/v1/session/start",
-            json={"location": ""},
-            headers=auth_headers
+            "/api/v1/session/start", json={"location": ""}, headers=auth_headers
         )
 
         assert invalid_location.status_code == 422
@@ -335,7 +307,7 @@ class TestE2ETurnFlow:
         valid_session = await async_client.post(
             "/api/v1/session/start",
             json={"location": "Valid Location"},
-            headers=auth_headers
+            headers=auth_headers,
         )
 
         session_id = valid_session.json()["session_id"]
@@ -343,22 +315,16 @@ class TestE2ETurnFlow:
 
         empty_input = await async_client.post(
             f"/api/v1/session/{session_id}/turn",
-            json={
-                "user_input": "",
-                "turn_number": 1
-            },
-            headers=auth_headers
+            json={"user_input": "", "turn_number": 1},
+            headers=auth_headers,
         )
 
         assert empty_input.status_code == 422
 
         too_long_input = await async_client.post(
             f"/api/v1/session/{session_id}/turn",
-            json={
-                "user_input": "A" * 1001,
-                "turn_number": 1
-            },
-            headers=auth_headers
+            json={"user_input": "A" * 1001, "turn_number": 1},
+            headers=auth_headers,
         )
 
         assert too_long_input.status_code == 422
@@ -373,6 +339,7 @@ class TestDeployedE2E:
     def service_url(self):
         """Cloud Run service URL"""
         import os
+
         return os.getenv("CLOUD_RUN_URL", "https://improv-olympics-service.run.app")
 
     @pytest.mark.asyncio
@@ -391,8 +358,7 @@ class TestDeployedE2E:
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{service_url}/api/v1/session/start",
-                json={"location": "Test"}
+                f"{service_url}/api/v1/session/start", json={"location": "Test"}
             )
 
             assert response.status_code in [401, 403]

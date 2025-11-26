@@ -1,4 +1,5 @@
 """Session Data Models"""
+
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
@@ -7,6 +8,7 @@ from enum import Enum
 
 class SessionStatus(str, Enum):
     """Session lifecycle states"""
+
     INITIALIZED = "initialized"
     MC_PHASE = "mc_phase"
     ACTIVE = "active"
@@ -18,12 +20,16 @@ class SessionStatus(str, Enum):
 
 class SessionCreate(BaseModel):
     """Request model for creating new session"""
-    location: str = Field(..., description="Scene location", min_length=1, max_length=200)
+
+    location: str = Field(
+        ..., description="Scene location", min_length=1, max_length=200
+    )
     user_name: Optional[str] = Field(None, description="Optional display name")
 
 
 class Session(BaseModel):
     """Session state model"""
+
     session_id: str
     user_id: str
     user_email: str
@@ -48,6 +54,7 @@ class Session(BaseModel):
 
 class SessionResponse(BaseModel):
     """API response model for session"""
+
     session_id: str
     status: str
     location: str
@@ -58,12 +65,14 @@ class SessionResponse(BaseModel):
 
 class TurnInput(BaseModel):
     """User input for a turn"""
+
     user_input: str = Field(..., min_length=1, max_length=1000)
     turn_number: int = Field(..., ge=1)
 
 
 class TurnResponse(BaseModel):
     """Response for a turn"""
+
     turn_number: int
     partner_response: str
     room_vibe: Dict[str, Any]
