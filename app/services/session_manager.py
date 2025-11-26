@@ -327,6 +327,80 @@ class SessionManager:
             logger.error("Failed to close session", session_id=session_id, error=str(e))
             raise
 
+    async def update_session_game(
+        self, session_id: str, game_id: str, game_name: str
+    ) -> None:
+        """Update session with selected game information."""
+        try:
+            doc_ref = self.collection.document(session_id)
+            doc_ref.update(
+                {
+                    "selected_game_id": game_id,
+                    "selected_game_name": game_name,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+
+            logger.info(
+                "Session game updated",
+                session_id=session_id,
+                game_id=game_id,
+                game_name=game_name,
+            )
+
+        except Exception as e:
+            logger.error(
+                "Failed to update session game", session_id=session_id, error=str(e)
+            )
+            raise
+
+    async def update_session_suggestion(
+        self, session_id: str, audience_suggestion: str
+    ) -> None:
+        """Update session with audience suggestion."""
+        try:
+            doc_ref = self.collection.document(session_id)
+            doc_ref.update(
+                {
+                    "audience_suggestion": audience_suggestion,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+
+            logger.info(
+                "Session suggestion updated",
+                session_id=session_id,
+                suggestion=audience_suggestion[:50],
+            )
+
+        except Exception as e:
+            logger.error(
+                "Failed to update session suggestion",
+                session_id=session_id,
+                error=str(e),
+            )
+            raise
+
+    async def complete_mc_welcome(self, session_id: str) -> None:
+        """Mark MC welcome phase as complete and transition to ACTIVE status."""
+        try:
+            doc_ref = self.collection.document(session_id)
+            doc_ref.update(
+                {
+                    "mc_welcome_complete": True,
+                    "status": SessionStatus.ACTIVE.value,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+
+            logger.info("MC welcome phase completed", session_id=session_id)
+
+        except Exception as e:
+            logger.error(
+                "Failed to complete MC welcome", session_id=session_id, error=str(e)
+            )
+            raise
+
     async def get_user_active_sessions(self, user_id: str) -> int:
         """Get count of active sessions for user"""
         try:
@@ -335,6 +409,9 @@ class SessionManager:
                 "in",
                 [
                     SessionStatus.INITIALIZED.value,
+                    SessionStatus.MC_WELCOME.value,
+                    SessionStatus.GAME_SELECT.value,
+                    SessionStatus.SUGGESTION_PHASE.value,
                     SessionStatus.MC_PHASE.value,
                     SessionStatus.ACTIVE.value,
                     SessionStatus.SCENE_COMPLETE.value,

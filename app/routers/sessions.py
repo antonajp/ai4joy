@@ -2,12 +2,14 @@
 
 import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+from pydantic import BaseModel, Field
 
 from app.models.session import SessionCreate, SessionResponse, TurnInput, TurnResponse
 from app.services.session_manager import SessionManager, get_session_manager
 from app.services.rate_limiter import RateLimiter, get_rate_limiter, RateLimitExceeded
 from app.services.turn_orchestrator import get_turn_orchestrator
+from app.services.mc_welcome_orchestrator import get_mc_welcome_orchestrator
 from app.services.content_filter import get_content_filter
 from app.services.pii_detector import get_pii_detector
 from app.services.prompt_injection_guard import get_prompt_injection_guard
@@ -18,6 +20,27 @@ from app.utils.logger import get_logger
 
 router = APIRouter(prefix="/api/v1", tags=["sessions"])
 logger = get_logger(__name__)
+
+
+class MCWelcomeInput(BaseModel):
+    """User input for MC welcome phase interactions"""
+
+    user_input: Optional[str] = Field(
+        None, max_length=500, description="User response to MC prompts"
+    )
+
+
+class MCWelcomeResponse(BaseModel):
+    """Response from MC welcome phase"""
+
+    mc_response: str
+    phase: str
+    next_status: str
+    available_games: Optional[list] = None
+    selected_game: Optional[dict] = None
+    audience_suggestion: Optional[str] = None
+    mc_welcome_complete: bool = False
+    timestamp: str
 
 
 @router.post(
@@ -132,6 +155,160 @@ async def get_session_info(
         expires_at=session.expires_at,
         turn_count=session.turn_count,
     )
+
+
+@router.post("/session/{session_id}/welcome", response_model=MCWelcomeResponse)
+async def mc_welcome_phase(
+    session_id: str,
+    welcome_input: MCWelcomeInput,
+    request: Request,
+    session_manager: SessionManager = Depends(get_session_manager),
+) -> MCWelcomeResponse:
+    """
+    Handle MC Welcome Phase interactions.
+
+    This endpoint manages the MC-led introduction before scene work:
+    1. Initial welcome message (when session is INITIALIZED)
+    2. Game selection (when session is MC_WELCOME)
+    3. Audience suggestion collection (when session is GAME_SELECT)
+    4. Rules explanation and scene start (when session is SUGGESTION_PHASE)
+
+    The frontend should call this endpoint multiple times until
+    mc_welcome_complete is True, then switch to the /turn endpoint.
+    """
+    user_info = get_authenticated_user(request)
+    user_id = user_info["user_id"]
+
+    # Retrieve session
+    session = await session_manager.get_session(session_id)
+
+    if not session:
+        logger.warning(
+            "MC welcome requested for non-existent session",
+            session_id=session_id,
+            user_id=user_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found or expired"
+        )
+
+    # Verify ownership
+    if session.user_id != user_id:
+        logger.warning(
+            "Unauthorized MC welcome attempt",
+            session_id=session_id,
+            requesting_user=user_id,
+            session_owner=session.user_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this session",
+        )
+
+    # Check if MC welcome is already complete
+    if session.mc_welcome_complete:
+        logger.warning(
+            "MC welcome already complete",
+            session_id=session_id,
+            status=session.status,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="MC welcome phase already complete. Use /turn endpoint for scene work.",
+        )
+
+    # Security checks on user input if provided
+    if welcome_input.user_input:
+        content_filter = get_content_filter()
+        pii_detector = get_pii_detector()
+        injection_guard = get_prompt_injection_guard()
+
+        # Check for prompt injection attempts
+        injection_result = injection_guard.check_injection(welcome_input.user_input)
+        if not injection_result.is_safe:
+            logger.warning(
+                "Prompt injection attempt blocked in MC welcome",
+                session_id=session_id,
+                user_id=user_id,
+                threat_level=injection_result.threat_level,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Input contains patterns that violate content policy.",
+            )
+
+        # Check for offensive content
+        content_result = content_filter.filter_input(welcome_input.user_input)
+        if not content_result.is_allowed:
+            logger.warning(
+                "Offensive content blocked in MC welcome",
+                session_id=session_id,
+                user_id=user_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Input contains inappropriate content.",
+            )
+
+        # Log PII detection
+        pii_result = pii_detector.detect_pii(welcome_input.user_input)
+        if pii_result.has_pii:
+            logger.warning(
+                "PII detected in MC welcome input",
+                session_id=session_id,
+                user_id=user_id,
+                pii_types=[d.pii_type for d in pii_result.detections],
+            )
+
+    # Execute MC welcome phase
+    orchestrator = get_mc_welcome_orchestrator(session_manager)
+
+    try:
+        result = await orchestrator.execute_welcome(
+            session=session,
+            user_input=welcome_input.user_input,
+        )
+
+        logger.info(
+            "MC welcome phase completed",
+            session_id=session_id,
+            phase=result.get("phase"),
+            next_status=result.get("next_status"),
+            mc_complete=result.get("mc_welcome_complete", False),
+        )
+
+        return MCWelcomeResponse(**result)
+
+    except asyncio.TimeoutError:
+        logger.error(
+            "MC welcome execution timed out",
+            session_id=session_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="MC agent execution timed out. Please try again.",
+        )
+    except ValueError as e:
+        logger.error(
+            "Invalid MC welcome phase",
+            session_id=session_id,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.error(
+            "MC welcome execution failed",
+            session_id=session_id,
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred during MC welcome: {str(e)}",
+        )
 
 
 @router.post("/session/{session_id}/turn", response_model=TurnResponse)

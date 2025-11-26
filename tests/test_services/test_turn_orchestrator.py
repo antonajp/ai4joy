@@ -216,25 +216,50 @@ class TestTurnOrchestratorPromptConstruction:
         """
         TC-TURN-02c: Coach Agent Included at Turn 15+
 
-        Coach feedback should be requested starting at turn 15.
+        Coach feedback should be requested at turn 15 (end-of-scene feedback).
         """
         prompt = await orchestrator._construct_scene_prompt(
             session=base_session, user_input="Final scene action", turn_number=15
         )
 
-        assert "Coach Agent: Provide constructive feedback" in prompt
+        assert "Coach Agent:" in prompt
+        assert "end-of-scene feedback" in prompt
         assert "COACH:" in prompt
 
     @pytest.mark.asyncio
-    async def test_tc_turn_02d_coach_not_included_before_turn_15(
+    async def test_tc_turn_02d_coach_included_at_turn_5_phase_transition(
         self, orchestrator, base_session
     ):
         """
-        TC-TURN-02d: No Coach Before Turn 15
+        TC-TURN-02d: Coach Agent Included at Turn 5 (Phase Transition)
 
-        Coach should NOT be mentioned in turns 1-14.
+        Per IQS-55, coach feedback is now provided at turn 5 (phase transition
+        from Phase 1 to Phase 2), every 5 turns after, and at turn 15+.
         """
-        for turn in [1, 5, 10, 14]:
+        # Turn 5 - phase transition feedback
+        prompt = await orchestrator._construct_scene_prompt(
+            session=base_session, user_input="Scene input", turn_number=5
+        )
+        assert "Coach Agent:" in prompt, "Coach should appear at turn 5 (phase transition)"
+        assert "Phase 1 progress" in prompt or "mid-scene" in prompt
+
+        # Turn 10 - periodic check-in
+        prompt = await orchestrator._construct_scene_prompt(
+            session=base_session, user_input="Scene input", turn_number=10
+        )
+        assert "Coach Agent:" in prompt, "Coach should appear at turn 10 (periodic)"
+
+    @pytest.mark.asyncio
+    async def test_tc_turn_02e_coach_not_included_at_non_milestone_turns(
+        self, orchestrator, base_session
+    ):
+        """
+        TC-TURN-02e: No Coach at Non-Milestone Turns
+
+        Coach should NOT be mentioned in turns 1-4, 6-9, 11-14.
+        """
+        non_coach_turns = [1, 2, 3, 4, 6, 7, 8, 9, 11, 12, 13, 14]
+        for turn in non_coach_turns:
             prompt = await orchestrator._construct_scene_prompt(
                 session=base_session, user_input="Scene input", turn_number=turn
             )

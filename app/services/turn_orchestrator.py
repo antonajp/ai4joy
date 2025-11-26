@@ -250,6 +250,23 @@ class TurnOrchestrator:
                     )
                     memory_context += f"- {content[:200]}\n"
 
+        # Determine if coach feedback should be included
+        # Coach provides feedback at:
+        # - Turn 5 (phase transition point)
+        # - Every 5 turns after that (turns 10, 15, etc.)
+        # - Scene end (turn >= 15)
+        include_coach = turn_number == 5 or turn_number % 5 == 0 or turn_number >= 15
+
+        # Build coach instruction based on context
+        if turn_number == 5:
+            coach_instruction = "3. Coach Agent: Provide mid-scene feedback celebrating their Phase 1 progress and preparing them for the more challenging Phase 2"
+        elif turn_number >= 15:
+            coach_instruction = "3. Coach Agent: Provide comprehensive end-of-scene feedback summarizing their performance and growth"
+        elif include_coach:
+            coach_instruction = "3. Coach Agent: Provide brief encouraging feedback on their recent turns"
+        else:
+            coach_instruction = ""
+
         prompt = f"""Scene Turn {turn_number} - {phase_name}
 
 Location: {session.location}
@@ -258,12 +275,12 @@ User's contribution: {user_input}
 Coordinate the following:
 1. Partner Agent: Respond to user's scene contribution with appropriate phase behavior
 2. Room Agent: Analyze scene energy and provide audience vibe
-{"3. Coach Agent: Provide constructive feedback on this turn" if turn_number >= 15 else ""}
+{coach_instruction}
 
 Provide responses in structured format:
 PARTNER: [Partner's scene response]
 ROOM: [Audience vibe analysis]
-{"COACH: [Coaching feedback]" if turn_number >= 15 else ""}
+{"COACH: [Coaching feedback]" if include_coach else ""}
 """
 
         return prompt

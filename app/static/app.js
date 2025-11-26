@@ -30,7 +30,13 @@ const AppState = {
     currentTurn: 0,
     pollingInterval: null,
     isProcessing: false,
-    lastMessageId: null
+    lastMessageId: null,
+    // MC Welcome Phase state
+    mcWelcomeComplete: false,
+    mcPhase: null,  // 'welcome', 'game_selection', 'awaiting_suggestion', 'suggestion_received', 'scene_start'
+    availableGames: [],
+    selectedGame: null,
+    audienceSuggestion: null
 };
 
 // ============================================
@@ -258,6 +264,29 @@ async function getUserLimits() {
     return await response.json();
 }
 
+/**
+ * Execute MC welcome phase interaction
+ */
+async function executeMCWelcome(sessionId, userInput = null) {
+    const body = userInput ? { user_input: userInput } : {};
+
+    const response = await fetch(`${API_BASE}/session/${sessionId}/welcome`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to execute MC welcome phase');
+    }
+
+    return await response.json();
+}
+
 // ============================================
 // Authentication Functions
 // ============================================
@@ -410,9 +439,20 @@ async function initializeChatInterface() {
 
         hideLoading();
 
-        // If this is the first turn, execute it to get MC introduction
-        if (session.turn_count === 0) {
-            await executeFirstTurn(sessionId);
+        // Check if MC welcome phase needs to be completed
+        // Session status will be 'initialized', 'mc_welcome', 'game_select', or 'suggestion_phase'
+        // during the MC welcome flow
+        const mcWelcomeStatuses = ['initialized', 'mc_welcome', 'game_select', 'suggestion_phase'];
+        if (mcWelcomeStatuses.includes(session.status)) {
+            AppState.mcWelcomeComplete = false;
+            await startMCWelcomePhase(sessionId);
+        } else {
+            // MC welcome already complete, session is active
+            AppState.mcWelcomeComplete = true;
+            // If this is the first turn after MC welcome, start scene work
+            if (session.turn_count === 0) {
+                displaySystemMessage('Scene work is ready to begin! Enter your first line to start the improv scene.');
+            }
         }
 
     } catch (error) {
@@ -424,7 +464,224 @@ async function initializeChatInterface() {
 }
 
 /**
- * Execute first turn to get MC introduction
+ * Start MC Welcome Phase
+ */
+async function startMCWelcomePhase(sessionId) {
+    try {
+        showTypingIndicator();
+
+        // Execute initial MC welcome call (no user input needed for first call)
+        const response = await executeMCWelcome(sessionId, null);
+
+        hideTypingIndicator();
+
+        // Display MC message
+        displayMCMessage(response.mc_response, response.timestamp);
+
+        // Update state based on response
+        AppState.mcPhase = response.phase;
+        AppState.mcWelcomeComplete = response.mc_welcome_complete || false;
+
+        if (response.available_games) {
+            AppState.availableGames = response.available_games;
+            displayGameOptions(response.available_games);
+        }
+
+        if (response.selected_game) {
+            AppState.selectedGame = response.selected_game;
+        }
+
+        if (response.audience_suggestion) {
+            AppState.audienceSuggestion = response.audience_suggestion;
+        }
+
+        // Update session status display
+        updateMCPhaseDisplay(response.phase);
+
+        // If MC welcome is complete, transition to scene work
+        if (response.mc_welcome_complete) {
+            AppState.mcWelcomeComplete = true;
+            displaySystemMessage('MC welcome complete! The scene is about to begin. Enter your first line when ready.');
+        }
+
+    } catch (error) {
+        hideTypingIndicator();
+        showToast(`MC welcome failed: ${error.message}`, 'error');
+    }
+}
+
+/**
+ * Handle MC welcome phase user input
+ */
+async function handleMCWelcomeInput(userInput) {
+    if (AppState.isProcessing) return;
+
+    AppState.isProcessing = true;
+    disableChatInput();
+
+    try {
+        // Display user message
+        displayUserMessage(userInput, new Date().toISOString());
+
+        // Show typing indicator
+        showTypingIndicator();
+
+        // Execute MC welcome with user input
+        const response = await executeMCWelcome(
+            AppState.currentSession.session_id,
+            userInput
+        );
+
+        hideTypingIndicator();
+
+        // Display MC response
+        displayMCMessage(response.mc_response, response.timestamp);
+
+        // Update state
+        AppState.mcPhase = response.phase;
+
+        if (response.available_games) {
+            AppState.availableGames = response.available_games;
+            displayGameOptions(response.available_games);
+        }
+
+        if (response.selected_game) {
+            AppState.selectedGame = response.selected_game;
+            displaySystemMessage(`Game selected: ${response.selected_game.name}`);
+        }
+
+        if (response.audience_suggestion) {
+            AppState.audienceSuggestion = response.audience_suggestion;
+        }
+
+        // Update phase display
+        updateMCPhaseDisplay(response.phase);
+
+        // Check if MC welcome is complete
+        if (response.mc_welcome_complete) {
+            AppState.mcWelcomeComplete = true;
+            displaySystemMessage('🎭 The stage is set! Enter your first line to begin the scene.');
+        }
+
+    } catch (error) {
+        hideTypingIndicator();
+        showToast(`MC response failed: ${error.message}`, 'error');
+    } finally {
+        AppState.isProcessing = false;
+        enableChatInput();
+    }
+}
+
+/**
+ * Display MC message (distinct styling from partner/coach)
+ */
+function displayMCMessage(text, timestamp) {
+    const container = document.getElementById('messages-container');
+    if (!container) return;
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message message-mc';
+
+    messageDiv.innerHTML = `
+        <div class="message-header">
+            <span class="message-role">🎤 MC</span>
+            <span class="message-time">${formatTime(timestamp)}</span>
+        </div>
+        <div class="message-bubble message-bubble-mc">
+            <p class="message-text">${escapeHtml(text)}</p>
+        </div>
+    `;
+
+    container.appendChild(messageDiv);
+    scrollToBottom();
+}
+
+/**
+ * Display system message (for transitions and instructions)
+ */
+function displaySystemMessage(text) {
+    const container = document.getElementById('messages-container');
+    if (!container) return;
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message message-system';
+
+    messageDiv.innerHTML = `
+        <div class="message-bubble message-bubble-system">
+            <p class="message-text">${escapeHtml(text)}</p>
+        </div>
+    `;
+
+    container.appendChild(messageDiv);
+    scrollToBottom();
+}
+
+/**
+ * Display game options for selection
+ */
+function displayGameOptions(games) {
+    const container = document.getElementById('messages-container');
+    if (!container || !games || games.length === 0) return;
+
+    const optionsDiv = document.createElement('div');
+    optionsDiv.className = 'game-options';
+    optionsDiv.setAttribute('role', 'group');
+    optionsDiv.setAttribute('aria-label', 'Available improv games');
+
+    let optionsHtml = '<div class="game-options-header">Available Games:</div>';
+    optionsHtml += '<div class="game-options-list">';
+
+    games.forEach(game => {
+        const difficultyClass = `difficulty-${game.difficulty || 'beginner'}`;
+        optionsHtml += `
+            <button class="game-option-btn ${difficultyClass}"
+                    onclick="selectGame('${escapeHtml(game.id)}', '${escapeHtml(game.name)}')"
+                    aria-label="Select ${escapeHtml(game.name)} - ${game.difficulty || 'beginner'} difficulty">
+                <span class="game-name">${escapeHtml(game.name)}</span>
+                <span class="game-difficulty">${game.difficulty || 'Beginner'}</span>
+            </button>
+        `;
+    });
+
+    optionsHtml += '</div>';
+    optionsDiv.innerHTML = optionsHtml;
+
+    container.appendChild(optionsDiv);
+    scrollToBottom();
+}
+
+/**
+ * Handle game selection button click
+ */
+function selectGame(gameId, gameName) {
+    // Remove game options from UI
+    const gameOptions = document.querySelectorAll('.game-options');
+    gameOptions.forEach(el => el.remove());
+
+    // Send game selection as user input
+    handleMCWelcomeInput(`I'd like to play ${gameName}`);
+}
+
+/**
+ * Update MC phase display
+ */
+function updateMCPhaseDisplay(phase) {
+    const phaseEl = document.getElementById('current-phase');
+    if (!phaseEl) return;
+
+    const phaseLabels = {
+        'welcome': 'MC Welcome',
+        'game_selection': 'Game Selection',
+        'awaiting_suggestion': 'Awaiting Suggestion',
+        'suggestion_received': 'Setting the Scene',
+        'scene_start': 'Scene Starting'
+    };
+
+    phaseEl.textContent = phaseLabels[phase] || phase || 'MC Welcome';
+}
+
+/**
+ * Execute first turn to get MC introduction (legacy - kept for compatibility)
  */
 async function executeFirstTurn(sessionId) {
     try {
@@ -518,16 +775,24 @@ async function handleChatFormSubmit(event) {
         return;
     }
 
+    // Clear input early
+    input.value = '';
+    updateCharacterCount();
+
+    // Route to MC welcome or scene turn based on state
+    if (!AppState.mcWelcomeComplete) {
+        // Still in MC welcome phase
+        await handleMCWelcomeInput(userInput);
+        return;
+    }
+
+    // Scene work - execute turn
     AppState.isProcessing = true;
     disableChatInput();
 
     try {
         // Display user message
         displayUserMessage(userInput, new Date().toISOString());
-
-        // Clear input
-        input.value = '';
-        updateCharacterCount();
 
         // Show typing indicator
         showTypingIndicator();
