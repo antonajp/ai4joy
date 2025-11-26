@@ -1,51 +1,26 @@
-# Core dependencies (pin these first to avoid backtracking)
-# Must be compatible with google-adk 1.19.0
-grpcio>=1.60.0,<2.0.0
-grpcio-status>=1.60.0,<2.0.0
-protobuf>=5.0.0,<7.0.0
-google-api-core>=2.15.0,<3.0.0
+# Test-specific dependencies only
+# GCP/ADK packages are inherited from main requirements.txt
 
 # Testing Framework
 pytest>=7.4.0,<9.0.0
 pytest-asyncio>=0.21.0,<1.0.0
 pytest-timeout>=2.1.0,<3.0.0
-pytest-xdist>=3.3.0,<4.0.0  # For parallel test execution
-
-# API Testing
-requests>=2.31.0,<3.0.0
-httpx>=0.24.0,<1.0.0
+pytest-xdist>=3.3.0,<4.0.0
 
 # Docker Testing
 docker>=6.1.0,<8.0.0
 testcontainers>=3.7.0,<4.0.0
 
-# GCP SDKs (compatible with google-adk 1.19.0)
-google-cloud-aiplatform>=1.125.0,<2.0.0
-google-cloud-logging>=3.5.0,<4.0.0
-google-cloud-monitoring>=2.15.0,<3.0.0
-google-cloud-run>=0.10.0,<1.0.0
-google-cloud-storage>=3.0.0,<4.0.0
-google-cloud-secret-manager>=2.16.0,<3.0.0
-
-# VertexAI & Gemini
-google-generativeai>=0.3.0,<1.0.0
-vertexai>=1.70.0,<2.0.0
-
 # Performance Testing
-locust>=2.15.0,<3.0.0  # For load testing
+locust>=2.15.0,<3.0.0
 
-# Utilities
-python-dotenv>=1.0.0,<2.0.0
-pyyaml>=6.0,<7.0
-dnspython>=2.4.0,<3.0.0  # For DNS testing
-pyOpenSSL>=23.2.0,<25.0.0  # For SSL testing
-
-# Firestore for rate limiting tests
-google-cloud-firestore>=2.11.0,<3.0.0
+# Utilities for testing
+dnspython>=2.4.0,<3.0.0
+pyOpenSSL>=23.2.0,<25.0.0
 
 # Data Analysis (for metrics)
 numpy>=1.24.0,<3.0.0
-pandas>=2.0.0,<3.0.0  # Optional, for advanced analysis
+pandas>=2.0.0,<3.0.0
 
 # Week 11 Frontend Testing
 playwright>=1.40.0,<2.0.0
