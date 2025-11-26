@@ -10,8 +10,11 @@ class SessionStatus(str, Enum):
     """Session lifecycle states"""
 
     INITIALIZED = "initialized"
-    MC_PHASE = "mc_phase"
-    ACTIVE = "active"
+    MC_WELCOME = "mc_welcome"  # MC introducing and welcoming user
+    GAME_SELECT = "game_select"  # User selecting game or MC suggesting
+    SUGGESTION_PHASE = "suggestion_phase"  # Collecting audience suggestion
+    MC_PHASE = "mc_phase"  # Legacy - kept for compatibility
+    ACTIVE = "active"  # Scene work in progress
     SCENE_COMPLETE = "scene_complete"
     COACH_PHASE = "coach_phase"
     CLOSED = "closed"
@@ -47,6 +50,12 @@ class Session(BaseModel):
 
     current_phase: Optional[str] = None
     turn_count: int = 0
+
+    # MC Welcome Phase fields
+    selected_game_id: Optional[str] = None
+    selected_game_name: Optional[str] = None
+    audience_suggestion: Optional[str] = None
+    mc_welcome_complete: bool = False
 
     class Config:
         use_enum_values = True
