@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from dataclasses import dataclass, asdict
 
 from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
 from app.agents.stage_manager import create_stage_manager
@@ -277,10 +278,13 @@ class EvaluationRunner:
         try:
             agent = AgentFactory.create_agent(agent_name, context)
 
+            # Use InMemorySessionService for evaluations
+            session_service = InMemorySessionService()
+
             runner = Runner(
                 agent=agent,
                 app_name=settings.app_name,
-                session_service=None
+                session_service=session_service
             )
 
             timeout = self.config.get('evaluation_parameters.timeout_seconds', 30)

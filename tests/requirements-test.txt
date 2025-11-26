@@ -28,6 +28,3 @@ pytest-playwright>=0.4.0,<1.0.0
 
 # Week 11 Accessibility Testing
 axe-playwright-python>=0.1.4,<1.0.0
-
-# Week 9 Dashboard Validation
-google-cloud-monitoring-dashboards>=1.0.0,<2.0.0
