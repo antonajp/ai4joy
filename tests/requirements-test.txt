@@ -29,7 +29,7 @@ google-cloud-secret-manager>=2.16.0,<3.0.0
 
 # VertexAI & Gemini
 google-generativeai>=0.3.0,<1.0.0
-vertexai>=1.125.0,<2.0.0
+vertexai>=1.70.0,<2.0.0
 
 # Performance Testing
 locust>=2.15.0,<3.0.0  # For load testing
