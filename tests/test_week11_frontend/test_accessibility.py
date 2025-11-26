@@ -253,15 +253,15 @@ class TestFocusIndicators:
 
 
 @pytest.mark.skipif(
-    not pytest.importorskip("axe_playwright"),
-    reason="axe-playwright not installed"
+    not pytest.importorskip("axe_playwright_python"),
+    reason="axe-playwright-python not installed"
 )
 class TestAutomatedAccessibility:
     """Automated accessibility testing with axe-core"""
 
     def test_wcag_aa_compliance(self, page: Page, base_url: str):
         """Run automated WCAG 2.1 AA compliance check"""
-        from axe_playwright import Axe
+        from axe_playwright_python import Axe
 
         page.goto(base_url)
 
