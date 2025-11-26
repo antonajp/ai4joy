@@ -198,14 +198,14 @@ async def search_games(
         results = [
             g
             for g in results
-            if g["player_count"]["min"] <= player_count <= g["player_count"]["max"]
+            if int(g["player_count"]["min"]) <= player_count <= int(g["player_count"]["max"])  # type: ignore[index]
         ]
 
     if difficulty:
         results = [g for g in results if g["difficulty"] == difficulty.lower()]
 
     if max_duration:
-        results = [g for g in results if g["duration_minutes"] <= max_duration]
+        results = [g for g in results if g["duration_minutes"] <= max_duration]  # type: ignore[operator]
 
     logger.info(
         "Game search completed",

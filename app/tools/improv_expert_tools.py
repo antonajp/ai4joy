@@ -292,10 +292,9 @@ async def search_principles_by_keyword(keyword: str) -> list[dict]:
     results = []
 
     for principle in CORE_PRINCIPLES:
-        if (
-            keyword_lower in principle["name"].lower()
-            or keyword_lower in principle["description"].lower()
-        ):
+        name = str(principle["name"])
+        description = str(principle["description"])
+        if keyword_lower in name.lower() or keyword_lower in description.lower():
             results.append(principle)
 
     logger.info("Keyword search completed", keyword=keyword, results=len(results))

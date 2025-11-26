@@ -1,6 +1,7 @@
 """Performance Tuning Configuration and Utilities"""
 
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -152,7 +153,7 @@ class FirestoreBatchWriter:
     def __init__(self, db, batch_size: int = 500):
         self.db = db
         self.batch_size = batch_size
-        self._pending_writes = []
+        self._pending_writes: list[tuple[str, Any, dict]] = []
 
     def add_write(self, doc_ref, data: dict) -> None:
         """Add write operation to batch"""

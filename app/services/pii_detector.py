@@ -1,7 +1,7 @@
 """PII Detection and Redaction Service"""
 
 import re
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -227,7 +227,7 @@ class PIIDetector:
 
         return redacted
 
-    def get_stats(self) -> Dict[str, any]:
+    def get_stats(self) -> Dict[str, Any]:
         """Get PII detection statistics"""
         return {
             "total_checks": self._stats["total_checks"],

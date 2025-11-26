@@ -1,7 +1,7 @@
 """Content Filtering Service for User Input Validation"""
 
 import re
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -165,7 +165,7 @@ class ContentFilter:
         result = self.filter_input(user_input)
         return not result.is_allowed
 
-    def get_filter_stats(self) -> Dict[str, any]:
+    def get_filter_stats(self) -> Dict[str, Any]:
         """
         Get content filter statistics.
 

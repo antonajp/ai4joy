@@ -3,7 +3,7 @@
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
 import uuid
-from google.cloud import firestore
+from google.cloud import firestore  # type: ignore[attr-defined]
 from google.adk.sessions.session import Session as ADKSession
 
 from app.config import get_settings

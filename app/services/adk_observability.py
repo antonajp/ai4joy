@@ -19,7 +19,7 @@ We do NOT manually create spans for ADK operations - ADK does that automatically
 """
 
 import os
-from typing import Optional
+from typing import Any, Optional
 
 from opentelemetry import trace, metrics
 from opentelemetry.sdk.trace import TracerProvider
@@ -331,7 +331,7 @@ def add_agent_context(
     """
     obs = get_adk_observability()
     if obs:
-        attributes = {"agent_type": agent_type}
+        attributes: dict[str, Any] = {"agent_type": agent_type}
         if session_id:
             attributes["session_id"] = session_id
         if turn_number is not None:

@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Optional
-from google.cloud import firestore
+from google.cloud import firestore  # type: ignore[attr-defined]
 from fastapi import HTTPException, status
 
 from app.config import get_settings

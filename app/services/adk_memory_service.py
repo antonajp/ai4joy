@@ -149,7 +149,7 @@ async def save_session_to_memory(adk_session: ADKSession) -> bool:
     try:
         logger.info(
             "Saving session to memory",
-            session_id=adk_session.session_id,
+            session_id=adk_session.id,  # type: ignore[attr-defined]
             user_id=adk_session.user_id,
             events_count=len(adk_session.events),
         )
@@ -158,7 +158,7 @@ async def save_session_to_memory(adk_session: ADKSession) -> bool:
 
         logger.info(
             "Session saved to memory successfully",
-            session_id=adk_session.session_id,
+            session_id=adk_session.id,  # type: ignore[attr-defined]
             user_id=adk_session.user_id,
         )
 
@@ -167,7 +167,7 @@ async def save_session_to_memory(adk_session: ADKSession) -> bool:
     except Exception as e:
         logger.error(
             "Failed to save session to memory",
-            session_id=adk_session.session_id,
+            session_id=adk_session.id,  # type: ignore[attr-defined]
             user_id=adk_session.user_id,
             error=str(e),
             error_type=type(e).__name__,
@@ -206,7 +206,7 @@ async def search_user_memories(
             app_name=settings.app_name, user_id=user_id, query=query
         )
 
-        results_list = results[:limit] if results else []
+        results_list = list(results)[:limit] if results else []  # type: ignore[arg-type]
 
         logger.info(
             "Memory search completed", user_id=user_id, results_count=len(results_list)

@@ -105,7 +105,7 @@ class ContextManager:
             return "No previous activity"
 
         turn_count = len(turns)
-        phase_changes = []
+        phase_changes: list[str] = []
 
         for turn in turns:
             if "phase" in turn:
