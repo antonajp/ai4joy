@@ -130,6 +130,8 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
           TEST_DB_PATH: /tmp/test_db/test.db
           GOOGLE_CLOUD_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+          GOOGLE_CLOUD_LOCATION: us-central1
+          GOOGLE_GENAI_USE_VERTEXAI: "true"
           EVAL_PASS_THRESHOLD: 80
         run: |
           pytest tests/test_eval/ \
@@ -324,6 +326,8 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
           GOOGLE_CLOUD_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+          GOOGLE_CLOUD_LOCATION: us-central1
+          GOOGLE_GENAI_USE_VERTEXAI: "true"
         run: |
           pytest tests/integration/test_real_adk_execution.py \
             tests/test_monitoring/test_adk_observability.py \

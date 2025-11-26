@@ -371,7 +371,32 @@ def validation_helpers():  # noqa: C901
 @pytest.fixture
 def skip_if_no_gcp_credentials():
     """Skip test if GCP credentials not available"""
-    if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS") and not os.getenv(
-        "GCP_PROJECT_ID"
-    ):
-        pytest.skip("GCP credentials not configured for evaluation tests")
+    has_app_creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    has_project = os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GCP_PROJECT_ID")
+    has_vertexai = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "").lower() == "true"
+    has_api_key = os.getenv("GOOGLE_API_KEY")
+
+    # Need either Google AI API key OR full Vertex AI config
+    if not has_api_key and not (has_project and (has_app_creds or has_vertexai)):
+        pytest.skip("GCP/Google AI credentials not configured for evaluation tests")
+
+
+def _check_genai_credentials() -> bool:
+    """Check if Google GenAI credentials are properly configured"""
+    has_api_key = os.getenv("GOOGLE_API_KEY")
+    has_project = os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GCP_PROJECT_ID")
+    has_vertexai = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "").lower() == "true"
+    has_location = os.getenv("GOOGLE_CLOUD_LOCATION")
+
+    # Either Google AI API key OR Vertex AI config
+    return bool(has_api_key) or bool(has_project and has_vertexai and has_location)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def check_genai_config():
+    """Session-scoped check for GenAI configuration - skip all eval tests if not configured"""
+    if not _check_genai_credentials():
+        pytest.skip(
+            "Google GenAI not configured. Set GOOGLE_API_KEY for Google AI API, "
+            "or GOOGLE_CLOUD_PROJECT + GOOGLE_CLOUD_LOCATION + GOOGLE_GENAI_USE_VERTEXAI=true for Vertex AI"
+        )
