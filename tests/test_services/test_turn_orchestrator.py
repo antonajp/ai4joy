@@ -240,7 +240,9 @@ class TestTurnOrchestratorPromptConstruction:
         prompt = await orchestrator._construct_scene_prompt(
             session=base_session, user_input="Scene input", turn_number=5
         )
-        assert "Coach Agent:" in prompt, "Coach should appear at turn 5 (phase transition)"
+        assert "Coach Agent:" in prompt, (
+            "Coach should appear at turn 5 (phase transition)"
+        )
         assert "Phase 1 progress" in prompt or "mid-scene" in prompt
 
         # Turn 10 - periodic check-in

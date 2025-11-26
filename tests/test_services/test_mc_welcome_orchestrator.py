@@ -103,7 +103,11 @@ class TestMCWelcomeInitialWelcome:
                 new_callable=AsyncMock,
             ) as mock_games:
                 mock_games.return_value = [
-                    {"id": "freeze_tag", "name": "Freeze Tag", "difficulty": "beginner"},
+                    {
+                        "id": "freeze_tag",
+                        "name": "Freeze Tag",
+                        "difficulty": "beginner",
+                    },
                     {"id": "185", "name": "185", "difficulty": "intermediate"},
                 ]
 
@@ -417,7 +421,9 @@ class TestMCWelcomeSceneStart:
         with patch.object(
             orchestrator, "_run_mc_agent", new_callable=AsyncMock
         ) as mock_run:
-            mock_run.return_value = "Remember - Yes, And! Meet your partner. Take it away!"
+            mock_run.return_value = (
+                "Remember - Yes, And! Meet your partner. Take it away!"
+            )
 
             result = await orchestrator.execute_welcome(
                 session=suggestion_phase_session, user_input=None
@@ -510,9 +516,7 @@ class TestMCWelcomeStatusTransitions:
         )
 
         with pytest.raises(ValueError, match="Invalid status for MC welcome phase"):
-            await orchestrator.execute_welcome(
-                session=active_session, user_input=None
-            )
+            await orchestrator.execute_welcome(session=active_session, user_input=None)
 
 
 class TestMCWelcomeErrorHandling:
