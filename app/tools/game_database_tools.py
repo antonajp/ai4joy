@@ -198,7 +198,9 @@ async def search_games(
         results = [
             g
             for g in results
-            if int(g["player_count"]["min"]) <= player_count <= int(g["player_count"]["max"])  # type: ignore[index]
+            if int(g["player_count"]["min"])
+            <= player_count
+            <= int(g["player_count"]["max"])  # type: ignore[index]
         ]
 
     if difficulty:

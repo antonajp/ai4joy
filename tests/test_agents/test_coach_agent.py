@@ -37,30 +37,30 @@ class TestCoachAgentCreation:
         coach = create_coach_agent()
 
         # Verify ADK Agent instance
-        assert isinstance(
-            coach, Agent
-        ), f"Coach should be google.adk.Agent, got {type(coach)}"
+        assert isinstance(coach, Agent), (
+            f"Coach should be google.adk.Agent, got {type(coach)}"
+        )
 
         # Verify configuration
-        assert (
-            coach.name == "coach_agent"
-        ), f"Name should be 'coach_agent', got '{coach.name}'"
+        assert coach.name == "coach_agent", (
+            f"Name should be 'coach_agent', got '{coach.name}'"
+        )
 
-        assert (
-            coach.model == settings.vertexai_flash_model
-        ), f"Model should be '{settings.vertexai_flash_model}', got '{coach.model}'"
+        assert coach.model == settings.vertexai_flash_model, (
+            f"Model should be '{settings.vertexai_flash_model}', got '{coach.model}'"
+        )
 
         # Verify has 4 tools
-        assert (
-            len(coach.tools) == 4
-        ), f"Coach should have 4 improv expert tools, got {len(coach.tools)}"
+        assert len(coach.tools) == 4, (
+            f"Coach should have 4 improv expert tools, got {len(coach.tools)}"
+        )
 
         # Verify has instruction
         assert hasattr(coach, "instruction"), "Coach missing instruction attribute"
         assert isinstance(coach.instruction, str), "Instruction should be string"
-        assert (
-            len(coach.instruction) > 200
-        ), "Instruction seems too short for coaching role"
+        assert len(coach.instruction) > 200, (
+            "Instruction seems too short for coaching role"
+        )
 
         print("✓ Coach Agent created successfully")
         print(f"  - Name: {coach.name}")
@@ -96,9 +96,9 @@ class TestCoachToolAttachment:
         ]
 
         for required_tool in required_tools:
-            assert (
-                required_tool in tool_names
-            ), f"Coach missing tool: {required_tool}. Has: {tool_names}"
+            assert required_tool in tool_names, (
+                f"Coach missing tool: {required_tool}. Has: {tool_names}"
+            )
 
         print("✓ Coach has all 4 improv expert tools")
         print(f"  - Tools: {tool_names}")
@@ -116,9 +116,9 @@ class TestCoachToolAttachment:
 
         for tool in coach.tools:
             # Check tool is from improv_expert_tools module
-            assert (
-                tool.__module__ == improv_expert_tools.__name__
-            ), f"Tool {tool.__name__} should be from improv_expert_tools module"
+            assert tool.__module__ == improv_expert_tools.__name__, (
+                f"Tool {tool.__name__} should be from improv_expert_tools module"
+            )
 
         print("✓ All tools from improv_expert_tools module")
 
@@ -134,9 +134,9 @@ class TestCoachToolAttachment:
         tool_names = [tool.__name__ for tool in coach.tools]
 
         # Check for duplicates
-        assert len(tool_names) == len(
-            set(tool_names)
-        ), f"Coach has duplicate tools: {tool_names}"
+        assert len(tool_names) == len(set(tool_names)), (
+            f"Coach has duplicate tools: {tool_names}"
+        )
 
         print("✓ No duplicate tools attached")
 
@@ -173,22 +173,22 @@ class TestCoachSystemPrompt:
         ]
         found_encouraging = [kw for kw in encouraging_keywords if kw in instruction]
 
-        assert (
-            len(found_encouraging) >= 3
-        ), f"Coach prompt should be encouraging. Found: {found_encouraging}"
+        assert len(found_encouraging) >= 3, (
+            f"Coach prompt should be encouraging. Found: {found_encouraging}"
+        )
 
         # Should reference improv principles
-        assert (
-            "principle" in instruction or "improv" in instruction
-        ), "Coach should reference improv principles"
+        assert "principle" in instruction or "improv" in instruction, (
+            "Coach should reference improv principles"
+        )
 
         # Should avoid overly critical language
         critical_keywords = ["bad", "wrong", "failure", "poor"]
         found_critical = [kw for kw in critical_keywords if kw in instruction]
 
-        assert (
-            len(found_critical) <= 1
-        ), f"Coach should avoid critical language. Found: {found_critical}"
+        assert len(found_critical) <= 1, (
+            f"Coach should avoid critical language. Found: {found_critical}"
+        )
 
         print("✓ Coach prompt is appropriately encouraging")
         print(f"  - Encouraging keywords: {found_encouraging}")
@@ -215,9 +215,9 @@ class TestCoachSystemPrompt:
         ]
         found_awareness = [kw for kw in tool_awareness_keywords if kw in instruction]
 
-        assert (
-            len(found_awareness) >= 2
-        ), f"Coach should be aware of available tools. Found: {found_awareness}"
+        assert len(found_awareness) >= 2, (
+            f"Coach should be aware of available tools. Found: {found_awareness}"
+        )
 
         print(f"✓ Coach prompt references available tools: {found_awareness}")
 
@@ -243,9 +243,9 @@ class TestCoachSystemPrompt:
         found_constructive = [kw for kw in constructive_keywords if kw in instruction]
 
         # At least some emphasis on constructive feedback
-        assert (
-            len(found_constructive) >= 1
-        ), "Coach should emphasize constructive feedback"
+        assert len(found_constructive) >= 1, (
+            "Coach should emphasize constructive feedback"
+        )
 
         print(f"✓ Coach emphasizes constructive feedback: {found_constructive}")
 
@@ -265,9 +265,9 @@ class TestCoachToolFunctionality:
         principles = await improv_expert_tools.get_all_principles()
 
         assert isinstance(principles, list), "Should return list"
-        assert (
-            len(principles) == 10
-        ), f"Should have 10 principles, got {len(principles)}"
+        assert len(principles) == 10, (
+            f"Should have 10 principles, got {len(principles)}"
+        )
 
         # Check structure of first principle
         first = principles[0]
@@ -313,9 +313,9 @@ class TestCoachToolFunctionality:
         essentials = await improv_expert_tools.get_beginner_essentials()
 
         assert isinstance(essentials, list), "Should return list"
-        assert (
-            len(essentials) >= 5
-        ), f"Should have at least 5 essentials, got {len(essentials)}"
+        assert len(essentials) >= 5, (
+            f"Should have at least 5 essentials, got {len(essentials)}"
+        )
 
         # All should be foundational or essential importance
         for principle in essentials:
@@ -345,9 +345,9 @@ class TestCoachToolFunctionality:
         # Check that results contain the keyword
         for principle in results:
             text = (principle["name"] + " " + principle["description"]).lower()
-            assert (
-                "listen" in text
-            ), f"Result should contain 'listen': {principle['name']}"
+            assert "listen" in text, (
+                f"Result should contain 'listen': {principle['name']}"
+            )
 
         print("✓ search_principles_by_keyword() works correctly")
         print(f"  - Found {len(results)} principles for 'listen'")
@@ -375,9 +375,9 @@ class TestCoachToolFunctionality:
 
         for principle in all_principles:
             for field in required_fields:
-                assert (
-                    field in principle
-                ), f"Principle {principle.get('name', '?')} missing field: {field}"
+                assert field in principle, (
+                    f"Principle {principle.get('name', '?')} missing field: {field}"
+                )
 
         print("✓ All principles have consistent structure")
         print(f"  - Required fields: {required_fields}")
@@ -396,9 +396,9 @@ class TestCoachConfiguration:
 
         coach = create_coach_agent()
 
-        assert (
-            coach.model == settings.vertexai_flash_model
-        ), f"Coach should use {settings.vertexai_flash_model} for speed, got {coach.model}"
+        assert coach.model == settings.vertexai_flash_model, (
+            f"Coach should use {settings.vertexai_flash_model} for speed, got {coach.model}"
+        )
 
         print("✓ Coach correctly uses Gemini Flash model")
 
@@ -417,9 +417,9 @@ class TestCoachConfiguration:
         assert len(coach.description) > 20, "Description should be meaningful"
 
         description_lower = coach.description.lower()
-        assert (
-            "coach" in description_lower or "feedback" in description_lower
-        ), "Description should mention coaching/feedback"
+        assert "coach" in description_lower or "feedback" in description_lower, (
+            "Description should mention coaching/feedback"
+        )
 
         print(f"✓ Coach has clear description: {coach.description[:50]}...")
 
@@ -453,9 +453,9 @@ class TestCoachPromptQuality:
         pedagogy_keywords = ["learn", "teach", "develop", "grow", "improve", "practice"]
         found_pedagogy = [kw for kw in pedagogy_keywords if kw in instruction]
 
-        assert (
-            len(found_pedagogy) >= 2
-        ), f"Coach should emphasize learning/development: {found_pedagogy}"
+        assert len(found_pedagogy) >= 2, (
+            f"Coach should emphasize learning/development: {found_pedagogy}"
+        )
 
         print(f"✓ Coach emphasizes pedagogy: {found_pedagogy}")
 

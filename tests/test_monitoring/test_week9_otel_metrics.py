@@ -153,9 +153,9 @@ class TestOpenTelemetryMetricsExport:
                     found_metrics.append(expected)
 
         for expected_metric in expected_metrics:
-            assert (
-                expected_metric in found_metrics
-            ), f"Metric '{expected_metric}' not found in Cloud Monitoring"
+            assert expected_metric in found_metrics, (
+                f"Metric '{expected_metric}' not found in Cloud Monitoring"
+            )
 
 
 class TestTraceContextPropagation:
@@ -254,9 +254,7 @@ class TestTraceContextPropagation:
 
         with monitoring.trace_operation("async_parent"):
             parent_trace_id = monitoring.get_trace_id()
-            _child_trace_id = (
-                await async_operation()
-            )  # noqa: F841 - verifies propagation
+            _child_trace_id = await async_operation()  # noqa: F841 - verifies propagation
 
             # Trace ID should propagate to async operation
             # Note: This may require proper async context setup
@@ -273,9 +271,7 @@ class TestTraceContextPropagation:
         from google.cloud import trace_v2
 
         project_id = os.getenv("GCP_PROJECT_ID", "improvOlympics")
-        _client = (
-            trace_v2.TraceServiceClient()
-        )  # noqa: F841 - validates client creation
+        _client = trace_v2.TraceServiceClient()  # noqa: F841 - validates client creation
 
         # Execute operation with trace
         from app.services.monitoring import MonitoringService
@@ -289,9 +285,7 @@ class TestTraceContextPropagation:
         time.sleep(2)
 
         # Query for recent traces (last 1 hour)
-        _project_name = (
-            f"projects/{project_id}"  # noqa: F841 - documents expected format
-        )
+        _project_name = f"projects/{project_id}"  # noqa: F841 - documents expected format
 
         # Note: Actual trace query would use TraceServiceClient.list_traces()
         # This is a simplified test structure

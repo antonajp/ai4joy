@@ -73,9 +73,9 @@ class TestDailyRateLimiting:
                 timeout=30,
             )
 
-            assert (
-                response.status_code == 200
-            ), f"Session {i}/{daily_limit} creation failed: {response.status_code}"
+            assert response.status_code == 200, (
+                f"Session {i}/{daily_limit} creation failed: {response.status_code}"
+            )
 
             session_data = response.json()
             session_id = session_data.get("session_id")
@@ -84,9 +84,9 @@ class TestDailyRateLimiting:
             created_sessions.append(session_id)
             print(f"✓ Created session {i}/{daily_limit}: {session_id}")
 
-        assert (
-            len(created_sessions) == daily_limit
-        ), f"Should have created {daily_limit} sessions"
+        assert len(created_sessions) == daily_limit, (
+            f"Should have created {daily_limit} sessions"
+        )
 
         # Attempt to create 11th session (should be rate limited)
         response_11th = authenticated_session.post(
@@ -95,19 +95,19 @@ class TestDailyRateLimiting:
             timeout=30,
         )
 
-        assert (
-            response_11th.status_code == 429
-        ), f"11th session should return 429, got {response_11th.status_code}"
+        assert response_11th.status_code == 429, (
+            f"11th session should return 429, got {response_11th.status_code}"
+        )
 
         error_data = response_11th.json()
-        assert (
-            "error" in error_data or "message" in error_data
-        ), "Error response should contain error message"
+        assert "error" in error_data or "message" in error_data, (
+            "Error response should contain error message"
+        )
 
         error_message = error_data.get("error") or error_data.get("message")
-        assert (
-            "limit" in error_message.lower()
-        ), f"Error message should mention limit: {error_message}"
+        assert "limit" in error_message.lower(), (
+            f"Error message should mention limit: {error_message}"
+        )
 
         # Check for Retry-After header (seconds until reset)
         retry_after = response_11th.headers.get("Retry-After")
@@ -148,9 +148,9 @@ class TestDailyRateLimiting:
         )
         user_limit_doc = user_limits_ref.get()
 
-        assert (
-            user_limit_doc.exists
-        ), f"user_limits document should exist for user {test_user_id}"
+        assert user_limit_doc.exists, (
+            f"user_limits document should exist for user {test_user_id}"
+        )
 
         limit_data = user_limit_doc.to_dict()
 
@@ -161,24 +161,24 @@ class TestDailyRateLimiting:
 
         # Validate data types and values
         assert limit_data["user_id"] == test_user_id, "user_id should match"
-        assert isinstance(
-            limit_data["sessions_today"], int
-        ), "sessions_today should be int"
-        assert (
-            limit_data["sessions_today"] >= 0
-        ), "sessions_today should be non-negative"
-        assert isinstance(
-            limit_data["active_sessions"], int
-        ), "active_sessions should be int"
+        assert isinstance(limit_data["sessions_today"], int), (
+            "sessions_today should be int"
+        )
+        assert limit_data["sessions_today"] >= 0, (
+            "sessions_today should be non-negative"
+        )
+        assert isinstance(limit_data["active_sessions"], int), (
+            "active_sessions should be int"
+        )
 
         # Validate last_reset is a recent timestamp
         last_reset = limit_data["last_reset"]
         if isinstance(last_reset, datetime):
             now = datetime.now(timezone.utc)
             assert last_reset <= now, "last_reset should not be in the future"
-            assert (
-                now - last_reset
-            ).days < 2, "last_reset should be within last 2 days"
+            assert (now - last_reset).days < 2, (
+                "last_reset should be within last 2 days"
+            )
 
         print(f"✓ user_limits document found for user {test_user_id}")
         print(f"  - sessions_today: {limit_data['sessions_today']}")
@@ -237,9 +237,9 @@ class TestDailyRateLimiting:
             # Verify reset
             updated_doc = user_limits_ref.get()
             updated_data = updated_doc.to_dict()
-            assert (
-                updated_data["sessions_today"] == 0
-            ), "sessions_today should reset to 0"
+            assert updated_data["sessions_today"] == 0, (
+                "sessions_today should reset to 0"
+            )
             print("✓ sessions_today correctly reset to 0")
         else:
             print("ℹ Counter does not need reset (last_reset is today)")
@@ -283,9 +283,9 @@ class TestDailyRateLimiting:
         # Validate error message is helpful
         message = error_data["message"]
         assert "limit" in message.lower(), "Message should mention limit"
-        assert (
-            "reset" in message.lower() or "midnight" in message.lower()
-        ), "Message should explain when limit resets"
+        assert "reset" in message.lower() or "midnight" in message.lower(), (
+            "Message should explain when limit resets"
+        )
 
         print("✓ Rate limit error response well-formed")
         print(f"  Error: {error_data.get('error')}")
@@ -331,9 +331,9 @@ class TestConcurrentSessionLimiting:
                 timeout=30,
             )
 
-            assert (
-                response.status_code == 200
-            ), f"Concurrent session {i}/{concurrent_limit} creation failed"
+            assert response.status_code == 200, (
+                f"Concurrent session {i}/{concurrent_limit} creation failed"
+            )
 
             session_data = response.json()
             session_id = session_data.get("session_id")
@@ -347,15 +347,15 @@ class TestConcurrentSessionLimiting:
             timeout=30,
         )
 
-        assert (
-            response_4th.status_code == 429
-        ), f"4th concurrent session should return 429, got {response_4th.status_code}"
+        assert response_4th.status_code == 429, (
+            f"4th concurrent session should return 429, got {response_4th.status_code}"
+        )
 
         error_data = response_4th.json()
         error_message = error_data.get("error") or error_data.get("message")
-        assert (
-            "concurrent" in error_message.lower()
-        ), f"Error should mention concurrent limit: {error_message}"
+        assert "concurrent" in error_message.lower(), (
+            f"Error should mention concurrent limit: {error_message}"
+        )
 
         print(f"✓ Concurrent limit enforced: {error_message}")
 
@@ -375,9 +375,9 @@ class TestConcurrentSessionLimiting:
             timeout=30,
         )
 
-        assert (
-            response_after_complete.status_code == 200
-        ), "Should be able to create session after completing one"
+        assert response_after_complete.status_code == 200, (
+            "Should be able to create session after completing one"
+        )
 
         print("✓ Can create new session after completing one")
 

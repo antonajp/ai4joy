@@ -239,9 +239,9 @@ class TestTurnOrchestratorPromptConstruction:
                 session=base_session, user_input="Scene input", turn_number=turn
             )
 
-            assert (
-                "Coach Agent" not in prompt
-            ), f"Coach should not appear in turn {turn}"
+            assert "Coach Agent" not in prompt, (
+                f"Coach should not appear in turn {turn}"
+            )
 
 
 class TestTurnOrchestratorResponseParsing:
@@ -771,9 +771,9 @@ class TestTurnOrchestratorAsyncExecution:
                     runner1 = get_singleton_runner()
                     runner2 = get_singleton_runner()
 
-                    assert (
-                        runner1 is runner2
-                    ), "Singleton Runner should return same instance"
+                    assert runner1 is runner2, (
+                        "Singleton Runner should return same instance"
+                    )
 
                     mock_runner_class.assert_called_once()
                     call_args = mock_runner_class.call_args

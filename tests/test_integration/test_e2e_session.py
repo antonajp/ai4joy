@@ -62,18 +62,18 @@ class TestE2ESession:
 
             # Check phase transitions
             if turn_num <= 4:
-                assert (
-                    turn_result["current_phase"] == "PHASE_1"
-                ), f"Turn {turn_num} should be PHASE_1"
+                assert turn_result["current_phase"] == "PHASE_1", (
+                    f"Turn {turn_num} should be PHASE_1"
+                )
                 # PHASE_1: Partner should be supportive
                 assert (
                     "yes" in turn_result["partner_response"].lower()
                     or "and" in turn_result["partner_response"].lower()
                 )
             else:
-                assert (
-                    turn_result["current_phase"] == "PHASE_2"
-                ), f"Turn {turn_num} should be PHASE_2"
+                assert turn_result["current_phase"] == "PHASE_2", (
+                    f"Turn {turn_num} should be PHASE_2"
+                )
                 # PHASE_2: Partner introduces fallibility (at least once)
                 # This is checked in aggregate below
 
@@ -101,9 +101,9 @@ class TestE2ESession:
         # Coach should reference improv principles
         feedback_text = " ".join(coach_feedback["feedback"]).lower()
         principles = ["yes-and", "listening", "support", "recovery", "lead"]
-        assert any(
-            principle in feedback_text for principle in principles
-        ), "Coach feedback should reference improv principles"
+        assert any(principle in feedback_text for principle in principles), (
+            "Coach feedback should reference improv principles"
+        )
 
         # 6. SESSION CLOSE
         close_response = session_client.close_session(session_id)
@@ -135,9 +135,9 @@ class TestE2ESession:
             )
 
             expected_phase = "PHASE_1" if turn <= 4 else "PHASE_2"
-            assert (
-                result["current_phase"] == expected_phase
-            ), f"Turn {turn}: expected {expected_phase}, got {result['current_phase']}"
+            assert result["current_phase"] == expected_phase, (
+                f"Turn {turn}: expected {expected_phase}, got {result['current_phase']}"
+            )
 
     @pytest.mark.integration
     def test_room_vibe_check_present(self, session_client, test_session_config):

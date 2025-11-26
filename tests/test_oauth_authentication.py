@@ -93,9 +93,9 @@ class TestOAuthAuthentication:
         for endpoint in health_endpoints:
             response = unauthorized_session.get(f"{service_url}{endpoint}", timeout=10)
 
-            assert (
-                response.status_code == 200
-            ), f"{endpoint} should be accessible without auth, got {response.status_code}"
+            assert response.status_code == 200, (
+                f"{endpoint} should be accessible without auth, got {response.status_code}"
+            )
 
             print(
                 f"✓ {endpoint} accessible without authentication: {response.status_code}"
@@ -184,15 +184,15 @@ class TestOAuthAuthentication:
         ]
 
         for header in required_headers:
-            assert (
-                header in authenticated_request_headers
-            ), f"Required IAP header '{header}' not present in request"
+            assert header in authenticated_request_headers, (
+                f"Required IAP header '{header}' not present in request"
+            )
 
             header_value = authenticated_request_headers[header]
             assert header_value, f"IAP header '{header}' is empty"
-            assert (
-                "accounts.google.com" in header_value
-            ), f"IAP header should contain 'accounts.google.com', got: {header_value}"
+            assert "accounts.google.com" in header_value, (
+                f"IAP header should contain 'accounts.google.com', got: {header_value}"
+            )
 
             print(f"✓ IAP header '{header}' present: {header_value}")
 
@@ -222,9 +222,9 @@ class TestOAuthAuthentication:
             timeout=30,
         )
 
-        assert (
-            response.status_code == 200
-        ), f"Session creation failed: {response.status_code}"
+        assert response.status_code == 200, (
+            f"Session creation failed: {response.status_code}"
+        )
 
         session_data = response.json()
         assert "session_id" in session_data, "Response should contain session_id"
@@ -243,9 +243,9 @@ class TestOAuthAuthentication:
 
         assert get_response.status_code == 200
         retrieved_session = get_response.json()
-        assert (
-            retrieved_session["user_id"] == user_id
-        ), "Retrieved session should have same user_id"
+        assert retrieved_session["user_id"] == user_id, (
+            "Retrieved session should have same user_id"
+        )
 
         print("✓ Session user association verified")
 

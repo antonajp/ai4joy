@@ -67,13 +67,13 @@ class TestPartnerAgentEdgeCases:
         p2 = create_partner_agent(phase=2)
 
         # Prompts should be substantial (> 500 chars) but not excessive (< 10000 chars)
-        assert (
-            500 < len(p1.instruction) < 10000
-        ), f"Phase 1 prompt length: {len(p1.instruction)}"
+        assert 500 < len(p1.instruction) < 10000, (
+            f"Phase 1 prompt length: {len(p1.instruction)}"
+        )
 
-        assert (
-            500 < len(p2.instruction) < 10000
-        ), f"Phase 2 prompt length: {len(p2.instruction)}"
+        assert 500 < len(p2.instruction) < 10000, (
+            f"Phase 2 prompt length: {len(p2.instruction)}"
+        )
 
 
 class TestCoachAgentEdgeCases:
@@ -232,9 +232,9 @@ class TestPhaseTransitionEdgeCases:
 
         for turn, expected_phase in expected.items():
             actual_phase = determine_partner_phase(turn)
-            assert (
-                actual_phase == expected_phase
-            ), f"Turn {turn}: expected Phase {expected_phase}, got Phase {actual_phase}"
+            assert actual_phase == expected_phase, (
+                f"Turn {turn}: expected Phase {expected_phase}, got Phase {actual_phase}"
+            )
 
 
 class TestIntegrationEdgeCases:
@@ -247,9 +247,9 @@ class TestIntegrationEdgeCases:
         sm = create_stage_manager()
         names = [agent.name for agent in sm.sub_agents]
 
-        assert len(names) == len(
-            set(names)
-        ), f"Agent names should be unique, got: {names}"
+        assert len(names) == len(set(names)), (
+            f"Agent names should be unique, got: {names}"
+        )
 
     def test_all_agents_have_models_assigned(self):
         """All agents should have valid model assignments"""
@@ -260,9 +260,9 @@ class TestIntegrationEdgeCases:
         valid_models = [settings.vertexai_flash_model, settings.vertexai_pro_model]
         for agent in sm.sub_agents:
             assert hasattr(agent, "model"), f"Agent {agent.name} missing model"
-            assert (
-                agent.model in valid_models
-            ), f"Agent {agent.name} has invalid model: {agent.model}"
+            assert agent.model in valid_models, (
+                f"Agent {agent.name} has invalid model: {agent.model}"
+            )
 
     def test_model_selection_appropriate(self):
         """Verify appropriate model selection for each agent"""
@@ -273,19 +273,19 @@ class TestIntegrationEdgeCases:
         for agent in sm.sub_agents:
             if agent.name == "partner_agent":
                 # Partner needs creativity, should use Pro
-                assert (
-                    agent.model == settings.vertexai_pro_model
-                ), "Partner should use Pro model"
+                assert agent.model == settings.vertexai_pro_model, (
+                    "Partner should use Pro model"
+                )
             elif agent.name == "coach_agent":
                 # Coach can use Flash for speed
-                assert (
-                    agent.model == settings.vertexai_flash_model
-                ), "Coach should use Flash model"
+                assert agent.model == settings.vertexai_flash_model, (
+                    "Coach should use Flash model"
+                )
             elif agent.name == "stage_manager":
                 # Stage Manager coordinates, uses Flash
-                assert (
-                    agent.model == settings.vertexai_flash_model
-                ), "Stage Manager should use Flash model"
+                assert agent.model == settings.vertexai_flash_model, (
+                    "Stage Manager should use Flash model"
+                )
 
 
 class TestPromptQualityEdgeCases:
@@ -313,9 +313,9 @@ class TestPromptQualityEdgeCases:
         assert isinstance(sm.instruction, str), "Stage Manager prompt not string"
 
         for agent in sm.sub_agents:
-            assert isinstance(
-                agent.instruction, str
-            ), f"Agent {agent.name} prompt not string"
+            assert isinstance(agent.instruction, str), (
+                f"Agent {agent.name} prompt not string"
+            )
 
     def test_partner_prompts_differ_between_phases(self):
         """Phase 1 and Phase 2 prompts should be significantly different"""

@@ -301,7 +301,8 @@ class TestTurnEndpointTurnNumberValidation:
         mock_session_manager.get_session.return_value = session_at_turn_5
 
         turn_input = TurnInput(
-            user_input="Out of order input", turn_number=3  # Wrong! Should be 6
+            user_input="Out of order input",
+            turn_number=3,  # Wrong! Should be 6
         )
 
         mock_request = Mock()
@@ -334,7 +335,8 @@ class TestTurnEndpointTurnNumberValidation:
         mock_session_manager.get_session.return_value = session_at_turn_5
 
         turn_input = TurnInput(
-            user_input="Correct sequence input", turn_number=6  # Correct!
+            user_input="Correct sequence input",
+            turn_number=6,  # Correct!
         )
 
         mock_request = Mock()
@@ -379,7 +381,8 @@ class TestTurnEndpointTurnNumberValidation:
         mock_session_manager.get_session.return_value = session_at_turn_5
 
         turn_input = TurnInput(
-            user_input="Skipping turn", turn_number=7  # Skipping turn 6!
+            user_input="Skipping turn",
+            turn_number=7,  # Skipping turn 6!
         )
 
         mock_request = Mock()

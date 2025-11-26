@@ -663,9 +663,9 @@ class TestPerformanceAndLatency:
                 execution_time = end_time - start_time
 
                 # Orchestration overhead should be minimal (< 0.1s)
-                assert (
-                    execution_time < 1.0
-                ), f"Execution took {execution_time}s, should be < 1.0s"
+                assert execution_time < 1.0, (
+                    f"Execution took {execution_time}s, should be < 1.0s"
+                )
 
     @pytest.mark.asyncio
     @pytest.mark.integration

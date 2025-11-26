@@ -291,12 +291,12 @@ def assert_turn_response_valid():
         assert "timestamp" in response
 
         if turn_number >= 15:
-            assert (
-                response.get("coach_feedback") is not None
-            ), f"Coach feedback missing at turn {turn_number}"
+            assert response.get("coach_feedback") is not None, (
+                f"Coach feedback missing at turn {turn_number}"
+            )
         else:
-            assert (
-                response.get("coach_feedback") is None
-            ), f"Coach feedback should not appear before turn 15 (turn {turn_number})"
+            assert response.get("coach_feedback") is None, (
+                f"Coach feedback should not appear before turn 15 (turn {turn_number})"
+            )
 
     return validate

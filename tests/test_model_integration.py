@@ -32,9 +32,9 @@ class TestModelIntegration:
 
             assert response.text is not None
             assert len(response.text) > 0
-            assert (
-                latency < 3.0
-            ), f"Flash model latency {latency:.2f}s exceeds 3s threshold"
+            assert latency < 3.0, (
+                f"Flash model latency {latency:.2f}s exceeds 3s threshold"
+            )
 
             print(f"Flash model response time: {latency:.2f}s")
             print(f"Response: {response.text}")
@@ -55,9 +55,9 @@ class TestModelIntegration:
 
             assert response.text is not None
             assert len(response.text) > 0
-            assert (
-                latency < 5.0
-            ), f"Pro model latency {latency:.2f}s exceeds 5s threshold"
+            assert latency < 5.0, (
+                f"Pro model latency {latency:.2f}s exceeds 5s threshold"
+            )
 
             print(f"Pro model response time: {latency:.2f}s")
             print(f"Response: {response.text}")

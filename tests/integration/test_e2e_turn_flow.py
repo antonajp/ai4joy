@@ -109,17 +109,17 @@ class TestE2ETurnFlow:
                 timeout=30.0,
             )
 
-            assert (
-                turn_response.status_code == 200
-            ), f"Turn {turn_num} failed: {turn_response.status_code}"
+            assert turn_response.status_code == 200, (
+                f"Turn {turn_num} failed: {turn_response.status_code}"
+            )
 
             data = turn_response.json()
             turn_responses.append(data)
 
             assert "partner_response" in data
-            assert data[
-                "partner_response"
-            ], f"Partner response empty for turn {turn_num}"
+            assert data["partner_response"], (
+                f"Partner response empty for turn {turn_num}"
+            )
 
             assert "room_vibe" in data
             assert "analysis" in data["room_vibe"]
@@ -131,16 +131,16 @@ class TestE2ETurnFlow:
                 assert data["current_phase"] == 2, f"Turn {turn_num} should be Phase 2"
 
             if turn_num >= 15:
-                assert (
-                    data["coach_feedback"] is not None
-                ), f"Coach feedback missing at turn {turn_num}"
-                assert (
-                    len(data["coach_feedback"]) > 50
-                ), "Coach feedback should be substantial"
+                assert data["coach_feedback"] is not None, (
+                    f"Coach feedback missing at turn {turn_num}"
+                )
+                assert len(data["coach_feedback"]) > 50, (
+                    "Coach feedback should be substantial"
+                )
             else:
-                assert (
-                    data.get("coach_feedback") is None
-                ), f"Coach feedback should not appear before turn 15 (turn {turn_num})"
+                assert data.get("coach_feedback") is None, (
+                    f"Coach feedback should not appear before turn 15 (turn {turn_num})"
+                )
 
         get_response = await async_client.get(
             f"/api/v1/session/{session_id}", headers=auth_headers

@@ -35,14 +35,14 @@ class TestStageManagerSubAgents:
         stage_manager = create_stage_manager()
 
         # Verify has sub_agents attribute
-        assert hasattr(
-            stage_manager, "sub_agents"
-        ), "Stage Manager missing sub_agents attribute"
+        assert hasattr(stage_manager, "sub_agents"), (
+            "Stage Manager missing sub_agents attribute"
+        )
 
         # Verify exactly 4 sub-agents
-        assert (
-            len(stage_manager.sub_agents) == 4
-        ), f"Stage Manager should have 4 sub-agents, got {len(stage_manager.sub_agents)}"
+        assert len(stage_manager.sub_agents) == 4, (
+            f"Stage Manager should have 4 sub-agents, got {len(stage_manager.sub_agents)}"
+        )
 
         print("✓ Stage Manager has 4 sub-agents")
 
@@ -57,9 +57,9 @@ class TestStageManagerSubAgents:
         stage_manager = create_stage_manager()
 
         for sub_agent in stage_manager.sub_agents:
-            assert isinstance(
-                sub_agent, Agent
-            ), f"Sub-agent {sub_agent} is not google.adk.Agent"
+            assert isinstance(sub_agent, Agent), (
+                f"Sub-agent {sub_agent} is not google.adk.Agent"
+            )
 
         print("✓ All sub-agents are ADK Agent instances")
 
@@ -77,9 +77,9 @@ class TestStageManagerSubAgents:
         required_agents = ["mc_agent", "room_agent", "partner_agent", "coach_agent"]
 
         for required_agent in required_agents:
-            assert (
-                required_agent in agent_names
-            ), f"Missing required agent: {required_agent}. Found: {agent_names}"
+            assert required_agent in agent_names, (
+                f"Missing required agent: {required_agent}. Found: {agent_names}"
+            )
 
         print("✓ All required agents present")
         print(f"  - Agent names: {agent_names}")
@@ -176,9 +176,9 @@ class TestPartnerAgentUpdates:
         assert partner_phase2.name == "partner_agent"
 
         # Prompts should be different
-        assert (
-            partner_phase1.instruction != partner_phase2.instruction
-        ), "Phase 1 and Phase 2 Partner should have different prompts"
+        assert partner_phase1.instruction != partner_phase2.instruction, (
+            "Phase 1 and Phase 2 Partner should have different prompts"
+        )
 
         print("✓ Partner agent recreated with different prompt for Phase 2")
 
@@ -231,13 +231,13 @@ class TestPartnerAgentUpdates:
         partner_p1 = get_partner_agent_for_turn(turn_count=1)
         partner_p2 = get_partner_agent_for_turn(turn_count=8)
 
-        assert (
-            partner_p1.model == settings.vertexai_pro_model
-        ), f"Phase 1 Partner should use Pro, got {partner_p1.model}"
+        assert partner_p1.model == settings.vertexai_pro_model, (
+            f"Phase 1 Partner should use Pro, got {partner_p1.model}"
+        )
 
-        assert (
-            partner_p2.model == settings.vertexai_pro_model
-        ), f"Phase 2 Partner should use Pro, got {partner_p2.model}"
+        assert partner_p2.model == settings.vertexai_pro_model, (
+            f"Phase 2 Partner should use Pro, got {partner_p2.model}"
+        )
 
         print(f"✓ Both phases use {settings.vertexai_pro_model} model")
 
@@ -299,9 +299,9 @@ class TestPhaseInformation:
         stage_manager = create_stage_manager()
         agent_names = [agent.name for agent in stage_manager.sub_agents]
 
-        assert (
-            "partner_agent" in agent_names
-        ), f"Partner agent should be in sub-agents: {agent_names}"
+        assert "partner_agent" in agent_names, (
+            f"Partner agent should be in sub-agents: {agent_names}"
+        )
 
         # Get the Partner agent
         partner_agents = [
@@ -328,9 +328,9 @@ class TestStageManagerConfiguration:
 
         stage_manager = create_stage_manager()
 
-        assert isinstance(
-            stage_manager, Agent
-        ), f"Stage Manager should be google.adk.Agent, got {type(stage_manager)}"
+        assert isinstance(stage_manager, Agent), (
+            f"Stage Manager should be google.adk.Agent, got {type(stage_manager)}"
+        )
 
         print("✓ Stage Manager is ADK Agent instance")
 
@@ -344,9 +344,9 @@ class TestStageManagerConfiguration:
 
         stage_manager = create_stage_manager()
 
-        assert (
-            stage_manager.name == "stage_manager"
-        ), f"Name should be 'stage_manager', got '{stage_manager.name}'"
+        assert stage_manager.name == "stage_manager", (
+            f"Name should be 'stage_manager', got '{stage_manager.name}'"
+        )
 
         print("✓ Stage Manager has correct name")
 
@@ -360,9 +360,9 @@ class TestStageManagerConfiguration:
 
         stage_manager = create_stage_manager()
 
-        assert (
-            stage_manager.model == settings.vertexai_flash_model
-        ), f"Stage Manager should use Flash, got {stage_manager.model}"
+        assert stage_manager.model == settings.vertexai_flash_model, (
+            f"Stage Manager should use Flash, got {stage_manager.model}"
+        )
 
         print(f"✓ Stage Manager uses {settings.vertexai_flash_model}")
 
@@ -377,18 +377,18 @@ class TestStageManagerConfiguration:
         stage_manager = create_stage_manager()
 
         assert hasattr(stage_manager, "instruction"), "Missing instruction"
-        assert isinstance(
-            stage_manager.instruction, str
-        ), "Instruction should be string"
+        assert isinstance(stage_manager.instruction, str), (
+            "Instruction should be string"
+        )
         assert len(stage_manager.instruction) > 200, "Instruction seems too short"
 
         instruction = stage_manager.instruction.lower()
         orchestration_keywords = ["orchestrat", "coordinat", "manage", "sub-agent"]
         found = [kw for kw in orchestration_keywords if kw in instruction]
 
-        assert (
-            len(found) >= 1
-        ), f"Stage Manager should describe orchestration role. Found: {found}"
+        assert len(found) >= 1, (
+            f"Stage Manager should describe orchestration role. Found: {found}"
+        )
 
         print(f"✓ Stage Manager has orchestration instruction: {found}")
 
@@ -425,9 +425,9 @@ class TestPhaseTransitionIntegration:
         partner_t4 = get_partner_agent_for_turn(turn_count=4)
 
         # Should have different instructions
-        assert (
-            partner_t3.instruction != partner_t4.instruction
-        ), "Partner instruction should change between turn 3 and turn 4"
+        assert partner_t3.instruction != partner_t4.instruction, (
+            "Partner instruction should change between turn 3 and turn 4"
+        )
 
         # Phase 1 vs Phase 2 keywords
         inst_t3 = partner_t3.instruction.lower()
@@ -448,9 +448,9 @@ class TestPhaseTransitionIntegration:
             + inst_t4.count("forget")
         )
 
-        assert (
-            support_count_t3 >= support_count_t4
-        ), "Turn 3 should have equal or more supportive language than turn 4"
+        assert support_count_t3 >= support_count_t4, (
+            "Turn 3 should have equal or more supportive language than turn 4"
+        )
 
         assert fallible_count_t4 > 0, "Turn 4 should introduce fallible language"
 

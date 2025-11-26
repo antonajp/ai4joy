@@ -31,18 +31,18 @@ class TestADKAgentInstances:
     def test_room_agent_is_adk_agent(self):
         """Room Agent should be google.adk.Agent instance"""
         room = create_room_agent()
-        assert isinstance(
-            room, Agent
-        ), f"Room Agent is {type(room)}, not google.adk.Agent"
+        assert isinstance(room, Agent), (
+            f"Room Agent is {type(room)}, not google.adk.Agent"
+        )
         assert room.name == "room_agent"
         assert room.model == "gemini-1.5-flash"
 
     def test_stage_manager_is_adk_agent(self):
         """Stage Manager should be google.adk.Agent instance"""
         stage_manager = create_stage_manager()
-        assert isinstance(
-            stage_manager, Agent
-        ), f"Stage Manager is {type(stage_manager)}, not google.adk.Agent"
+        assert isinstance(stage_manager, Agent), (
+            f"Stage Manager is {type(stage_manager)}, not google.adk.Agent"
+        )
         assert stage_manager.name == "stage_manager"
         assert stage_manager.model == "gemini-1.5-flash"
 
@@ -69,9 +69,9 @@ class TestADKAgentConfiguration:
         room = create_room_agent()
 
         assert hasattr(room, "tools"), "Room Agent missing tools attribute"
-        assert (
-            len(room.tools) == 6
-        ), f"Room Agent has {len(room.tools)} tools, expected 6"
+        assert len(room.tools) == 6, (
+            f"Room Agent has {len(room.tools)} tools, expected 6"
+        )
 
         tool_names = [tool.__name__ for tool in room.tools]
         assert "analyze_text" in tool_names
@@ -84,18 +84,18 @@ class TestADKAgentConfiguration:
         stage_manager = create_stage_manager()
 
         # ADK agents have sub_agents attribute
-        assert hasattr(
-            stage_manager, "sub_agents"
-        ), "Stage Manager missing sub_agents attribute"
-        assert (
-            len(stage_manager.sub_agents) == 4
-        ), f"Stage Manager has {len(stage_manager.sub_agents)} sub-agents, expected 4"
+        assert hasattr(stage_manager, "sub_agents"), (
+            "Stage Manager missing sub_agents attribute"
+        )
+        assert len(stage_manager.sub_agents) == 4, (
+            f"Stage Manager has {len(stage_manager.sub_agents)} sub-agents, expected 4"
+        )
 
         # Verify sub-agents are Agent instances
         for sub_agent in stage_manager.sub_agents:
-            assert isinstance(
-                sub_agent, Agent
-            ), f"Sub-agent {sub_agent} is not google.adk.Agent"
+            assert isinstance(sub_agent, Agent), (
+                f"Sub-agent {sub_agent} is not google.adk.Agent"
+            )
 
         sub_agent_names = [agent.name for agent in stage_manager.sub_agents]
         assert "mc_agent" in sub_agent_names
@@ -182,14 +182,14 @@ class TestNoCustomWrappers:
         assert "BaseImprovAgent" not in mc_source, "MC Agent still uses BaseImprovAgent"
 
         room_source = inspect.getsource(room_module)
-        assert (
-            "BaseImprovAgent" not in room_source
-        ), "Room Agent still uses BaseImprovAgent"
+        assert "BaseImprovAgent" not in room_source, (
+            "Room Agent still uses BaseImprovAgent"
+        )
 
         sm_source = inspect.getsource(sm_module)
-        assert (
-            "BaseImprovAgent" not in sm_source
-        ), "Stage Manager still uses BaseImprovAgent"
+        assert "BaseImprovAgent" not in sm_source, (
+            "Stage Manager still uses BaseImprovAgent"
+        )
 
     def test_agents_use_adk_import(self):
         """Agents should import from google.adk"""
@@ -221,17 +221,17 @@ class TestModelConfiguration:
     def test_room_agent_model_is_string(self):
         """Room Agent model should be string 'gemini-1.5-flash'"""
         room = create_room_agent()
-        assert isinstance(
-            room.model, str
-        ), f"Model is {type(room.model)}, should be string"
+        assert isinstance(room.model, str), (
+            f"Model is {type(room.model)}, should be string"
+        )
         assert room.model == "gemini-1.5-flash"
 
     def test_stage_manager_model_is_string(self):
         """Stage Manager model should be string 'gemini-1.5-flash'"""
         stage_manager = create_stage_manager()
-        assert isinstance(
-            stage_manager.model, str
-        ), f"Model is {type(stage_manager.model)}, should be string"
+        assert isinstance(stage_manager.model, str), (
+            f"Model is {type(stage_manager.model)}, should be string"
+        )
         assert stage_manager.model == "gemini-1.5-flash"
 
 
@@ -257,9 +257,9 @@ class TestAgentInstructions:
     def test_stage_manager_has_instruction(self):
         """Stage Manager should have instruction (system prompt)"""
         stage_manager = create_stage_manager()
-        assert hasattr(
-            stage_manager, "instruction"
-        ), "Stage Manager missing instruction"
+        assert hasattr(stage_manager, "instruction"), (
+            "Stage Manager missing instruction"
+        )
         assert isinstance(stage_manager.instruction, str)
         assert len(stage_manager.instruction) > 100
         assert (

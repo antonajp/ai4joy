@@ -207,9 +207,7 @@ class TestErrorStateHandling:
             page.wait_for_timeout(2000)
 
             # Error message should appear
-            _error_message = page.locator(
-                ".error, .error-message, [role='alert']"
-            )  # noqa: F841
+            _error_message = page.locator(".error, .error-message, [role='alert']")  # noqa: F841
             # May not be visible if handled gracefully
         except Exception:
             pass

@@ -258,9 +258,7 @@ class TestPerformanceMiddleware:
 
         app = FastAPI()
 
-        _middleware = PerformanceMiddleware(
-            app, slow_request_threshold=1.0
-        )  # noqa: F841 - tests instantiation
+        _middleware = PerformanceMiddleware(app, slow_request_threshold=1.0)  # noqa: F841 - tests instantiation
         app.add_middleware(PerformanceMiddleware, slow_request_threshold=1.0)
 
         @app.get("/test")

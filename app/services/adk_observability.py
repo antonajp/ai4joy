@@ -159,7 +159,8 @@ class ADKObservability:
             from opentelemetry.sdk.metrics.export import ConsoleMetricExporter
 
             metric_reader = PeriodicExportingMetricReader(
-                ConsoleMetricExporter(), export_interval_millis=60000  # 1 minute
+                ConsoleMetricExporter(),
+                export_interval_millis=60000,  # 1 minute
             )
 
             self._meter_provider = MeterProvider(

@@ -389,7 +389,26 @@ def _check_genai_credentials() -> bool:
     has_location = os.getenv("GOOGLE_CLOUD_LOCATION")
 
     # Either Google AI API key OR Vertex AI config
-    return bool(has_api_key) or bool(has_project and has_vertexai and has_location)
+    env_configured = bool(has_api_key) or bool(
+        has_project and has_vertexai and has_location
+    )
+
+    if not env_configured:
+        return False
+
+    # If using Vertex AI, verify ADC is actually available
+    if has_vertexai and not has_api_key:
+        try:
+            import google.auth
+
+            credentials, project = google.auth.default()
+            if credentials is None:
+                return False
+        except Exception:
+            # ADC not available
+            return False
+
+    return True
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -397,6 +416,6 @@ def check_genai_config():
     """Session-scoped check for GenAI configuration - skip all eval tests if not configured"""
     if not _check_genai_credentials():
         pytest.skip(
-            "Google GenAI not configured. Set GOOGLE_API_KEY for Google AI API, "
-            "or GOOGLE_CLOUD_PROJECT + GOOGLE_CLOUD_LOCATION + GOOGLE_GENAI_USE_VERTEXAI=true for Vertex AI"
+            "Google GenAI not configured or ADC unavailable. Set GOOGLE_API_KEY for Google AI API, "
+            "or configure ADC + GOOGLE_CLOUD_PROJECT + GOOGLE_CLOUD_LOCATION + GOOGLE_GENAI_USE_VERTEXAI=true for Vertex AI"
         )

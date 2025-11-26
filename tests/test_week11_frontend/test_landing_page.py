@@ -75,9 +75,9 @@ class TestLandingPageRendering:
         # No horizontal scroll
         scroll_width = page.evaluate("document.documentElement.scrollWidth")
         client_width = page.evaluate("document.documentElement.clientWidth")
-        assert (
-            scroll_width <= client_width
-        ), "Page should not have horizontal scroll on mobile"
+        assert scroll_width <= client_width, (
+            "Page should not have horizontal scroll on mobile"
+        )
 
     def test_landing_page_responsive_tablet(self, page: Page, base_url: str):
         """Verify landing page is responsive on tablet viewport"""
@@ -109,9 +109,9 @@ class TestStaticFileServing:
 
         def handle_response(response):
             if ".css" in response.url:
-                assert "text/css" in response.headers.get(
-                    "content-type", ""
-                ), f"CSS file {response.url} has incorrect MIME type"
+                assert "text/css" in response.headers.get("content-type", ""), (
+                    f"CSS file {response.url} has incorrect MIME type"
+                )
                 css_loaded.append(response.url)
 
         page.on("response", handle_response)
@@ -148,9 +148,9 @@ class TestStaticFileServing:
                 ext in response.url for ext in [".png", ".jpg", ".jpeg", ".svg", ".gif"]
             ):
                 content_type = response.headers.get("content-type", "")
-                assert (
-                    "image/" in content_type
-                ), f"Image {response.url} has incorrect MIME type: {content_type}"
+                assert "image/" in content_type, (
+                    f"Image {response.url} has incorrect MIME type: {content_type}"
+                )
                 image_loaded.append(response.url)
 
         page.on("response", handle_response)
@@ -174,9 +174,9 @@ class TestStaticFileServing:
 
         # Verify cache headers are set
         for file in static_files:
-            assert file[
-                "cache_control"
-            ], f"Static file {file['url']} missing Cache-Control header"
+            assert file["cache_control"], (
+                f"Static file {file['url']} missing Cache-Control header"
+            )
 
     def test_text_files_have_compression(self, page: Page, base_url: str):
         """Verify text-based files are compressed (gzip)"""
@@ -225,6 +225,6 @@ class TestStaticFileServing:
         # Wait for page to fully load
         page.wait_for_load_state("networkidle")
 
-        assert (
-            len(failed_requests) == 0
-        ), f"Failed network requests detected: {failed_requests}"
+        assert len(failed_requests) == 0, (
+            f"Failed network requests detected: {failed_requests}"
+        )

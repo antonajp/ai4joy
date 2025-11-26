@@ -140,9 +140,9 @@ class TestCloudMonitoringDashboard:
             if "Improv Olympics" in dashboard.display_name:
                 dashboard_found = True
                 # Verify it has widgets
-                assert (
-                    len(dashboard.grid_layout.widgets) >= 6
-                ), "Dashboard should have at least 6 widgets"
+                assert len(dashboard.grid_layout.widgets) >= 6, (
+                    "Dashboard should have at least 6 widgets"
+                )
                 break
 
         assert dashboard_found, "Dashboard 'Improv Olympics Production' not found"
@@ -261,9 +261,9 @@ class TestAlertPolicies:
         found_policies = [policy.display_name for policy in policies]
 
         for expected_policy in expected_policies:
-            assert any(
-                expected_policy in found for found in found_policies
-            ), f"Alert policy '{expected_policy}' not found"
+            assert any(expected_policy in found for found in found_policies), (
+                f"Alert policy '{expected_policy}' not found"
+            )
 
     def test_alert_notification_channels_configured(self):
         """Verify alert policies have notification channels"""

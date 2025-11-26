@@ -63,15 +63,15 @@ class TestLatency:
         print(f"  max: {max(latencies):.2f}s")
 
         # Assert against thresholds
-        assert (
-            p50 < latency_thresholds["p50"]
-        ), f"p50 latency {p50:.2f}s exceeds threshold {latency_thresholds['p50']}s"
-        assert (
-            p95 < latency_thresholds["p95"]
-        ), f"p95 latency {p95:.2f}s exceeds threshold {latency_thresholds['p95']}s"
-        assert (
-            p99 < latency_thresholds["p99"]
-        ), f"p99 latency {p99:.2f}s exceeds threshold {latency_thresholds['p99']}s"
+        assert p50 < latency_thresholds["p50"], (
+            f"p50 latency {p50:.2f}s exceeds threshold {latency_thresholds['p50']}s"
+        )
+        assert p95 < latency_thresholds["p95"], (
+            f"p95 latency {p95:.2f}s exceeds threshold {latency_thresholds['p95']}s"
+        )
+        assert p99 < latency_thresholds["p99"], (
+            f"p99 latency {p99:.2f}s exceeds threshold {latency_thresholds['p99']}s"
+        )
 
     @pytest.mark.performance
     def test_component_latency_breakdown(self, session_client, test_session_config):
@@ -170,9 +170,9 @@ class TestLatency:
         print(f"PHASE_2 avg latency: {avg_phase2:.2f}s")
 
         # Phase transition shouldn't significantly impact latency
-        assert (
-            abs(avg_phase1 - avg_phase2) < 2.0
-        ), "Phase transition causes significant latency change"
+        assert abs(avg_phase1 - avg_phase2) < 2.0, (
+            "Phase transition causes significant latency change"
+        )
 
     @pytest.mark.performance
     @pytest.mark.slow
@@ -209,9 +209,9 @@ class TestLatency:
         print(f"Latency degradation: {degradation_pct:.1f}%")
 
         # Allow up to 20% degradation under sustained load
-        assert (
-            degradation_pct < 20
-        ), f"Latency degraded {degradation_pct:.1f}%, expected <20%"
+        assert degradation_pct < 20, (
+            f"Latency degraded {degradation_pct:.1f}%, expected <20%"
+        )
 
     @pytest.mark.performance
     def test_timeout_handling(self, session_client, test_session_config):

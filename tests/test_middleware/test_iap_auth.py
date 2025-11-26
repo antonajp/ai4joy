@@ -58,9 +58,9 @@ class TestIAPAuthMiddleware:
         user_email = middleware._extract_user_email(request)
         user_id = middleware._extract_user_id(request)
 
-        assert (
-            user_email == "testuser@example.com"
-        ), f"Expected 'testuser@example.com', got '{user_email}'"
+        assert user_email == "testuser@example.com", (
+            f"Expected 'testuser@example.com', got '{user_email}'"
+        )
         assert user_id == "1234567890", f"Expected '1234567890', got '{user_id}'"
 
         print(f"✓ Valid IAP headers extracted correctly: {user_email}, {user_id}")
@@ -125,9 +125,9 @@ class TestIAPAuthMiddleware:
         user_id = middleware._extract_user_id(request)
 
         # Should fall back to using raw value
-        assert (
-            user_email == "directemail@example.com"
-        ), "Should accept email without prefix as fallback"
+        assert user_email == "directemail@example.com", (
+            "Should accept email without prefix as fallback"
+        )
         assert user_id == "9876543210", "Should accept ID without prefix as fallback"
 
         print("✓ Malformed headers handled gracefully with fallback")
@@ -144,9 +144,7 @@ class TestIAPAuthMiddleware:
         health_paths = ["/health", "/ready", "/health/", "/ready/"]
 
         for path in health_paths:
-            _request = mock_request(
-                path=path, headers={}
-            )  # noqa: F841 - created to test path handling
+            _request = mock_request(path=path, headers={})  # noqa: F841 - created to test path handling
             should_bypass = middleware._should_bypass_auth(path)
 
             assert should_bypass, f"Path {path} should bypass authentication"
@@ -171,9 +169,7 @@ class TestIAPAuthMiddleware:
         ]
 
         for path in protected_paths:
-            _request = mock_request(
-                path=path, headers={}
-            )  # noqa: F841 - created to test path handling
+            _request = mock_request(path=path, headers={})  # noqa: F841 - created to test path handling
             should_bypass = middleware._should_bypass_auth(path)
 
             assert not should_bypass, f"Path {path} should NOT bypass authentication"
@@ -318,9 +314,7 @@ class TestIAPAuthMiddlewareIntegration:
             assert scope["state"]["user_email"] == "testuser@example.com"
             assert scope["state"]["user_id"] == "1234567890"
 
-        _middleware = IAPAuthMiddleware(
-            app=mock_app
-        )  # noqa: F841 - testing instantiation
+        _middleware = IAPAuthMiddleware(app=mock_app)  # noqa: F841 - testing instantiation
 
         # Create ASGI scope with valid headers (not used in this test structure)
         # _scope kept for documentation of expected structure

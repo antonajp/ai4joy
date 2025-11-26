@@ -61,7 +61,9 @@ async def login(request: Request, next: str = "/"):
 
     try:
         return await oauth.google.authorize_redirect(
-            request, redirect_uri, state=next  # Pass 'next' URL as state parameter
+            request,
+            redirect_uri,
+            state=next,  # Pass 'next' URL as state parameter
         )
     except Exception as e:
         logger.error("OAuth login initiation failed", error=str(e))

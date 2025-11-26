@@ -5,6 +5,7 @@ Usage: python scripts/test_turn.py [session_id]
 
 Tries to initialize the TurnOrchestrator and execute a turn.
 """
+
 import asyncio
 import os
 import sys

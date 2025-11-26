@@ -194,7 +194,6 @@ class SmokeTest:
                     and data.get("room_vibe")
                     and data.get("turn_number") == 1
                 ):
-
                     self.log("Turn execution passed", "success")
                     self.verbose_log(f"Partner: {data['partner_response'][:100]}...")
                     self.record_result("turn_execution", True)
@@ -253,11 +252,11 @@ class SmokeTest:
             return False
 
     def run_all_tests(self) -> bool:
-        print(f"\n{Color.BLUE}{'='*60}{Color.END}")
+        print(f"\n{Color.BLUE}{'=' * 60}{Color.END}")
         print(f"{Color.BLUE}Improv Olympics Smoke Test Suite{Color.END}")
         print(f"{Color.BLUE}URL: {self.base_url}{Color.END}")
         print(f"{Color.BLUE}Time: {datetime.now().isoformat()}{Color.END}")
-        print(f"{Color.BLUE}{'='*60}{Color.END}\n")
+        print(f"{Color.BLUE}{'=' * 60}{Color.END}\n")
 
         results = [
             self.test_health(),
@@ -267,9 +266,9 @@ class SmokeTest:
             self.test_close_session(),
         ]
 
-        print(f"\n{Color.BLUE}{'='*60}{Color.END}")
+        print(f"\n{Color.BLUE}{'=' * 60}{Color.END}")
         print(f"{Color.BLUE}Test Results Summary{Color.END}")
-        print(f"{Color.BLUE}{'='*60}{Color.END}\n")
+        print(f"{Color.BLUE}{'=' * 60}{Color.END}\n")
 
         passed_count = sum(1 for r in self.test_results if r["passed"] is True)
         failed_count = sum(1 for r in self.test_results if r["passed"] is False)
@@ -298,13 +297,13 @@ class SmokeTest:
         all_passed = all(r is True or r is None for r in results)
 
         if all_passed:
-            print(f"\n{Color.GREEN}{'='*60}{Color.END}")
+            print(f"\n{Color.GREEN}{'=' * 60}{Color.END}")
             print(f"{Color.GREEN}All smoke tests passed!{Color.END}")
-            print(f"{Color.GREEN}{'='*60}{Color.END}\n")
+            print(f"{Color.GREEN}{'=' * 60}{Color.END}\n")
         else:
-            print(f"\n{Color.RED}{'='*60}{Color.END}")
+            print(f"\n{Color.RED}{'=' * 60}{Color.END}")
             print(f"{Color.RED}Some smoke tests failed!{Color.END}")
-            print(f"{Color.RED}{'='*60}{Color.END}\n")
+            print(f"{Color.RED}{'=' * 60}{Color.END}\n")
 
         return all_passed
 

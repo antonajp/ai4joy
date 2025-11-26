@@ -104,9 +104,9 @@ class TestContainerBuild:
             installed_packages = container.decode("utf-8").lower()
 
             for package in required_packages:
-                assert (
-                    package.lower() in installed_packages
-                ), f"Required package '{package}' not found in container"
+                assert package.lower() in installed_packages, (
+                    f"Required package '{package}' not found in container"
+                )
 
         except docker.errors.ImageNotFound:
             pytest.skip("Image not built, run test_container_build first")

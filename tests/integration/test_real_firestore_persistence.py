@@ -167,12 +167,12 @@ class TestRealFirestorePersistence:
 
         final_session = await manager.get_session(session.session_id)
 
-        assert (
-            final_session.turn_count == 5
-        ), "All 5 concurrent updates should be recorded"
-        assert (
-            len(final_session.conversation_history) == 5
-        ), "All 5 turns should be in history"
+        assert final_session.turn_count == 5, (
+            "All 5 concurrent updates should be recorded"
+        )
+        assert len(final_session.conversation_history) == 5, (
+            "All 5 turns should be in history"
+        )
 
         turn_numbers = [
             turn["turn_number"] for turn in final_session.conversation_history
@@ -246,9 +246,9 @@ class TestRealFirestorePersistence:
         assert len(final_session.conversation_history) == 5
 
         for idx, turn in enumerate(final_session.conversation_history, start=1):
-            assert (
-                turn["turn_number"] == idx
-            ), f"Turn order should be preserved (expected {idx}, got {turn['turn_number']})"
+            assert turn["turn_number"] == idx, (
+                f"Turn order should be preserved (expected {idx}, got {turn['turn_number']})"
+            )
             assert turn["user_input"] == f"Input {idx}"
 
     @pytest.mark.asyncio

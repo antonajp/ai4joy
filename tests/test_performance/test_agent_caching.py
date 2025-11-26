@@ -13,7 +13,6 @@ from app.services.agent_cache import (
 
 
 class TestAgentCaching:
-
     @pytest.fixture(autouse=True)
     def reset_cache(self):
         reset_agent_cache()

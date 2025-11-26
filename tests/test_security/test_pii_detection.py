@@ -89,9 +89,9 @@ class TestPIIDetector:
             credit_card_detections = [
                 d for d in result.detections if d.pii_type == "credit_card"
             ]
-            assert (
-                len(credit_card_detections) == 0
-            ), f"Should not detect invalid card: {card_number}"
+            assert len(credit_card_detections) == 0, (
+                f"Should not detect invalid card: {card_number}"
+            )
 
     def test_multiple_pii_types_in_single_input(self, pii_detector):
         """Test detection of multiple PII types in one input"""

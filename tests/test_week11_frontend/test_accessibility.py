@@ -101,9 +101,7 @@ class TestKeyboardNavigation:
 
         # Look for skip link (usually first focusable element)
         page.keyboard.press("Tab")
-        _focused_text = page.evaluate(
-            "document.activeElement.textContent"
-        )  # noqa: F841
+        _focused_text = page.evaluate("document.activeElement.textContent")  # noqa: F841
 
         # Skip links often contain "skip" or "main content"
         # This is optional but recommended for WCAG AA
@@ -189,9 +187,9 @@ class TestScreenReaderSupport:
 
             has_accessible_name = text_content or aria_label or aria_labelledby
 
-            assert (
-                has_accessible_name
-            ), "Button should have accessible name (text, aria-label, or aria-labelledby)"
+            assert has_accessible_name, (
+                "Button should have accessible name (text, aria-label, or aria-labelledby)"
+            )
 
     def test_landmarks_present(self, page: Page, base_url: str):
         """Verify ARIA landmarks or semantic HTML5 elements present"""
@@ -199,9 +197,7 @@ class TestScreenReaderSupport:
 
         # Check for semantic HTML5 elements or ARIA landmarks
         main_count = page.locator("main, [role='main']").count()
-        _nav_count = page.locator(
-            "nav, [role='navigation']"
-        ).count()  # noqa: F841 - verifies nav exists
+        _nav_count = page.locator("nav, [role='navigation']").count()  # noqa: F841 - verifies nav exists
 
         # Should have a main content area
         assert main_count >= 1, "Page should have a main content area"
@@ -230,9 +226,9 @@ class TestColorContrast:
             )
 
             # Text should be visible
-            assert (
-                opacity == "1" or float(opacity) > 0.1
-            ), "Text should not be transparent"
+            assert opacity == "1" or float(opacity) > 0.1, (
+                "Text should not be transparent"
+            )
             assert visibility != "hidden", "Text should not be hidden"
 
 
@@ -254,9 +250,9 @@ class TestTextResize:
         client_width = page.evaluate("document.documentElement.clientWidth")
 
         # Allow some tolerance for rounding
-        assert (
-            scroll_width <= client_width + 10
-        ), "Page should not have significant horizontal scroll at 200% text size"
+        assert scroll_width <= client_width + 10, (
+            "Page should not have significant horizontal scroll at 200% text size"
+        )
 
 
 class TestFocusIndicators:
@@ -337,6 +333,6 @@ class TestAutomatedAccessibility:
             v for v in results.violations if v.impact in ["critical", "serious"]
         ]
 
-        assert (
-            len(critical_violations) == 0
-        ), f"Critical accessibility issues found: {[v.id for v in critical_violations]}"
+        assert len(critical_violations) == 0, (
+            f"Critical accessibility issues found: {[v.id for v in critical_violations]}"
+        )

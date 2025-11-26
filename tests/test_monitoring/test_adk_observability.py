@@ -434,9 +434,7 @@ class TestADKNativeSpanIntegration:
 
         adk_obs_module._adk_observability = None
 
-        _obs = initialize_adk_observability(
-            enabled=True
-        )  # noqa: F841 - init needed for test
+        _obs = initialize_adk_observability(enabled=True)  # noqa: F841 - init needed for test
 
         # record_token_usage and record_sentiment should use logger, not create OTel metric spans
         # This approach creates log-based metrics in Cloud Monitoring
@@ -503,9 +501,7 @@ class TestCloudTraceExporterConfiguration:
         # Project ID should come from settings
         obs = ADKObservability(enabled=True)
 
-        _trace_context = (
-            obs.get_current_trace_context()
-        )  # noqa: F841 - verifies method works
+        _trace_context = obs.get_current_trace_context()  # noqa: F841 - verifies method works
         # Even without active span, the observability should be configured
         assert obs._tracer_provider is not None
 

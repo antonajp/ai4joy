@@ -12,7 +12,6 @@ from app.models.session import Session, SessionStatus
 
 
 class TestParallelExecution:
-
     @pytest.fixture
     def mock_session_manager(self):
         manager = Mock(spec=SessionManager)

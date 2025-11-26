@@ -10,6 +10,7 @@ This script verifies:
 - All 6 required widgets are present
 - Alert policies are configured correctly
 """
+
 import argparse
 import sys
 from google.cloud import monitoring_dashboard_v1

@@ -51,13 +51,13 @@ class TestHealthCheckEndpoints:
         end_time = datetime.now()
         response_time = (end_time - start_time).total_seconds()
 
-        assert (
-            response.status_code == 200
-        ), f"/health should return 200 OK, got {response.status_code}"
+        assert response.status_code == 200, (
+            f"/health should return 200 OK, got {response.status_code}"
+        )
 
-        assert (
-            response_time < 5.0
-        ), f"/health response time {response_time:.2f}s exceeds 5s threshold"
+        assert response_time < 5.0, (
+            f"/health response time {response_time:.2f}s exceeds 5s threshold"
+        )
 
         # Try to parse JSON response if present
         try:
@@ -124,9 +124,9 @@ class TestHealthCheckEndpoints:
             f"{service_url}/health", allow_redirects=False, timeout=10
         )
 
-        assert (
-            health_response.status_code == 200
-        ), f"/health should return 200 without auth, got {health_response.status_code}"
+        assert health_response.status_code == 200, (
+            f"/health should return 200 without auth, got {health_response.status_code}"
+        )
 
         assert "accounts.google.com" not in health_response.headers.get(
             "Location", ""
@@ -140,7 +140,9 @@ class TestHealthCheckEndpoints:
         assert ready_response.status_code in [
             200,
             503,
-        ], f"/ready should return 200/503 without auth, got {ready_response.status_code}"
+        ], (
+            f"/ready should return 200/503 without auth, got {ready_response.status_code}"
+        )
 
         print("✓ Health checks accessible without authentication")
 
@@ -188,9 +190,9 @@ class TestDNSResolution:
             print(f"✓ {domain} resolves to: {ip_addresses}")
 
             if expected_ip:
-                assert (
-                    expected_ip in ip_addresses
-                ), f"Expected IP {expected_ip} not in resolved IPs: {ip_addresses}"
+                assert expected_ip in ip_addresses, (
+                    f"Expected IP {expected_ip} not in resolved IPs: {ip_addresses}"
+                )
                 print(f"✓ Resolved IP matches expected: {expected_ip}")
 
         except dns.resolver.NXDOMAIN:
@@ -233,9 +235,9 @@ class TestDNSResolution:
             except Exception as e:
                 print(f"⚠ Resolution via {dns_server} failed: {e}")
 
-        assert (
-            len(resolved_ips) > 0
-        ), "Domain should resolve from at least one DNS server"
+        assert len(resolved_ips) > 0, (
+            "Domain should resolve from at least one DNS server"
+        )
 
         # Check consistency across DNS servers
         all_ips = set()
@@ -295,13 +297,13 @@ class TestSSLCertificate:
                     now = datetime.utcnow()
                     days_until_expiry = (not_after - now).days
 
-                    assert (
-                        days_until_expiry > 0
-                    ), f"Certificate expired {abs(days_until_expiry)} days ago"
+                    assert days_until_expiry > 0, (
+                        f"Certificate expired {abs(days_until_expiry)} days ago"
+                    )
 
-                    assert (
-                        days_until_expiry >= 30
-                    ), f"Certificate expires in {days_until_expiry} days (< 30 day warning)"
+                    assert days_until_expiry >= 30, (
+                        f"Certificate expires in {days_until_expiry} days (< 30 day warning)"
+                    )
 
                     # Check subject matches domain
                     subject = dict(x[0] for x in cert.get("subject", []))
@@ -313,9 +315,9 @@ class TestSSLCertificate:
 
                     domain_matched = domain == common_name or domain in san_domains
 
-                    assert (
-                        domain_matched
-                    ), f"Domain {domain} not in certificate (CN: {common_name}, SAN: {san_domains})"
+                    assert domain_matched, (
+                        f"Domain {domain} not in certificate (CN: {common_name}, SAN: {san_domains})"
+                    )
 
                     # Check issuer
                     issuer = dict(x[0] for x in cert.get("issuer", []))
@@ -402,9 +404,9 @@ class TestHTTPSEnforcement:
         ], f"HTTP should redirect, got {response.status_code}"
 
         location = response.headers.get("Location", "")
-        assert location.startswith(
-            "https://"
-        ), f"Redirect should be to HTTPS, got: {location}"
+        assert location.startswith("https://"), (
+            f"Redirect should be to HTTPS, got: {location}"
+        )
 
         print(f"✓ HTTP redirects to HTTPS: {location}")
 
@@ -413,9 +415,9 @@ class TestHTTPSEnforcement:
             f"{http_url}/health", allow_redirects=True, timeout=10
         )
 
-        assert (
-            final_response.status_code == 200
-        ), f"Final HTTPS request should succeed, got {final_response.status_code}"
+        assert final_response.status_code == 200, (
+            f"Final HTTPS request should succeed, got {final_response.status_code}"
+        )
 
         assert final_response.url.startswith("https://"), "Final URL should be HTTPS"
 
@@ -444,9 +446,9 @@ class TestHTTPSEnforcement:
                 max_age_str = hsts_header.split("max-age=")[1].split(";")[0]
                 max_age = int(max_age_str)
 
-                assert (
-                    max_age >= 31536000
-                ), f"HSTS max-age should be >= 1 year, got {max_age} seconds"
+                assert max_age >= 31536000, (
+                    f"HSTS max-age should be >= 1 year, got {max_age} seconds"
+                )
 
                 print(f"✓ HSTS max-age: {max_age} seconds (>= 1 year)")
         else:

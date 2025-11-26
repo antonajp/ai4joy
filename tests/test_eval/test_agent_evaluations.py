@@ -387,17 +387,16 @@ class TestFullEvaluationSuite:
         evaluation_runner.save_results(output_path)
 
         assert summary.success_rate >= 0.70, (
-            f"Overall success rate too low: {summary.success_rate:.2%}. "
-            f"Expected >= 70%"
+            f"Overall success rate too low: {summary.success_rate:.2%}. Expected >= 70%"
         )
 
-        assert (
-            summary.phase1_success_rate >= 0.75
-        ), f"Phase 1 success rate too low: {summary.phase1_success_rate:.2%}"
+        assert summary.phase1_success_rate >= 0.75, (
+            f"Phase 1 success rate too low: {summary.phase1_success_rate:.2%}"
+        )
 
-        assert (
-            summary.phase2_success_rate >= 0.70
-        ), f"Phase 2 success rate too low: {summary.phase2_success_rate:.2%}"
+        assert summary.phase2_success_rate >= 0.70, (
+            f"Phase 2 success rate too low: {summary.phase2_success_rate:.2%}"
+        )
 
 
 @pytest.mark.evaluation
