@@ -1,6 +1,7 @@
 """Content Filtering Service for User Input Validation"""
+
 import re
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -10,11 +11,7 @@ class ContentFilterResult:
     """Result of content filtering operation"""
 
     def __init__(
-        self,
-        is_allowed: bool,
-        cleaned_input: str,
-        violations: List[str],
-        severity: str
+        self, is_allowed: bool, cleaned_input: str, violations: List[str], severity: str
     ):
         self.is_allowed = is_allowed
         self.cleaned_input = cleaned_input
@@ -31,38 +28,38 @@ class ContentFilter:
     """
 
     PROFANITY_PATTERNS = [
-        r'\bf+u+c+k+',
-        r'\bs+h+i+t+',
-        r'\bbullshit',
-        r'\bc+u+n+t+',
-        r'\bd+a+m+n+',
-        r'\bh+e+l+l+\b',
-        r'\ba+s+s+h+o+l+e+',
-        r'\bb+i+t+c+h+',
-        r'\bp+i+s+s+',
-        r'\bc+r+a+p+',
-        r'\bd+i+c+k+\b',
-        r'\bc+o+c+k+\b',
-        r'\bp+u+s+s+y+',
+        r"\bf+u+c+k+",
+        r"\bs+h+i+t+",
+        r"\bbullshit",
+        r"\bc+u+n+t+",
+        r"\bd+a+m+n+",
+        r"\bh+e+l+l+\b",
+        r"\ba+s+s+h+o+l+e+",
+        r"\bb+i+t+c+h+",
+        r"\bp+i+s+s+",
+        r"\bc+r+a+p+",
+        r"\bd+i+c+k+\b",
+        r"\bc+o+c+k+\b",
+        r"\bp+u+s+s+y+",
     ]
 
     SEVERE_PATTERNS = [
-        r'\bn+i+g+g+e+r+',
-        r'\bf+a+g+g+o+t+',
-        r'\br+a+p+e+',
-        r'\bk+i+l+l+\s+yourself',
-        r'\bsuicide',
-        r'\bsex\s+with\s+children',
-        r'\bpedophile',
-        r'\bchild\s+porn',
+        r"\bn+i+g+g+e+r+",
+        r"\bf+a+g+g+o+t+",
+        r"\br+a+p+e+",
+        r"\bk+i+l+l+\s+yourself",
+        r"\bsuicide",
+        r"\bsex\s+with\s+children",
+        r"\bpedophile",
+        r"\bchild\s+porn",
     ]
 
     TOXIC_PATTERNS = [
-        r'\byou\s+(are|r)\s+(stupid|dumb|idiot|moron)',
-        r'\bgo\s+die',
-        r'\bkill\s+yourself',
-        r'\bi\s+hate\s+you',
-        r'\byou\s+suck',
+        r"\byou\s+(are|r)\s+(stupid|dumb|idiot|moron)",
+        r"\bgo\s+die",
+        r"\bkill\s+yourself",
+        r"\bi\s+hate\s+you",
+        r"\byou\s+suck",
     ]
 
     def __init__(self):
@@ -70,12 +67,7 @@ class ContentFilter:
             "total_checks": 0,
             "blocked": 0,
             "warnings": 0,
-            "by_severity": {
-                "severe": 0,
-                "high": 0,
-                "medium": 0,
-                "low": 0
-            }
+            "by_severity": {"severe": 0, "high": 0, "medium": 0, "low": 0},
         }
 
     def filter_input(self, user_input: str) -> ContentFilterResult:
@@ -106,20 +98,25 @@ class ContentFilter:
                 "Severe content filter violation",
                 severity=severity,
                 violation_count=len(severe_matches),
-                input_length=len(user_input)
+                input_length=len(user_input),
             )
 
             return ContentFilterResult(
                 is_allowed=False,
                 cleaned_input="",
                 violations=violations,
-                severity=severity
+                severity=severity,
             )
 
         profanity_matches = self._check_patterns(input_lower, self.PROFANITY_PATTERNS)
         if profanity_matches:
             violations.extend([f"profanity:{match}" for match in profanity_matches])
-            profanity_count = len(re.findall(r'\b(?:f+u+c+k+|s+h+i+t+|bullshit|c+u+n+t+|a+s+s+h+o+l+e+|b+i+t+c+h+)', input_lower))
+            profanity_count = len(
+                re.findall(
+                    r"\b(?:f+u+c+k+|s+h+i+t+|bullshit|c+u+n+t+|a+s+s+h+o+l+e+|b+i+t+c+h+)",
+                    input_lower,
+                )
+            )
             severity = "high" if profanity_count > 2 else "medium"
             self._stats["by_severity"][severity] += 1
 
@@ -137,7 +134,7 @@ class ContentFilter:
                 "Content filter warnings detected",
                 severity=severity,
                 violation_count=len(violations),
-                input_length=len(user_input)
+                input_length=len(user_input),
             )
 
         is_allowed = severity in ["none", "low", "medium"]
@@ -148,7 +145,7 @@ class ContentFilter:
             is_allowed=is_allowed,
             cleaned_input=user_input if is_allowed else "",
             violations=violations,
-            severity=severity
+            severity=severity,
         )
 
     def _check_patterns(self, text: str, patterns: List[str]) -> List[str]:
@@ -168,7 +165,7 @@ class ContentFilter:
         result = self.filter_input(user_input)
         return not result.is_allowed
 
-    def get_filter_stats(self) -> Dict[str, any]:
+    def get_filter_stats(self) -> Dict[str, Any]:
         """
         Get content filter statistics.
 
@@ -184,7 +181,7 @@ class ContentFilter:
                 if self._stats["total_checks"] > 0
                 else 0.0
             ),
-            "by_severity": self._stats["by_severity"].copy()
+            "by_severity": self._stats["by_severity"].copy(),
         }
 
 

@@ -1,4 +1,5 @@
 """Tests for ADK native OpenTelemetry observability integration"""
+
 from unittest.mock import patch
 
 from app.services.adk_observability import (
@@ -8,7 +9,7 @@ from app.services.adk_observability import (
     get_current_trace_id,
     add_agent_context,
     record_token_usage,
-    record_sentiment
+    record_sentiment,
 )
 
 
@@ -26,16 +27,22 @@ class TestADKObservability:
         obs = ADKObservability(enabled=False)
         assert obs.enabled is False
 
-    @patch.dict('os.environ', {}, clear=False)
+    @patch.dict("os.environ", {}, clear=False)
     def test_environment_setup(self):
         """Test OpenTelemetry environment variables are configured"""
         obs = ADKObservability(enabled=True)
         obs._setup_environment()
 
         import os
+
         assert os.environ.get("OTEL_SERVICE_NAME") == "improv-olympics-agent"
-        assert os.environ.get("OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED") == "true"
-        assert os.environ.get("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT") == "true"
+        assert (
+            os.environ.get("OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED") == "true"
+        )
+        assert (
+            os.environ.get("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT")
+            == "true"
+        )
 
     def test_get_tracer(self):
         """Test getting a tracer instance"""
@@ -139,13 +146,16 @@ class TestOpenTelemetryIntegration:
         tracer = obs.get_tracer("test")
 
         with tracer.start_as_current_span("parent-span") as parent:
-            parent_trace_id = format(parent.get_span_context().trace_id, '032x')
+            parent_trace_id = format(parent.get_span_context().trace_id, "032x")
 
             with tracer.start_as_current_span("child-span") as child:
-                child_trace_id = format(child.get_span_context().trace_id, '032x')
+                child_trace_id = format(child.get_span_context().trace_id, "032x")
 
                 # Child and parent should share the same trace ID
-                if parent.get_span_context().is_valid and child.get_span_context().is_valid:
+                if (
+                    parent.get_span_context().is_valid
+                    and child.get_span_context().is_valid
+                ):
                     assert parent_trace_id == child_trace_id
 
 
@@ -187,12 +197,12 @@ class TestAlertingWithObservability:
 class TestCloudTraceExporter:
     """Tests for Cloud Trace exporter configuration"""
 
-    @patch('app.services.adk_observability.CloudTraceSpanExporter')
+    @patch("app.services.adk_observability.CloudTraceSpanExporter")
     def test_cloud_trace_exporter_initialization(self, mock_exporter):
         """Test Cloud Trace exporter is configured with correct project"""
         from app.config import get_settings
 
-        settings = get_settings()
+        _settings = get_settings()  # noqa: F841 - verifies settings load
         obs = ADKObservability(enabled=True)
 
         # Should have attempted to create Cloud Trace exporter
@@ -249,7 +259,7 @@ class TestConvenienceFunctions:
                 agent_type="partner",
                 session_id="test-session-123",
                 turn_number=5,
-                phase=2
+                phase=2,
             )
 
             # Verify span is still valid after adding context
@@ -265,7 +275,7 @@ class TestConvenienceFunctions:
                 agent_type="coach",
                 session_id="test-session-456",
                 custom_field="custom_value",
-                scene_number=3
+                scene_number=3,
             )
 
             # Should not raise exception
@@ -306,7 +316,7 @@ class TestConvenienceFunctions:
                 token_count=1500,
                 agent="partner",
                 model="gemini-2.0-flash-001",
-                session_id="test-session-123"
+                session_id="test-session-123",
             )
 
             # Should not raise exception
@@ -316,10 +326,7 @@ class TestConvenienceFunctions:
         initialize_adk_observability(enabled=True)
 
         # Only token_count and agent are required
-        record_token_usage(
-            token_count=500,
-            agent="coach"
-        )
+        record_token_usage(token_count=500, agent="coach")
 
         # Should not raise exception
 
@@ -327,11 +334,7 @@ class TestConvenienceFunctions:
         """Test recording token usage without session ID"""
         initialize_adk_observability(enabled=True)
 
-        record_token_usage(
-            token_count=800,
-            agent="room",
-            model="gemini-2.0-flash-001"
-        )
+        record_token_usage(token_count=800, agent="room", model="gemini-2.0-flash-001")
 
         # Should not raise exception
 
@@ -341,9 +344,7 @@ class TestConvenienceFunctions:
 
         # Should not raise exception when disabled
         record_token_usage(
-            token_count=1000,
-            agent="partner",
-            session_id="test-disabled"
+            token_count=1000, agent="partner", session_id="test-disabled"
         )
 
     def test_record_sentiment_basic(self):
@@ -353,9 +354,7 @@ class TestConvenienceFunctions:
 
         with tracer.start_as_current_span("test-span"):
             record_sentiment(
-                sentiment_score=0.75,
-                session_id="test-session-123",
-                turn_number=10
+                sentiment_score=0.75, session_id="test-session-123", turn_number=10
             )
 
             # Should not raise exception
@@ -365,9 +364,7 @@ class TestConvenienceFunctions:
         initialize_adk_observability(enabled=True)
 
         record_sentiment(
-            sentiment_score=-0.5,
-            session_id="test-session-456",
-            turn_number=3
+            sentiment_score=-0.5, session_id="test-session-456", turn_number=3
         )
 
         # Should not raise exception
@@ -377,9 +374,7 @@ class TestConvenienceFunctions:
         initialize_adk_observability(enabled=True)
 
         record_sentiment(
-            sentiment_score=0.0,
-            session_id="test-session-789",
-            turn_number=1
+            sentiment_score=0.0, session_id="test-session-789", turn_number=1
         )
 
         # Should not raise exception
@@ -389,11 +384,7 @@ class TestConvenienceFunctions:
         initialize_adk_observability(enabled=False)
 
         # Should not raise exception when disabled
-        record_sentiment(
-            sentiment_score=0.8,
-            session_id="test-disabled",
-            turn_number=5
-        )
+        record_sentiment(sentiment_score=0.8, session_id="test-disabled", turn_number=5)
 
 
 class TestADKNativeSpanIntegration:
@@ -428,9 +419,7 @@ class TestADKNativeSpanIntegration:
 
             # add_agent_context should enrich this span, not create a new one
             add_agent_context(
-                agent_type="partner",
-                session_id="test-123",
-                turn_number=1
+                agent_type="partner", session_id="test-123", turn_number=1
             )
 
             span_id_after = span.get_span_context().span_id
@@ -442,18 +431,17 @@ class TestADKNativeSpanIntegration:
         """Test that custom metrics are recorded via structured logging, not OTel metrics API"""
         # Reset singleton for clean test
         import app.services.adk_observability as adk_obs_module
+
         adk_obs_module._adk_observability = None
 
-        obs = initialize_adk_observability(enabled=True)
+        _obs = initialize_adk_observability(enabled=True)  # noqa: F841 - init needed for test
 
         # record_token_usage and record_sentiment should use logger, not create OTel metric spans
         # This approach creates log-based metrics in Cloud Monitoring
 
-        with patch.object(adk_obs_module, 'logger') as mock_logger:
+        with patch.object(adk_obs_module, "logger") as mock_logger:
             record_token_usage(
-                token_count=1000,
-                agent="partner",
-                model="gemini-2.0-flash-001"
+                token_count=1000, agent="partner", model="gemini-2.0-flash-001"
             )
 
             # Should have logged the metric event
@@ -503,29 +491,35 @@ class TestCloudTraceExporterConfiguration:
         # but we can verify the provider was created successfully
         assert len(obs._tracer_provider._active_span_processor._span_processors) > 0
 
-    @patch.dict('os.environ', {'GCP_PROJECT_ID': 'test-project-123'}, clear=False)
+    @patch.dict("os.environ", {"GCP_PROJECT_ID": "test-project-123"}, clear=False)
     def test_project_id_configuration(self):
         """Test that Cloud Trace exporter uses correct project ID"""
         from app.config import get_settings
-        settings = get_settings()
+
+        _settings = get_settings()  # noqa: F841 - verifies settings load
 
         # Project ID should come from settings
         obs = ADKObservability(enabled=True)
 
-        trace_context = obs.get_current_trace_context()
+        _trace_context = obs.get_current_trace_context()  # noqa: F841 - verifies method works
         # Even without active span, the observability should be configured
         assert obs._tracer_provider is not None
 
     def test_environment_variables_set_correctly(self):
         """Test that OTEL environment variables are set for ADK instrumentation"""
-        obs = ADKObservability(enabled=True)
+        _obs = ADKObservability(enabled=True)  # noqa: F841 - init sets env vars
 
         import os
 
         # These env vars enable ADK's native OpenTelemetry instrumentation
         assert os.environ.get("OTEL_SERVICE_NAME") == "improv-olympics-agent"
-        assert os.environ.get("OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED") == "true"
-        assert os.environ.get("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT") == "true"
+        assert (
+            os.environ.get("OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED") == "true"
+        )
+        assert (
+            os.environ.get("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT")
+            == "true"
+        )
 
     def test_graceful_degradation_without_credentials(self):
         """Test that observability degrades gracefully without GCP credentials"""

@@ -13,6 +13,11 @@ on:
   schedule:
     - cron: '0 2 * * 1'
 
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -129,7 +134,9 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
           TEST_DB_PATH: /tmp/test_db/test.db
-          GOOGLE_CLOUD_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+          GOOGLE_CLOUD_PROJECT: ${{ steps.check_creds.outputs.has_creds == 'true' && secrets.GCP_PROJECT_ID || '' }}
+          GOOGLE_CLOUD_LOCATION: ${{ steps.check_creds.outputs.has_creds == 'true' && 'us-central1' || '' }}
+          GOOGLE_GENAI_USE_VERTEXAI: ${{ steps.check_creds.outputs.has_creds == 'true' && 'true' || 'false' }}
           EVAL_PASS_THRESHOLD: 80
         run: |
           pytest tests/test_eval/ \
@@ -324,6 +331,8 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
           GOOGLE_CLOUD_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+          GOOGLE_CLOUD_LOCATION: us-central1
+          GOOGLE_GENAI_USE_VERTEXAI: "true"
         run: |
           pytest tests/integration/test_real_adk_execution.py \
             tests/test_monitoring/test_adk_observability.py \

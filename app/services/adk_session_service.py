@@ -21,6 +21,7 @@ Usage:
         session_id="sess_abc"
     )
 """
+
 import threading
 from typing import Optional, Dict, Any
 from google.adk.sessions import DatabaseSessionService
@@ -60,11 +61,9 @@ def get_adk_session_service() -> DatabaseSessionService:
         if _session_service is None:
             logger.info(
                 "Initializing ADK DatabaseSessionService",
-                db_url=settings.adk_database_url
+                db_url=settings.adk_database_url,
             )
-            _session_service = DatabaseSessionService(
-                db_url=settings.adk_database_url
-            )
+            _session_service = DatabaseSessionService(db_url=settings.adk_database_url)
             logger.info("ADK DatabaseSessionService initialized successfully")
 
     return _session_service
@@ -107,7 +106,9 @@ async def create_adk_session(session) -> ADKSession:
         ADK Session instance
     """
     service = get_adk_session_service()
-    status_value = session.status if isinstance(session.status, str) else session.status.value
+    status_value = (
+        session.status if isinstance(session.status, str) else session.status.value
+    )
 
     state = {
         "location": session.location,
@@ -115,7 +116,7 @@ async def create_adk_session(session) -> ADKSession:
         "user_name": session.user_name,
         "current_phase": session.current_phase or "PHASE_1",
         "turn_count": session.turn_count,
-        "status": status_value
+        "status": status_value,
     }
 
     if session.conversation_history:
@@ -125,13 +126,11 @@ async def create_adk_session(session) -> ADKSession:
         app_name=settings.app_name,
         user_id=session.user_id,
         session_id=session.session_id,
-        state=state
+        state=state,
     )
 
     logger.info(
-        "ADK session created",
-        session_id=session.session_id,
-        user_id=session.user_id
+        "ADK session created", session_id=session.session_id, user_id=session.user_id
     )
 
     return adk_session
@@ -150,25 +149,21 @@ async def get_adk_session(session_id: str, user_id: str) -> Optional[ADKSession]
     service = get_adk_session_service()
 
     adk_session = await service.get_session(
-        app_name=settings.app_name,
-        user_id=user_id,
-        session_id=session_id
+        app_name=settings.app_name, user_id=user_id, session_id=session_id
     )
 
     if adk_session:
         logger.debug(
             "ADK session retrieved",
             session_id=session_id,
-            events_count=len(adk_session.events)
+            events_count=len(adk_session.events),
         )
 
     return adk_session
 
 
 async def update_adk_session_state(
-    session_id: str,
-    user_id: str,
-    state_updates: Dict[str, Any]
+    session_id: str, user_id: str, state_updates: Dict[str, Any]
 ) -> None:
     """Update ADK session state.
 
@@ -183,16 +178,11 @@ async def update_adk_session_state(
     service = get_adk_session_service()
 
     adk_session = await service.get_session(
-        app_name=settings.app_name,
-        user_id=user_id,
-        session_id=session_id
+        app_name=settings.app_name, user_id=user_id, session_id=session_id
     )
 
     if not adk_session:
-        logger.warning(
-            "ADK session not found for state update",
-            session_id=session_id
-        )
+        logger.warning("ADK session not found for state update", session_id=session_id)
         return
 
     adk_session.state.update(state_updates)
@@ -200,5 +190,5 @@ async def update_adk_session_state(
     logger.debug(
         "ADK session state updated",
         session_id=session_id,
-        updates=list(state_updates.keys())
+        updates=list(state_updates.keys()),
     )

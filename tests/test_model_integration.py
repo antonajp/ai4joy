@@ -2,6 +2,7 @@
 TC-003: Gemini Model Access
 Tests connectivity to VertexAI Gemini models.
 """
+
 import pytest
 import time
 from google.cloud import aiplatform
@@ -15,15 +16,14 @@ class TestModelIntegration:
     def init_vertexai(self, vertexai_config, gcp_credentials):
         """Initialize VertexAI with project settings."""
         aiplatform.init(
-            project=vertexai_config['project_id'],
-            location=vertexai_config['location']
+            project=vertexai_config["project_id"], location=vertexai_config["location"]
         )
 
     @pytest.mark.integration
     def test_flash_model_access(self, vertexai_config):
         """Test access to gemini-1.5-flash model."""
         try:
-            model = GenerativeModel(vertexai_config['flash_model'])
+            model = GenerativeModel(vertexai_config["flash_model"])
 
             test_prompt = "Say 'Hello from Flash' and nothing else."
             start_time = time.time()
@@ -32,7 +32,9 @@ class TestModelIntegration:
 
             assert response.text is not None
             assert len(response.text) > 0
-            assert latency < 3.0, f"Flash model latency {latency:.2f}s exceeds 3s threshold"
+            assert latency < 3.0, (
+                f"Flash model latency {latency:.2f}s exceeds 3s threshold"
+            )
 
             print(f"Flash model response time: {latency:.2f}s")
             print(f"Response: {response.text}")
@@ -44,7 +46,7 @@ class TestModelIntegration:
     def test_pro_model_access(self, vertexai_config):
         """Test access to gemini-1.5-pro model."""
         try:
-            model = GenerativeModel(vertexai_config['pro_model'])
+            model = GenerativeModel(vertexai_config["pro_model"])
 
             test_prompt = "Say 'Hello from Pro' and nothing else."
             start_time = time.time()
@@ -53,7 +55,9 @@ class TestModelIntegration:
 
             assert response.text is not None
             assert len(response.text) > 0
-            assert latency < 5.0, f"Pro model latency {latency:.2f}s exceeds 5s threshold"
+            assert latency < 5.0, (
+                f"Pro model latency {latency:.2f}s exceeds 5s threshold"
+            )
 
             print(f"Pro model response time: {latency:.2f}s")
             print(f"Response: {response.text}")
@@ -65,7 +69,7 @@ class TestModelIntegration:
     def test_mc_agent_model_invocation(self, vertexai_config):
         """Test MC agent's model invocation."""
         try:
-            model = GenerativeModel(vertexai_config['flash_model'])
+            model = GenerativeModel(vertexai_config["flash_model"])
 
             mc_prompt = """You are an energetic MC for an improv show.
             Welcome the audience and ask for a location suggestion.
@@ -76,7 +80,9 @@ class TestModelIntegration:
             latency = time.time() - start_time
 
             assert response.text is not None
-            assert "welcome" in response.text.lower() or "hello" in response.text.lower()
+            assert (
+                "welcome" in response.text.lower() or "hello" in response.text.lower()
+            )
             assert latency < 3.0
 
             print(f"MC model latency: {latency:.2f}s")
@@ -88,7 +94,7 @@ class TestModelIntegration:
     def test_room_agent_sentiment_analysis(self, vertexai_config):
         """Test The Room agent's sentiment analysis capability."""
         try:
-            model = GenerativeModel(vertexai_config['flash_model'])
+            model = GenerativeModel(vertexai_config["flash_model"])
 
             room_prompt = """You are simulating an improv audience's collective sentiment.
             Analyze this exchange and respond with: "Engaged", "Bored", or "Confused".
@@ -114,7 +120,7 @@ class TestModelIntegration:
     def test_partner_agent_creative_generation(self, vertexai_config):
         """Test Dynamic Scene Partner's creative response generation."""
         try:
-            model = GenerativeModel(vertexai_config['pro_model'])
+            model = GenerativeModel(vertexai_config["pro_model"])
 
             partner_prompt = """You are an improv scene partner. Your partner just said:
             "We need to fix the broken airlock before we run out of oxygen!"
@@ -124,8 +130,7 @@ class TestModelIntegration:
 
             start_time = time.time()
             response = model.generate_content(
-                partner_prompt,
-                generation_config={"temperature": 0.9}
+                partner_prompt, generation_config={"temperature": 0.9}
             )
             latency = time.time() - start_time
 
@@ -143,7 +148,7 @@ class TestModelIntegration:
     def test_coach_agent_analysis(self, vertexai_config):
         """Test Coach agent's analytical capability."""
         try:
-            model = GenerativeModel(vertexai_config['pro_model'])
+            model = GenerativeModel(vertexai_config["pro_model"])
 
             coach_prompt = """You are an improv coach analyzing a student's performance.
             The student said: "Yes! And we should also check the backup systems!"
@@ -169,13 +174,13 @@ class TestModelIntegration:
         import concurrent.futures
 
         def call_flash():
-            model = GenerativeModel(vertexai_config['flash_model'])
+            model = GenerativeModel(vertexai_config["flash_model"])
             start = time.time()
             response = model.generate_content("Say 'Flash'")
             return time.time() - start, response.text
 
         def call_pro():
-            model = GenerativeModel(vertexai_config['pro_model'])
+            model = GenerativeModel(vertexai_config["pro_model"])
             start = time.time()
             response = model.generate_content("Say 'Pro'")
             return time.time() - start, response.text
@@ -190,7 +195,9 @@ class TestModelIntegration:
 
                 assert flash_text is not None
                 assert pro_text is not None
-                print(f"Concurrent call latencies - Flash: {flash_latency:.2f}s, Pro: {pro_latency:.2f}s")
+                print(
+                    f"Concurrent call latencies - Flash: {flash_latency:.2f}s, Pro: {pro_latency:.2f}s"
+                )
 
         except Exception as e:
             pytest.fail(f"Concurrent model calls failed: {e}")
@@ -200,7 +207,7 @@ class TestModelIntegration:
     def test_model_quota_awareness(self, vertexai_config):
         """Test system behavior under API rate limiting."""
         # This test makes multiple rapid requests to observe quota handling
-        model = GenerativeModel(vertexai_config['flash_model'])
+        model = GenerativeModel(vertexai_config["flash_model"])
 
         success_count = 0
         rate_limit_count = 0

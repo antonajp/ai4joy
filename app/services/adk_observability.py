@@ -17,8 +17,9 @@ Our role is to:
 
 We do NOT manually create spans for ADK operations - ADK does that automatically.
 """
+
 import os
-from typing import Optional
+from typing import Any, Optional
 
 from opentelemetry import trace, metrics
 from opentelemetry.sdk.trace import TracerProvider
@@ -27,7 +28,9 @@ from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
-from opentelemetry.resourcedetector.gcp_resource_detector import GoogleCloudResourceDetector
+from opentelemetry.resourcedetector.gcp_resource_detector import (
+    GoogleCloudResourceDetector,
+)
 
 from app.config import get_settings
 from app.utils.logger import get_logger
@@ -56,9 +59,11 @@ class ADKObservability:
         if self.enabled:
             self._setup_environment()
             self._initialize_providers()
-            logger.info("ADK OpenTelemetry initialized",
-                       service_name=settings.app_name,
-                       gcp_project=settings.gcp_project_id)
+            logger.info(
+                "ADK OpenTelemetry initialized",
+                service_name=settings.app_name,
+                gcp_project=settings.gcp_project_id,
+            )
         else:
             logger.info("ADK OpenTelemetry disabled")
 
@@ -74,12 +79,20 @@ class ADKObservability:
         ADK will automatically create spans when these are set.
         """
         os.environ.setdefault("OTEL_SERVICE_NAME", "improv-olympics-agent")
-        os.environ.setdefault("OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED", "true")
-        os.environ.setdefault("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT", "true")
+        os.environ.setdefault(
+            "OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED", "true"
+        )
+        os.environ.setdefault(
+            "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT", "true"
+        )
 
-        logger.debug("OpenTelemetry environment configured for ADK auto-instrumentation",
-                    service_name=os.environ.get("OTEL_SERVICE_NAME"),
-                    logging_enabled=os.environ.get("OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED"))
+        logger.debug(
+            "OpenTelemetry environment configured for ADK auto-instrumentation",
+            service_name=os.environ.get("OTEL_SERVICE_NAME"),
+            logging_enabled=os.environ.get(
+                "OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED"
+            ),
+        )
 
     def _initialize_providers(self):
         """
@@ -91,10 +104,12 @@ class ADKObservability:
         We do NOT create spans here - we just configure WHERE spans go.
         """
         # Detect GCP resources (project ID, instance ID, etc.)
-        resource = Resource.create({
-            "service.name": settings.app_name,
-            "service.version": "1.0.0",
-        })
+        resource = Resource.create(
+            {
+                "service.name": settings.app_name,
+                "service.version": "1.0.0",
+            }
+        )
 
         # Try to merge with GCP resource detector
         try:
@@ -102,7 +117,9 @@ class ADKObservability:
             resource = resource.merge(gcp_resource)
             logger.debug("GCP resource detection successful")
         except Exception as e:
-            logger.warning("GCP resource detection failed, using basic resource", error=str(e))
+            logger.warning(
+                "GCP resource detection failed, using basic resource", error=str(e)
+            )
 
         # Setup Trace Provider with Cloud Trace exporter
         # This receives ADK's auto-generated spans and exports them to Cloud Trace
@@ -119,13 +136,16 @@ class ADKObservability:
                 cloud_trace_exporter,
                 max_queue_size=2048,
                 max_export_batch_size=512,
-                schedule_delay_millis=5000  # 5 seconds
+                schedule_delay_millis=5000,  # 5 seconds
             )
 
             self._tracer_provider.add_span_processor(span_processor)
             trace.set_tracer_provider(self._tracer_provider)
 
-            logger.info("Cloud Trace exporter configured for ADK spans", project_id=settings.gcp_project_id)
+            logger.info(
+                "Cloud Trace exporter configured for ADK spans",
+                project_id=settings.gcp_project_id,
+            )
 
         except Exception as e:
             logger.error("Failed to initialize Cloud Trace exporter", error=str(e))
@@ -140,12 +160,11 @@ class ADKObservability:
 
             metric_reader = PeriodicExportingMetricReader(
                 ConsoleMetricExporter(),
-                export_interval_millis=60000  # 1 minute
+                export_interval_millis=60000,  # 1 minute
             )
 
             self._meter_provider = MeterProvider(
-                resource=resource,
-                metric_readers=[metric_reader]
+                resource=resource, metric_readers=[metric_reader]
             )
             metrics.set_meter_provider(self._meter_provider)
 
@@ -179,7 +198,7 @@ class ADKObservability:
         """
         span = trace.get_current_span()
         if span and span.get_span_context().is_valid:
-            trace_id = format(span.get_span_context().trace_id, '032x')
+            trace_id = format(span.get_span_context().trace_id, "032x")
             # Cloud Logging format: projects/{project}/traces/{trace_id}
             return f"projects/{settings.gcp_project_id}/traces/{trace_id}"
         return None
@@ -188,7 +207,7 @@ class ADKObservability:
         """Get just the trace ID (without project prefix) for logging"""
         span = trace.get_current_span()
         if span and span.get_span_context().is_valid:
-            return format(span.get_span_context().trace_id, '032x')
+            return format(span.get_span_context().trace_id, "032x")
         return None
 
     def add_span_attributes(self, **attributes):
@@ -232,10 +251,7 @@ class ADKObservability:
 
         # Log the metric event so it can be extracted by log-based metrics
         logger.info(
-            f"Metric: {event_name}",
-            event=event_name,
-            value=value,
-            **attributes
+            f"Metric: {event_name}", event=event_name, value=value, **attributes
         )
 
     def shutdown(self):
@@ -291,7 +307,7 @@ def add_agent_context(
     session_id: Optional[str] = None,
     turn_number: Optional[int] = None,
     phase: Optional[int] = None,
-    **extra_attributes
+    **extra_attributes,
 ):
     """
     Add agent execution context to current span.
@@ -316,7 +332,7 @@ def add_agent_context(
     """
     obs = get_adk_observability()
     if obs:
-        attributes = {"agent_type": agent_type}
+        attributes: dict[str, Any] = {"agent_type": agent_type}
         if session_id:
             attributes["session_id"] = session_id
         if turn_number is not None:
@@ -331,7 +347,7 @@ def record_token_usage(
     token_count: int,
     agent: str,
     model: Optional[str] = None,
-    session_id: Optional[str] = None
+    session_id: Optional[str] = None,
 ):
     """
     Record token usage metric.
@@ -353,15 +369,11 @@ def record_token_usage(
             token_count=token_count,
             agent=agent,
             model=model or "unknown",
-            session_id=session_id
+            session_id=session_id,
         )
 
 
-def record_sentiment(
-    sentiment_score: float,
-    session_id: str,
-    turn_number: int
-):
+def record_sentiment(sentiment_score: float, session_id: str, turn_number: int):
     """
     Record sentiment score metric.
 
@@ -380,5 +392,5 @@ def record_sentiment(
             value=sentiment_score,
             sentiment_score=sentiment_score,
             session_id=session_id,
-            turn=str(turn_number)
+            turn=str(turn_number),
         )

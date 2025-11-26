@@ -1,4 +1,5 @@
 """Game Database Tools - Async Functions for ADK Agents"""
+
 from typing import Optional
 from app.utils.logger import get_logger
 
@@ -14,13 +15,13 @@ GAMES_DB = [
             "Two players begin with a scene suggestion",
             "Players maintain physical positions when frozen",
             "New player must start completely different scene",
-            "Tagged player sits out and watches"
+            "Tagged player sits out and watches",
         ],
         "player_count": {"min": 4, "max": 8},
         "energy_level": "high",
         "skills": ["physicality", "quick_thinking", "scene_work"],
         "duration_minutes": 10,
-        "difficulty": "beginner"
+        "difficulty": "beginner",
     },
     {
         "id": "185",
@@ -30,13 +31,13 @@ GAMES_DB = [
             "Host gets audience suggestion for subject",
             "Format must be '185 [subject] walk into a bar'",
             "Each player delivers one punchline quickly",
-            "Focus on speed and energy over perfection"
+            "Focus on speed and energy over perfection",
         ],
         "player_count": {"min": 4, "max": 10},
         "energy_level": "high",
         "skills": ["wordplay", "quick_thinking", "pattern_recognition"],
         "duration_minutes": 5,
-        "difficulty": "beginner"
+        "difficulty": "beginner",
     },
     {
         "id": "questions_only",
@@ -47,13 +48,13 @@ GAMES_DB = [
             "No statements allowed",
             "No hesitations longer than 2 seconds",
             "Cannot repeat a question already asked",
-            "Last player standing wins"
+            "Last player standing wins",
         ],
         "player_count": {"min": 2, "max": 6},
         "energy_level": "medium",
         "skills": ["quick_thinking", "listening", "grammar"],
         "duration_minutes": 8,
-        "difficulty": "intermediate"
+        "difficulty": "intermediate",
     },
     {
         "id": "party_quirks",
@@ -64,13 +65,13 @@ GAMES_DB = [
             "Guests enter one at a time doing their quirk",
             "Host interacts naturally while trying to guess",
             "Guests become more obvious if host struggles",
-            "Game ends when all quirks are guessed"
+            "Game ends when all quirks are guessed",
         ],
         "player_count": {"min": 3, "max": 5},
         "energy_level": "medium",
         "skills": ["character_work", "subtlety", "deduction"],
         "duration_minutes": 12,
-        "difficulty": "intermediate"
+        "difficulty": "intermediate",
     },
     {
         "id": "three_headed_broadway_star",
@@ -81,13 +82,13 @@ GAMES_DB = [
             "Each player says only one word at a time",
             "Words must flow left to right consistently",
             "Must create rhyming song with melody",
-            "Host conducts for emotional changes"
+            "Host conducts for emotional changes",
         ],
         "player_count": {"min": 3, "max": 3},
         "energy_level": "high",
         "skills": ["word_association", "singing", "teamwork"],
         "duration_minutes": 6,
-        "difficulty": "advanced"
+        "difficulty": "advanced",
     },
     {
         "id": "conducted_story",
@@ -98,13 +99,13 @@ GAMES_DB = [
             "Conductor points to player who speaks",
             "Each player says one word when pointed to",
             "Hand gestures control speed and style",
-            "Story must remain coherent despite changes"
+            "Story must remain coherent despite changes",
         ],
         "player_count": {"min": 4, "max": 6},
         "energy_level": "medium",
         "skills": ["listening", "word_association", "adaptability"],
         "duration_minutes": 8,
-        "difficulty": "intermediate"
+        "difficulty": "intermediate",
     },
     {
         "id": "sound_effects",
@@ -115,13 +116,13 @@ GAMES_DB = [
             "Actors perform physical actions clearly",
             "Sound effect artists make sounds for any action",
             "Actors must justify unexpected sounds",
-            "No speaking from sound effect artists"
+            "No speaking from sound effect artists",
         ],
         "player_count": {"min": 4, "max": 4},
         "energy_level": "high",
         "skills": ["physicality", "justification", "audio_creativity"],
         "duration_minutes": 7,
-        "difficulty": "beginner"
+        "difficulty": "beginner",
     },
     {
         "id": "alphabet_game",
@@ -132,14 +133,14 @@ GAMES_DB = [
             "First line starts with assigned letter (usually A)",
             "Each subsequent line starts with next letter",
             "Must maintain coherent scene despite constraint",
-            "When reaching Z, either end or start over"
+            "When reaching Z, either end or start over",
         ],
         "player_count": {"min": 2, "max": 4},
         "energy_level": "medium",
         "skills": ["quick_thinking", "vocabulary", "scene_work"],
         "duration_minutes": 10,
-        "difficulty": "intermediate"
-    }
+        "difficulty": "intermediate",
+    },
 ]
 
 
@@ -175,7 +176,7 @@ async def search_games(
     energy_level: Optional[str] = None,
     player_count: Optional[int] = None,
     difficulty: Optional[str] = None,
-    max_duration: Optional[int] = None
+    max_duration: Optional[int] = None,
 ) -> list[dict]:
     """Search improv games by multiple criteria.
 
@@ -195,15 +196,18 @@ async def search_games(
 
     if player_count is not None:
         results = [
-            g for g in results
-            if g["player_count"]["min"] <= player_count <= g["player_count"]["max"]
+            g
+            for g in results
+            if int(g["player_count"]["min"])  # type: ignore[index]
+            <= player_count
+            <= int(g["player_count"]["max"])  # type: ignore[index]
         ]
 
     if difficulty:
         results = [g for g in results if g["difficulty"] == difficulty.lower()]
 
     if max_duration:
-        results = [g for g in results if g["duration_minutes"] <= max_duration]
+        results = [g for g in results if g["duration_minutes"] <= max_duration]  # type: ignore[operator]
 
     logger.info(
         "Game search completed",
@@ -211,7 +215,7 @@ async def search_games(
         player_count=player_count,
         difficulty=difficulty,
         max_duration=max_duration,
-        results_count=len(results)
+        results_count=len(results),
     )
 
     return results

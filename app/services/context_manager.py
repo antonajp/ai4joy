@@ -10,6 +10,7 @@ This service focuses on:
 - Session-specific metadata formatting
 - Conversation history compaction for display
 """
+
 from typing import List, Dict, Any, Optional
 
 from app.models.session import Session
@@ -27,15 +28,9 @@ class ContextManager:
         return len(text) // 4
 
     def build_optimized_context(
-        self,
-        session: Session,
-        user_input: str,
-        turn_number: int
+        self, session: Session, user_input: str, turn_number: int
     ) -> str:
-        context_parts = [
-            f"Location: {session.location}",
-            f"Turn {turn_number}"
-        ]
+        context_parts = [f"Location: {session.location}", f"Turn {turn_number}"]
 
         if not session.conversation_history:
             return "\n".join(context_parts)
@@ -55,7 +50,7 @@ class ContextManager:
                 "Context exceeds max tokens, applying compaction",
                 estimated_tokens=total_tokens,
                 max_tokens=self.max_tokens,
-                turn_number=turn_number
+                turn_number=turn_number,
             )
             full_context = self._compact_context(context_parts)
 
@@ -63,7 +58,7 @@ class ContextManager:
             "Context built",
             turn_number=turn_number,
             history_length=history_length,
-            estimated_tokens=self.estimate_tokens(full_context)
+            estimated_tokens=self.estimate_tokens(full_context),
         )
 
         return full_context
@@ -79,9 +74,7 @@ class ContextManager:
             context_lines.append(
                 f"Turn {turn['turn_number']}: User: {turn['user_input']}"
             )
-            context_lines.append(
-                f"Partner: {turn['partner_response']}"
-            )
+            context_lines.append(f"Partner: {turn['partner_response']}")
 
         return "\n".join(context_lines)
 
@@ -103,9 +96,7 @@ class ContextManager:
             context_lines.append(
                 f"Turn {turn['turn_number']}: User: {turn['user_input']}"
             )
-            context_lines.append(
-                f"Partner: {turn['partner_response']}"
-            )
+            context_lines.append(f"Partner: {turn['partner_response']}")
 
         return "\n".join(context_lines)
 
@@ -114,11 +105,11 @@ class ContextManager:
             return "No previous activity"
 
         turn_count = len(turns)
-        phase_changes = []
+        phase_changes: list[str] = []
 
         for turn in turns:
-            if 'phase' in turn:
-                phase = turn['phase']
+            if "phase" in turn:
+                phase = turn["phase"]
                 if not phase_changes or phase_changes[-1] != phase:
                     phase_changes.append(phase)
 
@@ -131,8 +122,8 @@ class ContextManager:
             key_elements.append(f"transitioned through {len(phase_changes)} phases")
 
         first_turn = turns[0]
-        if 'user_input' in first_turn:
-            first_input_preview = first_turn['user_input'][:50]
+        if "user_input" in first_turn:
+            first_input_preview = first_turn["user_input"][:50]
             key_elements.append(f"started with '{first_input_preview}...'")
 
         return ", ".join(key_elements)
@@ -147,7 +138,9 @@ class ContextManager:
             compacted_lines = [lines[0]]
 
             for line in lines[1:]:
-                if any(keyword in line.lower() for keyword in ["turn", "user:", "partner:"]):
+                if any(
+                    keyword in line.lower() for keyword in ["turn", "user:", "partner:"]
+                ):
                     compacted_lines.append(line)
 
             compact_conversation = "\n".join(compacted_lines[-10:])
@@ -161,22 +154,24 @@ class ContextManager:
             return {
                 "total_turns": 0,
                 "estimated_tokens": 0,
-                "requires_summarization": False
+                "requires_summarization": False,
             }
 
         total_text = ""
         for turn in session.conversation_history:
-            total_text += turn.get('user_input', '')
-            total_text += turn.get('partner_response', '')
+            total_text += turn.get("user_input", "")
+            total_text += turn.get("partner_response", "")
 
         estimated_tokens = self.estimate_tokens(total_text)
-        requires_summarization = len(session.conversation_history) > self.summarization_threshold
+        requires_summarization = (
+            len(session.conversation_history) > self.summarization_threshold
+        )
 
         return {
             "total_turns": len(session.conversation_history),
             "estimated_tokens": estimated_tokens,
             "requires_summarization": requires_summarization,
-            "within_limit": estimated_tokens < self.max_tokens
+            "within_limit": estimated_tokens < self.max_tokens,
         }
 
 
@@ -184,15 +179,13 @@ _context_manager_instance: Optional[ContextManager] = None
 
 
 def get_context_manager(
-    max_tokens: int = 4000,
-    summarization_threshold: int = 10
+    max_tokens: int = 4000, summarization_threshold: int = 10
 ) -> ContextManager:
     global _context_manager_instance
 
     if _context_manager_instance is None:
         _context_manager_instance = ContextManager(
-            max_tokens=max_tokens,
-            summarization_threshold=summarization_threshold
+            max_tokens=max_tokens, summarization_threshold=summarization_threshold
         )
 
     return _context_manager_instance

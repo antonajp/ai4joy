@@ -2,6 +2,7 @@
 
 Provides Playwright fixtures and configuration for browser testing.
 """
+
 import pytest
 from playwright.sync_api import Browser, BrowserContext, Page, Playwright
 
@@ -11,7 +12,7 @@ def browser_type_launch_args():
     """Launch arguments for all browser types"""
     return {
         "headless": True,  # Run headless by default, override with --headed
-        "slow_mo": 0,      # Slow down execution for debugging (ms)
+        "slow_mo": 0,  # Slow down execution for debugging (ms)
     }
 
 
@@ -31,13 +32,13 @@ def pytest_addoption(parser):
         "--headed",
         action="store_true",
         default=False,
-        help="Run browser in headed mode (visible browser window)"
+        help="Run browser in headed mode (visible browser window)",
     )
     parser.addoption(
         "--browser",
         action="store",
         default="chromium",
-        help="Browser to use: chromium, firefox, webkit"
+        help="Browser to use: chromium, firefox, webkit",
     )
 
 

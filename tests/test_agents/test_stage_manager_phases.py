@@ -12,6 +12,9 @@ Test Coverage:
 
 import pytest
 from google.adk.agents import Agent
+from app.config import get_settings
+
+settings = get_settings()
 
 
 class TestStageManagerSubAgents:
@@ -32,12 +35,14 @@ class TestStageManagerSubAgents:
         stage_manager = create_stage_manager()
 
         # Verify has sub_agents attribute
-        assert hasattr(stage_manager, 'sub_agents'), \
+        assert hasattr(stage_manager, "sub_agents"), (
             "Stage Manager missing sub_agents attribute"
+        )
 
         # Verify exactly 4 sub-agents
-        assert len(stage_manager.sub_agents) == 4, \
+        assert len(stage_manager.sub_agents) == 4, (
             f"Stage Manager should have 4 sub-agents, got {len(stage_manager.sub_agents)}"
+        )
 
         print("✓ Stage Manager has 4 sub-agents")
 
@@ -52,8 +57,9 @@ class TestStageManagerSubAgents:
         stage_manager = create_stage_manager()
 
         for sub_agent in stage_manager.sub_agents:
-            assert isinstance(sub_agent, Agent), \
+            assert isinstance(sub_agent, Agent), (
                 f"Sub-agent {sub_agent} is not google.adk.Agent"
+            )
 
         print("✓ All sub-agents are ADK Agent instances")
 
@@ -68,11 +74,12 @@ class TestStageManagerSubAgents:
         stage_manager = create_stage_manager()
         agent_names = [agent.name for agent in stage_manager.sub_agents]
 
-        required_agents = ['mc_agent', 'room_agent', 'partner_agent', 'coach_agent']
+        required_agents = ["mc_agent", "room_agent", "partner_agent", "coach_agent"]
 
         for required_agent in required_agents:
-            assert required_agent in agent_names, \
+            assert required_agent in agent_names, (
                 f"Missing required agent: {required_agent}. Found: {agent_names}"
+            )
 
         print("✓ All required agents present")
         print(f"  - Agent names: {agent_names}")
@@ -92,8 +99,7 @@ class TestPhaseTransitionLogic:
         for turn_count in [0, 1, 2, 3]:
             phase = determine_partner_phase(turn_count)
 
-            assert phase == 1, \
-                f"Turn {turn_count} should be Phase 1, got Phase {phase}"
+            assert phase == 1, f"Turn {turn_count} should be Phase 1, got Phase {phase}"
 
         print("✓ Turns 0-3 correctly map to Phase 1")
 
@@ -110,8 +116,7 @@ class TestPhaseTransitionLogic:
         for turn_count in test_turns:
             phase = determine_partner_phase(turn_count)
 
-            assert phase == 2, \
-                f"Turn {turn_count} should be Phase 2, got Phase {phase}"
+            assert phase == 2, f"Turn {turn_count} should be Phase 2, got Phase {phase}"
 
         print("✓ Turns 4+ correctly map to Phase 2")
         print(f"  - Tested turns: {test_turns}")
@@ -144,11 +149,9 @@ class TestPhaseTransitionLogic:
         for turn_count in [0, 5, 10]:
             phase = determine_partner_phase(turn_count)
 
-            assert isinstance(phase, int), \
-                f"Phase should be integer, got {type(phase)}"
+            assert isinstance(phase, int), f"Phase should be integer, got {type(phase)}"
 
-            assert phase in [1, 2], \
-                f"Phase should be 1 or 2, got {phase}"
+            assert phase in [1, 2], f"Phase should be 1 or 2, got {phase}"
 
         print("✓ Phase function returns valid integers (1 or 2)")
 
@@ -173,8 +176,9 @@ class TestPartnerAgentUpdates:
         assert partner_phase2.name == "partner_agent"
 
         # Prompts should be different
-        assert partner_phase1.instruction != partner_phase2.instruction, \
+        assert partner_phase1.instruction != partner_phase2.instruction, (
             "Phase 1 and Phase 2 Partner should have different prompts"
+        )
 
         print("✓ Partner agent recreated with different prompt for Phase 2")
 
@@ -193,8 +197,7 @@ class TestPartnerAgentUpdates:
         supportive_keywords = ["support", "help", "encourage", "guide"]
         found = [kw for kw in supportive_keywords if kw in instruction]
 
-        assert len(found) >= 1, \
-            f"Phase 1 Partner should be supportive. Found: {found}"
+        assert len(found) >= 1, f"Phase 1 Partner should be supportive. Found: {found}"
 
         print(f"✓ Phase 1 Partner is supportive: {found}")
 
@@ -213,8 +216,7 @@ class TestPartnerAgentUpdates:
         fallible_keywords = ["fallible", "realistic", "forget", "miss", "human"]
         found = [kw for kw in fallible_keywords if kw in instruction]
 
-        assert len(found) >= 1, \
-            f"Phase 2 Partner should be fallible. Found: {found}"
+        assert len(found) >= 1, f"Phase 2 Partner should be fallible. Found: {found}"
 
         print(f"✓ Phase 2 Partner is fallible: {found}")
 
@@ -222,20 +224,22 @@ class TestPartnerAgentUpdates:
         """
         TC-STAGE-04d: Partner Uses Pro Model in Both Phases
 
-        Both phases should use gemini-1.5-pro for creativity.
+        Both phases should use configured pro model for creativity.
         """
         from app.agents.stage_manager import get_partner_agent_for_turn
 
         partner_p1 = get_partner_agent_for_turn(turn_count=1)
         partner_p2 = get_partner_agent_for_turn(turn_count=8)
 
-        assert partner_p1.model == "gemini-1.5-pro", \
+        assert partner_p1.model == settings.vertexai_pro_model, (
             f"Phase 1 Partner should use Pro, got {partner_p1.model}"
+        )
 
-        assert partner_p2.model == "gemini-1.5-pro", \
+        assert partner_p2.model == settings.vertexai_pro_model, (
             f"Phase 2 Partner should use Pro, got {partner_p2.model}"
+        )
 
-        print("✓ Both phases use gemini-1.5-pro model")
+        print(f"✓ Both phases use {settings.vertexai_pro_model} model")
 
 
 class TestPhaseInformation:
@@ -252,13 +256,13 @@ class TestPhaseInformation:
         # Create with turn_count parameter (if supported)
         # This may need adjustment based on actual implementation
         try:
-            stage_manager = create_stage_manager(turn_count=5)
+            _stage_manager = create_stage_manager(turn_count=5)
             # Check if turn_count is stored somewhere
             # Implementation-specific
             print("✓ Stage Manager can receive turn_count parameter")
         except TypeError:
             # If turn_count not in constructor, check if there's a method
-            stage_manager = create_stage_manager()
+            _stage_manager = create_stage_manager()
             print("ℹ Stage Manager does not accept turn_count in constructor")
             print("  (May use different mechanism for phase tracking)")
 
@@ -280,7 +284,9 @@ class TestPhaseInformation:
         found = [kw for kw in phase_keywords if kw in instruction]
 
         # This is a soft check - not all implementations may mention phase explicitly
-        print(f"ℹ Stage Manager instruction phase references: {found if found else 'None explicit'}")
+        print(
+            f"ℹ Stage Manager instruction phase references: {found if found else 'None explicit'}"
+        )
 
     def test_tc_stage_05_partner_in_sub_agents_list(self):
         """
@@ -293,11 +299,14 @@ class TestPhaseInformation:
         stage_manager = create_stage_manager()
         agent_names = [agent.name for agent in stage_manager.sub_agents]
 
-        assert 'partner_agent' in agent_names, \
+        assert "partner_agent" in agent_names, (
             f"Partner agent should be in sub-agents: {agent_names}"
+        )
 
         # Get the Partner agent
-        partner_agents = [a for a in stage_manager.sub_agents if a.name == 'partner_agent']
+        partner_agents = [
+            a for a in stage_manager.sub_agents if a.name == "partner_agent"
+        ]
         assert len(partner_agents) == 1, "Should have exactly one Partner agent"
 
         partner = partner_agents[0]
@@ -319,8 +328,9 @@ class TestStageManagerConfiguration:
 
         stage_manager = create_stage_manager()
 
-        assert isinstance(stage_manager, Agent), \
+        assert isinstance(stage_manager, Agent), (
             f"Stage Manager should be google.adk.Agent, got {type(stage_manager)}"
+        )
 
         print("✓ Stage Manager is ADK Agent instance")
 
@@ -334,8 +344,9 @@ class TestStageManagerConfiguration:
 
         stage_manager = create_stage_manager()
 
-        assert stage_manager.name == "stage_manager", \
+        assert stage_manager.name == "stage_manager", (
             f"Name should be 'stage_manager', got '{stage_manager.name}'"
+        )
 
         print("✓ Stage Manager has correct name")
 
@@ -349,10 +360,11 @@ class TestStageManagerConfiguration:
 
         stage_manager = create_stage_manager()
 
-        assert stage_manager.model == "gemini-1.5-flash", \
+        assert stage_manager.model == settings.vertexai_flash_model, (
             f"Stage Manager should use Flash, got {stage_manager.model}"
+        )
 
-        print("✓ Stage Manager uses gemini-1.5-flash")
+        print(f"✓ Stage Manager uses {settings.vertexai_flash_model}")
 
     def test_tc_stage_06_stage_manager_has_instruction(self):
         """
@@ -364,16 +376,19 @@ class TestStageManagerConfiguration:
 
         stage_manager = create_stage_manager()
 
-        assert hasattr(stage_manager, 'instruction'), "Missing instruction"
-        assert isinstance(stage_manager.instruction, str), "Instruction should be string"
+        assert hasattr(stage_manager, "instruction"), "Missing instruction"
+        assert isinstance(stage_manager.instruction, str), (
+            "Instruction should be string"
+        )
         assert len(stage_manager.instruction) > 200, "Instruction seems too short"
 
         instruction = stage_manager.instruction.lower()
         orchestration_keywords = ["orchestrat", "coordinat", "manage", "sub-agent"]
         found = [kw for kw in orchestration_keywords if kw in instruction]
 
-        assert len(found) >= 1, \
+        assert len(found) >= 1, (
             f"Stage Manager should describe orchestration role. Found: {found}"
+        )
 
         print(f"✓ Stage Manager has orchestration instruction: {found}")
 
@@ -393,8 +408,8 @@ class TestPhaseTransitionIntegration:
 
         # All sub-agents should have names
         for agent in stage_manager.sub_agents:
-            assert hasattr(agent, 'name'), f"Agent {agent} missing name"
-            assert hasattr(agent, 'model'), f"Agent {agent} missing model"
+            assert hasattr(agent, "name"), f"Agent {agent} missing name"
+            assert hasattr(agent, "model"), f"Agent {agent} missing model"
 
         print("✓ All 4 agents are compatible and properly configured")
 
@@ -410,25 +425,34 @@ class TestPhaseTransitionIntegration:
         partner_t4 = get_partner_agent_for_turn(turn_count=4)
 
         # Should have different instructions
-        assert partner_t3.instruction != partner_t4.instruction, \
+        assert partner_t3.instruction != partner_t4.instruction, (
             "Partner instruction should change between turn 3 and turn 4"
+        )
 
         # Phase 1 vs Phase 2 keywords
         inst_t3 = partner_t3.instruction.lower()
         inst_t4 = partner_t4.instruction.lower()
 
         # Turn 3 should have more supportive language
-        support_count_t3 = inst_t3.count("support") + inst_t3.count("help") + inst_t3.count("guide")
-        support_count_t4 = inst_t4.count("support") + inst_t4.count("help") + inst_t4.count("guide")
+        support_count_t3 = (
+            inst_t3.count("support") + inst_t3.count("help") + inst_t3.count("guide")
+        )
+        support_count_t4 = (
+            inst_t4.count("support") + inst_t4.count("help") + inst_t4.count("guide")
+        )
 
         # Turn 4 should have fallible language
-        fallible_count_t4 = inst_t4.count("fallible") + inst_t4.count("realistic") + inst_t4.count("forget")
+        fallible_count_t4 = (
+            inst_t4.count("fallible")
+            + inst_t4.count("realistic")
+            + inst_t4.count("forget")
+        )
 
-        assert support_count_t3 >= support_count_t4, \
+        assert support_count_t3 >= support_count_t4, (
             "Turn 3 should have equal or more supportive language than turn 4"
+        )
 
-        assert fallible_count_t4 > 0, \
-            "Turn 4 should introduce fallible language"
+        assert fallible_count_t4 > 0, "Turn 4 should introduce fallible language"
 
         print("✓ Partner correctly transitions from supportive to fallible")
         print(f"  - Turn 3 supportive words: {support_count_t3}")
@@ -486,9 +510,9 @@ class TestPhaseEdgeCases:
 # Pytest collection
 def test_summary():
     """Print test summary"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("STAGE MANAGER PHASE TRANSITION TEST SUMMARY")
-    print("="*60)
+    print("=" * 60)
     print("\nTest Coverage:")
     print("  ✓ TC-STAGE-01: Stage Manager has 4 sub-agents")
     print("  ✓ TC-STAGE-02: Phase 1 logic (turns 0-3)")
@@ -498,7 +522,7 @@ def test_summary():
     print("  ✓ TC-STAGE-06: Stage Manager configuration")
     print("  ✓ TC-STAGE-07: Integration and compatibility")
     print("  ✓ TC-STAGE-08: Edge cases")
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
 
 
 if __name__ == "__main__":

@@ -18,14 +18,17 @@ Usage:
         await save_session_to_memory(session)
         results = await search_user_memories(user_id, "improv techniques")
 """
+
 import threading
 from typing import Optional, List, Dict, Any, Union
-from google.adk.memory import VertexAiMemoryBankService, InMemoryMemoryService
 
-MemoryServiceType = Union[VertexAiMemoryBankService, InMemoryMemoryService]
+from google.adk.memory import VertexAiMemoryBankService, InMemoryMemoryService
 from google.adk.sessions.session import Session as ADKSession
+
 from app.config import get_settings
 from app.utils.logger import get_logger
+
+MemoryServiceType = Union[VertexAiMemoryBankService, InMemoryMemoryService]
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -67,27 +70,31 @@ def get_adk_memory_service() -> Optional[MemoryServiceType]:
                     if not settings.agent_engine_id:
                         logger.error(
                             "Agent Engine ID required for VertexAiMemoryBankService",
-                            use_in_memory=settings.use_in_memory_memory_service
+                            use_in_memory=settings.use_in_memory_memory_service,
                         )
-                        raise ValueError("AGENT_ENGINE_ID must be set for production memory service")
+                        raise ValueError(
+                            "AGENT_ENGINE_ID must be set for production memory service"
+                        )
 
                     logger.info(
                         "Initializing ADK VertexAiMemoryBankService",
                         project=settings.gcp_project_id,
                         location=settings.gcp_location,
-                        agent_engine_id=settings.agent_engine_id
+                        agent_engine_id=settings.agent_engine_id,
                     )
                     _memory_service = VertexAiMemoryBankService(
                         project=settings.gcp_project_id,
                         location=settings.gcp_location,
-                        agent_engine_id=settings.agent_engine_id
+                        agent_engine_id=settings.agent_engine_id,
                     )
-                    logger.info("ADK VertexAiMemoryBankService initialized successfully")
+                    logger.info(
+                        "ADK VertexAiMemoryBankService initialized successfully"
+                    )
             except Exception as e:
                 logger.error(
                     "Failed to initialize ADK Memory Service",
                     error=str(e),
-                    error_type=type(e).__name__
+                    error_type=type(e).__name__,
                 )
                 raise
 
@@ -142,17 +149,17 @@ async def save_session_to_memory(adk_session: ADKSession) -> bool:
     try:
         logger.info(
             "Saving session to memory",
-            session_id=adk_session.session_id,
+            session_id=adk_session.id,
             user_id=adk_session.user_id,
-            events_count=len(adk_session.events)
+            events_count=len(adk_session.events),
         )
 
         await memory_service.add_session_to_memory(adk_session)
 
         logger.info(
             "Session saved to memory successfully",
-            session_id=adk_session.session_id,
-            user_id=adk_session.user_id
+            session_id=adk_session.id,
+            user_id=adk_session.user_id,
         )
 
         return True
@@ -160,18 +167,16 @@ async def save_session_to_memory(adk_session: ADKSession) -> bool:
     except Exception as e:
         logger.error(
             "Failed to save session to memory",
-            session_id=adk_session.session_id,
+            session_id=adk_session.id,
             user_id=adk_session.user_id,
             error=str(e),
-            error_type=type(e).__name__
+            error_type=type(e).__name__,
         )
         return False
 
 
 async def search_user_memories(
-    user_id: str,
-    query: str,
-    limit: int = 10
+    user_id: str, query: str, limit: int = 10
 ) -> List[Dict[str, Any]]:
     """Search user's past session memories.
 
@@ -194,24 +199,17 @@ async def search_user_memories(
 
     try:
         logger.info(
-            "Searching user memories",
-            user_id=user_id,
-            query=query[:100],
-            limit=limit
+            "Searching user memories", user_id=user_id, query=query[:100], limit=limit
         )
 
         results = await memory_service.search_memory(
-            app_name=settings.app_name,
-            user_id=user_id,
-            query=query
+            app_name=settings.app_name, user_id=user_id, query=query
         )
 
-        results_list = results[:limit] if results else []
+        results_list = list(results)[:limit] if results else []
 
         logger.info(
-            "Memory search completed",
-            user_id=user_id,
-            results_count=len(results_list)
+            "Memory search completed", user_id=user_id, results_count=len(results_list)
         )
 
         return results_list
@@ -222,6 +220,6 @@ async def search_user_memories(
             user_id=user_id,
             query=query[:100],
             error=str(e),
-            error_type=type(e).__name__
+            error_type=type(e).__name__,
         )
         return []

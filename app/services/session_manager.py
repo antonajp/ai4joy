@@ -1,8 +1,9 @@
 """Session Management Service with Firestore Persistence and ADK Integration"""
+
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
 import uuid
-from google.cloud import firestore
+from google.cloud import firestore  # type: ignore[attr-defined]
 from google.adk.sessions.session import Session as ADKSession
 
 from app.config import get_settings
@@ -45,19 +46,17 @@ class SessionManager:
 
     def __init__(self, use_adk_sessions: bool = True):
         self.db = firestore.Client(
-            project=settings.gcp_project_id,
-            database=settings.firestore_database
+            project=settings.gcp_project_id, database=settings.firestore_database
         )
         self.collection = self.db.collection(settings.firestore_sessions_collection)
         self.use_adk_sessions = use_adk_sessions
         # Use shared DatabaseSessionService singleton
-        self.adk_session_service = get_adk_session_service() if use_adk_sessions else None
+        self.adk_session_service = (
+            get_adk_session_service() if use_adk_sessions else None
+        )
 
     async def create_session(
-        self,
-        user_id: str,
-        user_email: str,
-        session_data: SessionCreate
+        self, user_id: str, user_email: str, session_data: SessionCreate
     ) -> Session:
         """
         Create new session associated with authenticated user.
@@ -87,24 +86,28 @@ class SessionManager:
             expires_at=expires_at,
             conversation_history=[],
             metadata={},
-            turn_count=0
+            turn_count=0,
         )
 
         try:
             doc_ref = self.collection.document(session_id)
-            doc_ref.set(session.model_dump(mode='json'))
+            doc_ref.set(session.model_dump(mode="json"))
 
             logger.info(
                 "Session created successfully",
                 session_id=session_id,
                 user_id=user_id,
                 user_email=user_email,
-                location=session_data.location
+                location=session_data.location,
             )
 
             # Create ADK session with DatabaseSessionService
             if self.use_adk_sessions and self.adk_session_service:
-                status_value = session.status if isinstance(session.status, str) else session.status.value
+                status_value = (
+                    session.status
+                    if isinstance(session.status, str)
+                    else session.status.value
+                )
                 await self.adk_session_service.create_session(
                     app_name=settings.app_name,
                     user_id=session.user_id,
@@ -115,22 +118,18 @@ class SessionManager:
                         "user_name": session.user_name,
                         "current_phase": session.current_phase or "PHASE_1",
                         "turn_count": session.turn_count,
-                        "status": status_value
-                    }
+                        "status": status_value,
+                    },
                 )
                 logger.info(
                     "ADK session created in DatabaseSessionService",
-                    session_id=session_id
+                    session_id=session_id,
                 )
 
             return session
 
         except Exception as e:
-            logger.error(
-                "Failed to create session",
-                user_id=user_id,
-                error=str(e)
-            )
+            logger.error("Failed to create session", user_id=user_id, error=str(e))
             raise
 
     async def get_session(self, session_id: str) -> Optional[Session]:
@@ -150,10 +149,10 @@ class SessionManager:
 
             data = snapshot.to_dict()
 
-            for date_field in ['created_at', 'updated_at', 'expires_at']:
+            for date_field in ["created_at", "updated_at", "expires_at"]:
                 if date_field in data and isinstance(data[date_field], str):
                     data[date_field] = datetime.fromisoformat(
-                        data[date_field].replace('Z', '+00:00')
+                        data[date_field].replace("Z", "+00:00")
                     )
 
             session = Session(**data)
@@ -162,7 +161,7 @@ class SessionManager:
                 logger.warning(
                     "Session expired",
                     session_id=session_id,
-                    expired_at=session.expires_at.isoformat()
+                    expired_at=session.expires_at.isoformat(),
                 )
                 await self.update_session_status(session_id, SessionStatus.TIMEOUT)
                 return None
@@ -170,40 +169,36 @@ class SessionManager:
             return session
 
         except Exception as e:
-            logger.error("Failed to retrieve session", session_id=session_id, error=str(e))
+            logger.error(
+                "Failed to retrieve session", session_id=session_id, error=str(e)
+            )
             raise
 
     async def update_session_status(
-        self,
-        session_id: str,
-        status: SessionStatus
+        self, session_id: str, status: SessionStatus
     ) -> None:
         """Update session status"""
         try:
             doc_ref = self.collection.document(session_id)
-            doc_ref.update({
-                "status": status.value,
-                "updated_at": datetime.now(timezone.utc).isoformat()
-            })
+            doc_ref.update(
+                {
+                    "status": status.value,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
 
             logger.info(
-                "Session status updated",
-                session_id=session_id,
-                new_status=status.value
+                "Session status updated", session_id=session_id, new_status=status.value
             )
 
         except Exception as e:
             logger.error(
-                "Failed to update session status",
-                session_id=session_id,
-                error=str(e)
+                "Failed to update session status", session_id=session_id, error=str(e)
             )
             raise
 
     async def add_conversation_turn(
-        self,
-        session_id: str,
-        turn_data: Dict[str, Any]
+        self, session_id: str, turn_data: Dict[str, Any]
     ) -> None:
         """
         Add conversation turn to session history.
@@ -214,50 +209,42 @@ class SessionManager:
         """
         try:
             doc_ref = self.collection.document(session_id)
-            doc_ref.update({
-                "conversation_history": firestore.ArrayUnion([turn_data]),
-                "turn_count": firestore.Increment(1),
-                "updated_at": datetime.now(timezone.utc).isoformat()
-            })
+            doc_ref.update(
+                {
+                    "conversation_history": firestore.ArrayUnion([turn_data]),
+                    "turn_count": firestore.Increment(1),
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
 
             logger.info(
                 "Conversation turn added",
                 session_id=session_id,
-                turn_number=turn_data.get("turn_number")
+                turn_number=turn_data.get("turn_number"),
             )
 
         except Exception as e:
             logger.error(
-                "Failed to add conversation turn",
-                session_id=session_id,
-                error=str(e)
+                "Failed to add conversation turn", session_id=session_id, error=str(e)
             )
             raise
 
-    async def update_session_phase(
-        self,
-        session_id: str,
-        phase: str
-    ) -> None:
+    async def update_session_phase(self, session_id: str, phase: str) -> None:
         """Update current phase of session"""
         try:
             doc_ref = self.collection.document(session_id)
-            doc_ref.update({
-                "current_phase": phase,
-                "updated_at": datetime.now(timezone.utc).isoformat()
-            })
-
-            logger.info(
-                "Session phase updated",
-                session_id=session_id,
-                phase=phase
+            doc_ref.update(
+                {
+                    "current_phase": phase,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
             )
+
+            logger.info("Session phase updated", session_id=session_id, phase=phase)
 
         except Exception as e:
             logger.error(
-                "Failed to update session phase",
-                session_id=session_id,
-                error=str(e)
+                "Failed to update session phase", session_id=session_id, error=str(e)
             )
             raise
 
@@ -266,7 +253,7 @@ class SessionManager:
         session_id: str,
         turn_data: Dict[str, Any],
         new_phase: Optional[str] = None,
-        new_status: Optional[SessionStatus] = None
+        new_status: Optional[SessionStatus] = None,
     ) -> None:
         """
         Atomically update session with turn data, phase, and status using Firestore transaction.
@@ -280,13 +267,14 @@ class SessionManager:
             new_status: Optional new status value
         """
         try:
+
             @firestore.transactional
             def update_in_transaction(transaction, doc_ref):
                 # Build update dict
                 updates = {
                     "conversation_history": firestore.ArrayUnion([turn_data]),
                     "turn_count": firestore.Increment(1),
-                    "updated_at": datetime.now(timezone.utc).isoformat()
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
                 }
 
                 if new_phase is not None:
@@ -308,14 +296,14 @@ class SessionManager:
                 session_id=session_id,
                 turn_number=turn_data.get("turn_number"),
                 phase_updated=new_phase is not None,
-                status_updated=new_status is not None
+                status_updated=new_status is not None,
             )
 
         except Exception as e:
             logger.error(
                 "Failed to update session atomically",
                 session_id=session_id,
-                error=str(e)
+                error=str(e),
             )
             raise
 
@@ -326,10 +314,12 @@ class SessionManager:
         """
         try:
             doc_ref = self.collection.document(session_id)
-            doc_ref.update({
-                "status": SessionStatus.CLOSED.value,
-                "updated_at": datetime.now(timezone.utc).isoformat()
-            })
+            doc_ref.update(
+                {
+                    "status": SessionStatus.CLOSED.value,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
 
             logger.info("Session closed", session_id=session_id)
 
@@ -341,13 +331,15 @@ class SessionManager:
         """Get count of active sessions for user"""
         try:
             query = self.collection.where("user_id", "==", user_id).where(
-                "status", "in", [
+                "status",
+                "in",
+                [
                     SessionStatus.INITIALIZED.value,
                     SessionStatus.MC_PHASE.value,
                     SessionStatus.ACTIVE.value,
                     SessionStatus.SCENE_COMPLETE.value,
-                    SessionStatus.COACH_PHASE.value
-                ]
+                    SessionStatus.COACH_PHASE.value,
+                ],
             )
 
             results = query.stream()
@@ -357,13 +349,12 @@ class SessionManager:
             return count
 
         except Exception as e:
-            logger.error("Failed to count active sessions", user_id=user_id, error=str(e))
+            logger.error(
+                "Failed to count active sessions", user_id=user_id, error=str(e)
+            )
             return 0
 
-    async def get_adk_session(
-        self,
-        session_id: str
-    ) -> Optional[ADKSession]:
+    async def get_adk_session(self, session_id: str) -> Optional[ADKSession]:
         """
         Get ADK session for runtime agent execution.
 
@@ -384,19 +375,23 @@ class SessionManager:
         adk_session = await self.adk_session_service.get_session(
             app_name=settings.app_name,
             user_id=firestore_session.user_id,
-            session_id=firestore_session.session_id
+            session_id=firestore_session.session_id,
         )
 
         if adk_session:
             logger.debug(
                 "ADK session retrieved from DatabaseSessionService",
                 session_id=session_id,
-                events_count=len(adk_session.events)
+                events_count=len(adk_session.events),
             )
             return adk_session
 
         # Create new ADK session if not found
-        status_value = firestore_session.status if isinstance(firestore_session.status, str) else firestore_session.status.value
+        status_value = (
+            firestore_session.status
+            if isinstance(firestore_session.status, str)
+            else firestore_session.status.value
+        )
         adk_session = await self.adk_session_service.create_session(
             app_name=settings.app_name,
             user_id=firestore_session.user_id,
@@ -407,21 +402,18 @@ class SessionManager:
                 "user_name": firestore_session.user_name,
                 "current_phase": firestore_session.current_phase or "PHASE_1",
                 "turn_count": firestore_session.turn_count,
-                "status": status_value
-            }
+                "status": status_value,
+            },
         )
 
         logger.info(
-            "ADK session created in DatabaseSessionService",
-            session_id=session_id
+            "ADK session created in DatabaseSessionService", session_id=session_id
         )
 
         return adk_session
 
     async def sync_adk_session_to_firestore(
-        self,
-        adk_session: ADKSession,
-        session_id: str
+        self, adk_session: ADKSession, session_id: str
     ) -> None:
         """
         Sync ADK session state to Firestore for audit and metadata.
@@ -442,7 +434,7 @@ class SessionManager:
 
             updates = {
                 "updated_at": datetime.now(timezone.utc).isoformat(),
-                "turn_count": adk_session.state.get("turn_count", 0)
+                "turn_count": adk_session.state.get("turn_count", 0),
             }
 
             if "current_phase" in adk_session.state:
@@ -457,14 +449,14 @@ class SessionManager:
                 "ADK session state synced to Firestore",
                 session_id=session_id,
                 turn_count=updates["turn_count"],
-                events_count=len(adk_session.events)
+                events_count=len(adk_session.events),
             )
 
         except Exception as e:
             logger.error(
                 "Failed to sync ADK session to Firestore",
                 session_id=session_id,
-                error=str(e)
+                error=str(e),
             )
             raise
 

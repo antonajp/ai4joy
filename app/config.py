@@ -1,4 +1,5 @@
 """Application Configuration Management"""
+
 import os
 from pydantic_settings import BaseSettings
 from functools import lru_cache
@@ -18,18 +19,24 @@ class Settings(BaseSettings):
     firestore_sessions_collection: str = "sessions"
     firestore_user_limits_collection: str = "user_limits"
 
-    vertexai_flash_model: str = "gemini-1.5-flash"
-    vertexai_pro_model: str = "gemini-1.5-pro"
+    # Model names without version suffixes use auto-updated aliases
+    # See: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions
+    vertexai_flash_model: str = "gemini-2.0-flash"
+    vertexai_pro_model: str = "gemini-2.0-flash"  # gemini-1.5-pro deprecated April 2025
 
     rate_limit_daily_sessions: int = int(os.getenv("RATE_LIMIT_DAILY_SESSIONS", "10"))
-    rate_limit_concurrent_sessions: int = int(os.getenv("RATE_LIMIT_CONCURRENT_SESSIONS", "3"))
+    rate_limit_concurrent_sessions: int = int(
+        os.getenv("RATE_LIMIT_CONCURRENT_SESSIONS", "3")
+    )
 
     session_timeout_minutes: int = 60
 
     # OAuth Configuration
     oauth_client_id: str = os.getenv("OAUTH_CLIENT_ID", "")
     oauth_client_secret: str = os.getenv("OAUTH_CLIENT_SECRET", "")
-    oauth_redirect_uri: str = os.getenv("OAUTH_REDIRECT_URI", "http://localhost:8080/auth/callback")
+    oauth_redirect_uri: str = os.getenv(
+        "OAUTH_REDIRECT_URI", "http://localhost:8080/auth/callback"
+    )
     session_secret_key: str = os.getenv("SESSION_SECRET_KEY", "")
 
     # Access Control - Comma-separated list of allowed email addresses
@@ -41,7 +48,9 @@ class Settings(BaseSettings):
         """Parse comma-separated allowed users into a list"""
         if not self.allowed_users:
             return []
-        return [email.strip() for email in self.allowed_users.split(",") if email.strip()]
+        return [
+            email.strip() for email in self.allowed_users.split(",") if email.strip()
+        ]
 
     # Authentication bypass paths (no auth required)
     auth_bypass_paths: list = [
@@ -55,7 +64,7 @@ class Settings(BaseSettings):
         "/static/index.html",
         "/static/chat.html",
         "/static/styles.css",
-        "/static/app.js"
+        "/static/app.js",
     ]
 
     # IAP Header Configuration
@@ -71,24 +80,41 @@ class Settings(BaseSettings):
     # Monitoring and Observability
     otel_enabled: bool = os.getenv("OTEL_ENABLED", "true").lower() == "true"
     alert_latency_threshold: float = float(os.getenv("ALERT_LATENCY_THRESHOLD", "8.0"))
-    alert_error_rate_threshold: float = float(os.getenv("ALERT_ERROR_RATE_THRESHOLD", "0.05"))
-    alert_cache_hit_rate_threshold: float = float(os.getenv("ALERT_CACHE_HIT_RATE_THRESHOLD", "0.50"))
+    alert_error_rate_threshold: float = float(
+        os.getenv("ALERT_ERROR_RATE_THRESHOLD", "0.05")
+    )
+    alert_cache_hit_rate_threshold: float = float(
+        os.getenv("ALERT_CACHE_HIT_RATE_THRESHOLD", "0.50")
+    )
 
     # ADK Session Database Configuration
     # SQLite file path for ADK session persistence
-    adk_database_url: str = os.getenv("ADK_DATABASE_URL", "sqlite+aiosqlite:///./adk_sessions.db")
+    # IMPORTANT: In Cloud Run, /tmp is ephemeral and instance-specific. Sessions created
+    # in one instance won't be visible to another. The TurnOrchestrator.execute_turn()
+    # method handles this by ensuring ADK sessions are created from Firestore data before
+    # each turn execution. This makes SQLite effectively a local cache, with Firestore as
+    # the source of truth. For production scale, consider using Cloud SQL for ADK sessions.
+    adk_database_url: str = os.getenv(
+        "ADK_DATABASE_URL", "sqlite+aiosqlite:////tmp/adk_sessions.db"
+    )
 
     # ADK Memory Service Configuration
-    memory_service_enabled: bool = os.getenv("MEMORY_SERVICE_ENABLED", "false").lower() == "true"
+    memory_service_enabled: bool = (
+        os.getenv("MEMORY_SERVICE_ENABLED", "false").lower() == "true"
+    )
     agent_engine_id: str = os.getenv("AGENT_ENGINE_ID", "")
-    use_in_memory_memory_service: bool = os.getenv("USE_IN_MEMORY_MEMORY_SERVICE", "true").lower() == "true"
+    use_in_memory_memory_service: bool = (
+        os.getenv("USE_IN_MEMORY_MEMORY_SERVICE", "true").lower() == "true"
+    )
 
     # Performance Tuning Configuration
     perf_agent_timeout: int = int(os.getenv("PERF_AGENT_TIMEOUT", "30"))
     perf_cache_ttl: int = int(os.getenv("PERF_CACHE_TTL", "300"))
     perf_max_context_tokens: int = int(os.getenv("PERF_MAX_CONTEXT_TOKENS", "4000"))
     perf_batch_write_threshold: int = int(os.getenv("PERF_BATCH_WRITE_THRESHOLD", "5"))
-    perf_max_concurrent_sessions: int = int(os.getenv("PERF_MAX_CONCURRENT_SESSIONS", "10"))
+    perf_max_concurrent_sessions: int = int(
+        os.getenv("PERF_MAX_CONCURRENT_SESSIONS", "10")
+    )
     perf_firestore_batch_size: int = int(os.getenv("PERF_FIRESTORE_BATCH_SIZE", "500"))
 
     class Config:
@@ -114,5 +140,5 @@ def get_performance_config():
         max_context_tokens=settings.perf_max_context_tokens,
         batch_write_threshold=settings.perf_batch_write_threshold,
         max_concurrent_sessions_per_instance=settings.perf_max_concurrent_sessions,
-        firestore_batch_size=settings.perf_firestore_batch_size
+        firestore_batch_size=settings.perf_firestore_batch_size,
     )

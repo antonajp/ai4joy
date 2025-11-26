@@ -1,4 +1,5 @@
 """Session Management API Endpoints"""
+
 import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from typing import Dict, Any
@@ -19,12 +20,16 @@ router = APIRouter(prefix="/api/v1", tags=["sessions"])
 logger = get_logger(__name__)
 
 
-@router.post("/session/start", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/session/start",
+    response_model=SessionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def start_session(
     session_data: SessionCreate,
     request: Request,
     session_manager: SessionManager = Depends(get_session_manager),
-    rate_limiter: RateLimiter = Depends(get_rate_limiter)
+    rate_limiter: RateLimiter = Depends(get_rate_limiter),
 ) -> SessionResponse:
     """
     Create new session with rate limiting.
@@ -42,7 +47,7 @@ async def start_session(
         "Session creation requested",
         user_id=user_id,
         user_email=user_email,
-        location=session_data.location
+        location=session_data.location,
     )
 
     try:
@@ -51,23 +56,23 @@ async def start_session(
         logger.warning(
             "Session creation blocked by daily rate limit",
             user_id=user_id,
-            user_email=user_email
+            user_email=user_email,
         )
         raise e
 
     session = await session_manager.create_session(
-        user_id=user_id,
-        user_email=user_email,
-        session_data=session_data
+        user_id=user_id, user_email=user_email, session_data=session_data
     )
 
     try:
-        await rate_limiter.check_and_increment_concurrent_limit(user_id, session.session_id)
+        await rate_limiter.check_and_increment_concurrent_limit(
+            user_id, session.session_id
+        )
     except RateLimitExceeded as e:
         logger.warning(
             "Session creation blocked by concurrent rate limit",
             user_id=user_id,
-            session_id=session.session_id
+            session_id=session.session_id,
         )
         await session_manager.close_session(session.session_id)
         raise e
@@ -76,7 +81,7 @@ async def start_session(
         "Session created successfully",
         session_id=session.session_id,
         user_id=user_id,
-        user_email=user_email
+        user_email=user_email,
     )
 
     return SessionResponse(
@@ -85,7 +90,7 @@ async def start_session(
         location=session.location,
         created_at=session.created_at,
         expires_at=session.expires_at,
-        turn_count=session.turn_count
+        turn_count=session.turn_count,
     )
 
 
@@ -93,7 +98,7 @@ async def start_session(
 async def get_session_info(
     session_id: str,
     request: Request,
-    session_manager: SessionManager = Depends(get_session_manager)
+    session_manager: SessionManager = Depends(get_session_manager),
 ) -> SessionResponse:
     """Get session information"""
     user_info = get_authenticated_user(request)
@@ -104,8 +109,7 @@ async def get_session_info(
     if not session:
         logger.warning("Session not found", session_id=session_id, user_id=user_id)
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or expired"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found or expired"
         )
 
     if session.user_id != user_id:
@@ -113,11 +117,11 @@ async def get_session_info(
             "Unauthorized session access attempt",
             session_id=session_id,
             requesting_user=user_id,
-            session_owner=session.user_id
+            session_owner=session.user_id,
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to access this session"
+            detail="Not authorized to access this session",
         )
 
     return SessionResponse(
@@ -126,7 +130,7 @@ async def get_session_info(
         location=session.location,
         created_at=session.created_at,
         expires_at=session.expires_at,
-        turn_count=session.turn_count
+        turn_count=session.turn_count,
     )
 
 
@@ -135,7 +139,7 @@ async def execute_turn(
     session_id: str,
     turn_input: TurnInput,
     request: Request,
-    session_manager: SessionManager = Depends(get_session_manager)
+    session_manager: SessionManager = Depends(get_session_manager),
 ) -> TurnResponse:
     """
     Execute a turn in the improv session.
@@ -162,11 +166,11 @@ async def execute_turn(
             session_id=session_id,
             user_id=user_id,
             threat_level=injection_result.threat_level,
-            detections=injection_result.detections
+            detections=injection_result.detections,
         )
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Input contains patterns that violate content policy. Please rephrase your input."
+            detail="Input contains patterns that violate content policy. Please rephrase your input.",
         )
 
     # Check for offensive content
@@ -176,11 +180,11 @@ async def execute_turn(
             "Offensive content blocked",
             session_id=session_id,
             user_id=user_id,
-            severity=content_result.severity
+            severity=content_result.severity,
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Input contains inappropriate content. Please keep the scene collaborative and respectful."
+            detail="Input contains inappropriate content. Please keep the scene collaborative and respectful.",
         )
 
     # Detect and redact PII for logging
@@ -190,20 +194,23 @@ async def execute_turn(
             "PII detected in user input",
             session_id=session_id,
             user_id=user_id,
-            pii_types=[d.pii_type for d in pii_result.detections]
+            pii_types=[d.pii_type for d in pii_result.detections],
         )
 
     # Use redacted version for all logging from this point forward
-    sanitized_input = pii_result.redacted_text
+    _sanitized_input = pii_result.redacted_text  # noqa: F841 - kept for future logging use
 
     # Retrieve session
     session = await session_manager.get_session(session_id)
 
     if not session:
-        logger.warning("Turn requested for non-existent session", session_id=session_id, user_id=user_id)
+        logger.warning(
+            "Turn requested for non-existent session",
+            session_id=session_id,
+            user_id=user_id,
+        )
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or expired"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found or expired"
         )
 
     # Verify ownership
@@ -212,11 +219,11 @@ async def execute_turn(
             "Unauthorized turn attempt",
             session_id=session_id,
             requesting_user=user_id,
-            session_owner=session.user_id
+            session_owner=session.user_id,
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to access this session"
+            detail="Not authorized to access this session",
         )
 
     # Validate turn number matches session state
@@ -226,11 +233,11 @@ async def execute_turn(
             "Turn number mismatch",
             session_id=session_id,
             expected=expected_turn,
-            received=turn_input.turn_number
+            received=turn_input.turn_number,
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Expected turn {expected_turn}, got {turn_input.turn_number}"
+            detail=f"Expected turn {expected_turn}, got {turn_input.turn_number}",
         )
 
     # Execute turn with orchestrator
@@ -241,18 +248,20 @@ async def execute_turn(
         turn_response_data = await orchestrator.execute_turn(
             session=session,
             user_input=turn_input.user_input,
-            turn_number=turn_input.turn_number
+            turn_number=turn_input.turn_number,
         )
 
         logger.info(
             "Turn completed successfully",
             session_id=session_id,
             turn_number=turn_input.turn_number,
-            user_id=user_id
+            user_id=user_id,
         )
 
         phase_int = turn_response_data["current_phase"]
-        turn_response_data["current_phase"] = f"Phase {phase_int} ({'Supportive' if phase_int == 1 else 'Fallible'})"
+        turn_response_data["current_phase"] = (
+            f"Phase {phase_int} ({'Supportive' if phase_int == 1 else 'Fallible'})"
+        )
 
         return TurnResponse(**turn_response_data)
 
@@ -260,11 +269,11 @@ async def execute_turn(
         logger.error(
             "Turn execution timed out",
             session_id=session_id,
-            turn_number=turn_input.turn_number
+            turn_number=turn_input.turn_number,
         )
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail="Agent execution timed out. Please try again."
+            detail="Agent execution timed out. Please try again.",
         )
     except Exception as e:
         logger.error(
@@ -272,12 +281,12 @@ async def execute_turn(
             session_id=session_id,
             turn_number=turn_input.turn_number,
             error=str(e),
-            error_type=type(e).__name__
+            error_type=type(e).__name__,
         )
         # Sanitize error message - don't leak internal details
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while executing the turn. Please try again or contact support."
+            detail=f"An error occurred while executing the turn: {str(e)}",
         )
 
 
@@ -286,7 +295,7 @@ async def close_session(
     session_id: str,
     request: Request,
     session_manager: SessionManager = Depends(get_session_manager),
-    rate_limiter: RateLimiter = Depends(get_rate_limiter)
+    rate_limiter: RateLimiter = Depends(get_rate_limiter),
 ) -> Dict[str, str]:
     """
     Close session and decrement concurrent counter.
@@ -298,24 +307,19 @@ async def close_session(
 
     if not session:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
         )
 
     if session.user_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to close this session"
+            detail="Not authorized to close this session",
         )
 
     await session_manager.close_session(session_id)
     await rate_limiter.decrement_concurrent_sessions(user_id, session_id)
 
-    logger.info(
-        "Session closed",
-        session_id=session_id,
-        user_id=user_id
-    )
+    logger.info("Session closed", session_id=session_id, user_id=user_id)
 
     try:
         adk_session = await get_adk_session(session_id=session_id, user_id=user_id)
@@ -323,15 +327,13 @@ async def close_session(
             memory_saved = await save_session_to_memory(adk_session)
             if memory_saved:
                 logger.info(
-                    "Session memories saved",
-                    session_id=session_id,
-                    user_id=user_id
+                    "Session memories saved", session_id=session_id, user_id=user_id
                 )
         else:
             logger.warning(
                 "ADK session not found for memory save",
                 session_id=session_id,
-                user_id=user_id
+                user_id=user_id,
             )
     except Exception as e:
         logger.error(
@@ -339,7 +341,7 @@ async def close_session(
             session_id=session_id,
             user_id=user_id,
             error=str(e),
-            error_type=type(e).__name__
+            error_type=type(e).__name__,
         )
 
     return {"status": "closed", "session_id": session_id}
@@ -347,8 +349,7 @@ async def close_session(
 
 @router.get("/user/limits")
 async def get_user_limits(
-    request: Request,
-    rate_limiter: RateLimiter = Depends(get_rate_limiter)
+    request: Request, rate_limiter: RateLimiter = Depends(get_rate_limiter)
 ) -> Dict[str, Any]:
     """
     Get current rate limit status for authenticated user.
@@ -358,7 +359,4 @@ async def get_user_limits(
 
     limits = await rate_limiter.get_user_limits_status(user_id)
 
-    return {
-        "user_id": user_id,
-        "limits": limits
-    }
+    return {"user_id": user_id, "limits": limits}

@@ -1,4 +1,5 @@
 """Evaluation-Specific Pytest Fixtures for ADK Evaluation Framework"""
+
 import pytest
 import os
 from typing import Dict, Any, List
@@ -20,24 +21,17 @@ settings = get_settings()
 def pytest_configure(config):
     """Register evaluation-specific markers"""
     config.addinivalue_line(
-        "markers",
-        "evaluation: Agent evaluation tests using ADK evaluation framework"
+        "markers", "evaluation: Agent evaluation tests using ADK evaluation framework"
     )
     config.addinivalue_line(
-        "markers",
-        "eval_phase1: Tests for Phase 1 (supportive) partner behavior"
+        "markers", "eval_phase1: Tests for Phase 1 (supportive) partner behavior"
     )
     config.addinivalue_line(
-        "markers",
-        "eval_phase2: Tests for Phase 2 (fallible) partner behavior"
+        "markers", "eval_phase2: Tests for Phase 2 (fallible) partner behavior"
     )
+    config.addinivalue_line("markers", "eval_coach: Tests for coach feedback behavior")
     config.addinivalue_line(
-        "markers",
-        "eval_coach: Tests for coach feedback behavior"
-    )
-    config.addinivalue_line(
-        "markers",
-        "eval_transitions: Tests for phase transition handling"
+        "markers", "eval_transitions: Tests for phase transition handling"
     )
 
 
@@ -52,7 +46,7 @@ def eval_config():
         "phase_2_turns": [4, 5, 6, 7, 8, 9, 10],
         "coach_feedback_turn": 15,
         "timeout_seconds": 30,
-        "max_retries": 3
+        "max_retries": 3,
     }
 
 
@@ -111,7 +105,7 @@ def sample_phase1_inputs():
         "Welcome to the bakery! I'm so glad you're here.",
         "Yes, and we have fresh bread just out of the oven!",
         "That's perfect! What's your favorite kind?",
-        "I'll grab it for you right away!"
+        "I'll grab it for you right away!",
     ]
 
 
@@ -123,7 +117,7 @@ def sample_phase2_inputs():
         "I'm not sure that's going to work.",
         "Maybe we should try a different approach?",
         "This is getting more complicated than I thought.",
-        "Let's focus on what we can control."
+        "Let's focus on what we can control.",
     ]
 
 
@@ -133,7 +127,7 @@ def sample_coach_inputs():
     return [
         "That was an intense scene! What do you think?",
         "How did I do with the 'Yes, and' principle?",
-        "I'm ready for feedback on my performance."
+        "I'm ready for feedback on my performance.",
     ]
 
 
@@ -155,11 +149,12 @@ def sample_edge_case_inputs():
 @pytest.fixture
 def evaluation_context_factory():
     """Factory for creating evaluation contexts with different configurations"""
+
     def create_context(
         turn_count: int = 0,
         phase: int = 1,
         session_id: str = "eval_test_session",
-        user_history: List[str] = None
+        user_history: List[str] = None,
     ) -> Dict[str, Any]:
         """Create evaluation context dictionary"""
         return {
@@ -169,8 +164,9 @@ def evaluation_context_factory():
             "user_history": user_history or [],
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "expected_phase": 1 if turn_count < 4 else 2,
-            "should_have_coach": turn_count >= 15
+            "should_have_coach": turn_count >= 15,
         }
+
     return create_context
 
 
@@ -183,11 +179,11 @@ def expected_phase1_behaviors():
             "accepts offer",
             "builds on idea",
             "enthusiastic",
-            "encouraging"
+            "encouraging",
         ],
         "avoid_keywords": ["no", "but", "however", "block", "deny"],
         "min_response_length": 20,
-        "max_response_length": 500
+        "max_response_length": 500,
     }
 
 
@@ -200,16 +196,11 @@ def expected_phase2_behaviors():
             "realistic",
             "friction",
             "point of view",
-            "adaptation required"
+            "adaptation required",
         ],
-        "still_collaborative": [
-            "yes",
-            "accept",
-            "build",
-            "scene"
-        ],
+        "still_collaborative": ["yes", "accept", "build", "scene"],
         "min_response_length": 20,
-        "max_response_length": 500
+        "max_response_length": 500,
     }
 
 
@@ -217,28 +208,23 @@ def expected_phase2_behaviors():
 def expected_coach_behaviors():
     """Expected behaviors for coach feedback"""
     return {
-        "keywords": [
-            "feedback",
-            "principle",
-            "well done",
-            "improvement",
-            "next time"
-        ],
+        "keywords": ["feedback", "principle", "well done", "improvement", "next time"],
         "feedback_components": [
             "celebration",
             "constructive",
             "specific",
-            "actionable"
+            "actionable",
         ],
         "principle_references": True,
         "min_feedback_length": 100,
-        "max_feedback_length": 1000
+        "max_feedback_length": 1000,
     }
 
 
 @pytest.fixture
 def eval_metrics_tracker():
     """Tracker for collecting evaluation metrics"""
+
     class MetricsTracker:
         def __init__(self):
             self.metrics = {
@@ -249,10 +235,16 @@ def eval_metrics_tracker():
                 "phase2_success_rate": 0.0,
                 "coach_success_rate": 0.0,
                 "avg_response_time": 0.0,
-                "errors": []
+                "errors": [],
             }
 
-        def record_test(self, test_name: str, passed: bool, response_time: float = 0.0, error: str = None):
+        def record_test(
+            self,
+            test_name: str,
+            passed: bool,
+            response_time: float = 0.0,
+            error: str = None,
+        ):
             """Record test result"""
             self.metrics["total_tests"] += 1
             if passed:
@@ -260,17 +252,14 @@ def eval_metrics_tracker():
             else:
                 self.metrics["failed"] += 1
                 if error:
-                    self.metrics["errors"].append({
-                        "test": test_name,
-                        "error": error
-                    })
+                    self.metrics["errors"].append({"test": test_name, "error": error})
 
             if response_time > 0:
                 current_avg = self.metrics["avg_response_time"]
                 total = self.metrics["total_tests"]
                 self.metrics["avg_response_time"] = (
-                    (current_avg * (total - 1) + response_time) / total
-                )
+                    current_avg * (total - 1) + response_time
+                ) / total
 
         def get_summary(self) -> Dict[str, Any]:
             """Get metrics summary"""
@@ -282,15 +271,12 @@ def eval_metrics_tracker():
 @pytest.fixture
 def agent_runner_factory():
     """Factory for creating ADK Runner instances for evaluation"""
+
     def create_runner(agent, session_id: str = None):
         """Create Runner instance with agent"""
         from google.adk.runners import Runner
 
-        runner = Runner(
-            agent=agent,
-            app_name=settings.app_name,
-            session_service=None
-        )
+        runner = Runner(agent=agent, app_name=settings.app_name, session_service=None)
 
         return runner
 
@@ -314,8 +300,9 @@ def eval_logger():
 
 
 @pytest.fixture
-def validation_helpers():
+def validation_helpers():  # noqa: C901
     """Helper functions for validating agent responses"""
+
     class ValidationHelpers:
         @staticmethod
         def validate_response_structure(response: Any) -> bool:
@@ -335,8 +322,12 @@ def validation_helpers():
                 supportive_words = ["yes", "and", "great", "love", "perfect"]
                 return any(word in response.lower() for word in supportive_words)
             elif phase == 2:
-                has_friction = any(word in response.lower() for word in ["but", "however", "although"])
-                has_collaboration = any(word in response.lower() for word in ["yes", "and", "scene"])
+                has_friction = any(
+                    word in response.lower() for word in ["but", "however", "although"]
+                )
+                has_collaboration = any(
+                    word in response.lower() for word in ["yes", "and", "scene"]
+                )
                 return has_friction or has_collaboration
             return False
 
@@ -346,13 +337,21 @@ def validation_helpers():
             if not feedback or len(feedback) < 100:
                 return False
 
-            components = ["principle", "feedback", "well done", "improvement", "next time"]
+            components = [
+                "principle",
+                "feedback",
+                "well done",
+                "improvement",
+                "next time",
+            ]
             found = sum(1 for comp in components if comp in feedback.lower())
 
             return found >= 2
 
         @staticmethod
-        def validate_response_length(response: str, min_len: int = 20, max_len: int = 1000) -> bool:
+        def validate_response_length(
+            response: str, min_len: int = 20, max_len: int = 1000
+        ) -> bool:
             """Validate response length is within bounds"""
             return min_len <= len(response) <= max_len
 
@@ -362,7 +361,7 @@ def validation_helpers():
             metrics = {
                 "response_length": len(str(response)),
                 "has_content": bool(response),
-                "response_type": type(response).__name__
+                "response_type": type(response).__name__,
             }
             return metrics
 
@@ -372,5 +371,51 @@ def validation_helpers():
 @pytest.fixture
 def skip_if_no_gcp_credentials():
     """Skip test if GCP credentials not available"""
-    if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS") and not os.getenv("GCP_PROJECT_ID"):
-        pytest.skip("GCP credentials not configured for evaluation tests")
+    has_app_creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    has_project = os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GCP_PROJECT_ID")
+    has_vertexai = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "").lower() == "true"
+    has_api_key = os.getenv("GOOGLE_API_KEY")
+
+    # Need either Google AI API key OR full Vertex AI config
+    if not has_api_key and not (has_project and (has_app_creds or has_vertexai)):
+        pytest.skip("GCP/Google AI credentials not configured for evaluation tests")
+
+
+def _check_genai_credentials() -> bool:
+    """Check if Google GenAI credentials are properly configured"""
+    has_api_key = os.getenv("GOOGLE_API_KEY")
+    has_project = os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GCP_PROJECT_ID")
+    has_vertexai = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "").lower() == "true"
+    has_location = os.getenv("GOOGLE_CLOUD_LOCATION")
+
+    # Either Google AI API key OR Vertex AI config
+    env_configured = bool(has_api_key) or bool(
+        has_project and has_vertexai and has_location
+    )
+
+    if not env_configured:
+        return False
+
+    # If using Vertex AI, verify ADC is actually available
+    if has_vertexai and not has_api_key:
+        try:
+            import google.auth
+
+            credentials, project = google.auth.default()
+            if credentials is None:
+                return False
+        except Exception:
+            # ADC not available
+            return False
+
+    return True
+
+
+@pytest.fixture(scope="session", autouse=True)
+def check_genai_config():
+    """Session-scoped check for GenAI configuration - skip all eval tests if not configured"""
+    if not _check_genai_credentials():
+        pytest.skip(
+            "Google GenAI not configured or ADC unavailable. Set GOOGLE_API_KEY for Google AI API, "
+            "or configure ADC + GOOGLE_CLOUD_PROJECT + GOOGLE_CLOUD_LOCATION + GOOGLE_GENAI_USE_VERTEXAI=true for Vertex AI"
+        )

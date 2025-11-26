@@ -9,6 +9,7 @@ Configuration:
     - Wait time: 1-3 seconds between requests
     - Scenarios: session creation, turn execution, full session flow
 """
+
 import random
 from locust import HttpUser, TaskSet, task, between, events
 from typing import Optional
@@ -66,17 +67,17 @@ class ImprovSessionBehavior(TaskSet):
             "Underwater Research Station",
             "International Space Station",
             "Antarctic Research Base",
-            "Desert Archaeological Dig"
+            "Desert Archaeological Dig",
         ]
 
         with self.client.post(
             "/session/start",
             json={
                 "user_name": f"LoadTestUser_{random.randint(1000, 9999)}",
-                "location": random.choice(locations)
+                "location": random.choice(locations),
             },
             catch_response=True,
-            name="/session/start"
+            name="/session/start",
         ) as response:
             if response.status_code == 200:
                 data = response.json()
@@ -99,12 +100,9 @@ class ImprovSessionBehavior(TaskSet):
 
         with self.client.post(
             f"/session/{session_id}/turn",
-            json={
-                "user_input": random.choice(user_inputs),
-                "turn_number": turn_number
-            },
+            json={"user_input": random.choice(user_inputs), "turn_number": turn_number},
             catch_response=True,
-            name="/session/turn"
+            name="/session/turn",
         ) as response:
             if response.status_code == 200:
                 data = response.json()
@@ -121,9 +119,7 @@ class ImprovSessionBehavior(TaskSet):
     def _close_session(self, session_id: str):
         """Close session and cleanup"""
         with self.client.post(
-            f"/session/{session_id}/close",
-            catch_response=True,
-            name="/session/close"
+            f"/session/{session_id}/close", catch_response=True, name="/session/close"
         ) as response:
             if response.status_code == 200:
                 response.success()
@@ -140,12 +136,9 @@ class RateLimitingBehavior(TaskSet):
         for _ in range(5):
             with self.client.post(
                 "/session/start",
-                json={
-                    "user_name": "RateLimitTest",
-                    "location": "Test Location"
-                },
+                json={"user_name": "RateLimitTest", "location": "Test Location"},
                 catch_response=True,
-                name="/session/start [rate-limit]"
+                name="/session/start [rate-limit]",
             ) as response:
                 if response.status_code == 429:
                     response.success()
@@ -163,6 +156,7 @@ class ImprovUser(HttpUser):
         - wait_time: 1-3 seconds between requests (realistic user think time)
         - tasks: Weighted mix of behaviors
     """
+
     wait_time = between(1, 3)
     tasks = {ImprovSessionBehavior: 9, RateLimitingBehavior: 1}
 
@@ -173,14 +167,14 @@ class PerformanceMonitorUser(HttpUser):
 
     Executes shorter sessions to measure latency under sustained load
     """
+
     wait_time = between(0.5, 1.5)
 
     @task
     def quick_turn_flow(self):
         """Execute 5-turn session quickly"""
         with self.client.post(
-            "/session/start",
-            json={"user_name": "PerfTest", "location": "Test"}
+            "/session/start", json={"user_name": "PerfTest", "location": "Test"}
         ) as response:
             if response.status_code != 200:
                 return
@@ -190,11 +184,8 @@ class PerformanceMonitorUser(HttpUser):
             for turn in range(1, 6):
                 self.client.post(
                     f"/session/{session_id}/turn",
-                    json={
-                        "user_input": f"Turn {turn}",
-                        "turn_number": turn
-                    },
-                    name="/session/turn [quick]"
+                    json={"user_input": f"Turn {turn}", "turn_number": turn},
+                    name="/session/turn [quick]",
                 )
 
             self.client.post(f"/session/{session_id}/close")

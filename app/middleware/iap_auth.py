@@ -1,4 +1,5 @@
 """Identity-Aware Proxy (IAP) Authentication Middleware"""
+
 from fastapi import Request, HTTPException, status
 from fastapi.responses import JSONResponse
 from typing import Optional
@@ -10,6 +11,7 @@ from app.utils.logger import get_logger
 try:
     from google.auth.transport import requests
     from google.oauth2 import id_token
+
     JWT_VALIDATION_AVAILABLE = True
 except ImportError:
     JWT_VALIDATION_AVAILABLE = False
@@ -47,23 +49,24 @@ class IAPAuthMiddleware:
         try:
             if JWT_VALIDATION_AVAILABLE and settings.gcp_project_number:
                 if not self._validate_iap_jwt(request):
-                    logger.warning(
-                        "IAP JWT validation failed",
-                        path=request.url.path
-                    )
+                    logger.warning("IAP JWT validation failed", path=request.url.path)
                     response = JSONResponse(
                         status_code=status.HTTP_401_UNAUTHORIZED,
                         content={
                             "error": "Authentication failed",
-                            "detail": "IAP JWT signature validation failed."
-                        }
+                            "detail": "IAP JWT signature validation failed.",
+                        },
                     )
                     await response(scope, receive, send)
                     return
             elif not JWT_VALIDATION_AVAILABLE:
-                logger.warning("JWT validation libraries not available - using header-only validation")
+                logger.warning(
+                    "JWT validation libraries not available - using header-only validation"
+                )
             elif not settings.gcp_project_number:
-                logger.warning("GCP_PROJECT_NUMBER not configured - skipping JWT validation")
+                logger.warning(
+                    "GCP_PROJECT_NUMBER not configured - skipping JWT validation"
+                )
 
             user_email = self._extract_user_email(request)
             user_id = self._extract_user_id(request)
@@ -73,14 +76,14 @@ class IAPAuthMiddleware:
                     "Missing IAP headers - authentication required",
                     path=request.url.path,
                     has_email=bool(user_email),
-                    has_user_id=bool(user_id)
+                    has_user_id=bool(user_id),
                 )
                 response = JSONResponse(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     content={
                         "error": "Authentication required",
-                        "detail": "IAP headers missing. Ensure request passes through Identity-Aware Proxy."
-                    }
+                        "detail": "IAP headers missing. Ensure request passes through Identity-Aware Proxy.",
+                    },
                 )
                 await response(scope, receive, send)
                 return
@@ -89,7 +92,7 @@ class IAPAuthMiddleware:
                 "IAP authentication successful",
                 user_email=user_email,
                 user_id=user_id,
-                path=request.url.path
+                path=request.url.path,
             )
 
             scope["state"] = {
@@ -98,10 +101,12 @@ class IAPAuthMiddleware:
             }
 
         except Exception as e:
-            logger.error("IAP authentication error", error=str(e), path=request.url.path)
+            logger.error(
+                "IAP authentication error", error=str(e), path=request.url.path
+            )
             response = JSONResponse(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                content={"error": "Authentication processing failed"}
+                content={"error": "Authentication processing failed"},
             )
             await response(scope, receive, send)
             return
@@ -110,8 +115,8 @@ class IAPAuthMiddleware:
 
     def _should_bypass_auth(self, path: str) -> bool:
         """Check if path should bypass authentication with normalized path matching"""
-        clean_path = path.split('?')[0].rstrip('/')
-        bypass_paths = [p.rstrip('/') for p in settings.auth_bypass_paths]
+        clean_path = path.split("?")[0].rstrip("/")
+        bypass_paths = [p.rstrip("/") for p in settings.auth_bypass_paths]
         return clean_path in bypass_paths
 
     def _validate_iap_jwt(self, request: Request) -> bool:
@@ -129,14 +134,14 @@ class IAPAuthMiddleware:
         try:
             audience = f"/projects/{settings.gcp_project_number}/global/backendServices/{settings.gcp_project_id}"
             decoded = id_token.verify_token(
-                jwt_token,
-                requests.Request(),
-                audience=audience
+                jwt_token, requests.Request(), audience=audience
             )
             logger.debug("IAP JWT validation successful", subject=decoded.get("sub"))
             return True
         except Exception as e:
-            logger.error("JWT validation failed", error=str(e), error_type=type(e).__name__)
+            logger.error(
+                "JWT validation failed", error=str(e), error_type=type(e).__name__
+            )
             return False
 
     def _extract_user_email(self, request: Request) -> Optional[str]:
@@ -180,14 +185,12 @@ def get_authenticated_user(request: Request) -> dict:
     Raises:
         HTTPException if user not authenticated
     """
-    if not hasattr(request.state, "user_email") or not hasattr(request.state, "user_id"):
+    if not hasattr(request.state, "user_email") or not hasattr(
+        request.state, "user_id"
+    ):
         logger.error("Attempted to access user info without authentication")
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not authenticated"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not authenticated"
         )
 
-    return {
-        "user_email": request.state.user_email,
-        "user_id": request.state.user_id
-    }
+    return {"user_email": request.state.user_email, "user_id": request.state.user_id}

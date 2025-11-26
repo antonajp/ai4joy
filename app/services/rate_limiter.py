@@ -1,7 +1,8 @@
 """Per-User Rate Limiting Service with Firestore Backend"""
+
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Optional
-from google.cloud import firestore
+from google.cloud import firestore  # type: ignore[attr-defined]
 from fastapi import HTTPException, status
 
 from app.config import get_settings
@@ -22,7 +23,7 @@ class RateLimitExceeded(HTTPException):
         super().__init__(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=detail,
-            headers={"Retry-After": "3600"}
+            headers={"Retry-After": "3600"},
         )
 
 
@@ -51,8 +52,7 @@ class RateLimiter:
 
     def __init__(self):
         self.db = firestore.Client(
-            project=settings.gcp_project_id,
-            database=settings.firestore_database
+            project=settings.gcp_project_id, database=settings.firestore_database
         )
         self.collection = self.db.collection(settings.firestore_user_limits_collection)
 
@@ -82,7 +82,9 @@ class RateLimiter:
 
                     reset_at_str = daily.get("reset_at")
                     if reset_at_str:
-                        reset_at = datetime.fromisoformat(reset_at_str.replace("Z", "+00:00"))
+                        reset_at = datetime.fromisoformat(
+                            reset_at_str.replace("Z", "+00:00")
+                        )
                         if now >= reset_at:
                             daily = {"count": 0, "reset_at": midnight_utc.isoformat()}
                     else:
@@ -93,34 +95,39 @@ class RateLimiter:
                     if current_count >= settings.rate_limit_daily_sessions:
                         raise RateLimitExceeded(
                             f"Daily limit ({settings.rate_limit_daily_sessions} sessions)",
-                            reset_time=datetime.fromisoformat(daily["reset_at"].replace("Z", "+00:00"))
+                            reset_time=datetime.fromisoformat(
+                                daily["reset_at"].replace("Z", "+00:00")
+                            ),
                         )
 
                     daily["count"] = current_count + 1
-                    transaction.update(doc_ref, {
-                        "daily_sessions": daily,
-                        "last_updated": now.isoformat()
-                    })
+                    transaction.update(
+                        doc_ref,
+                        {"daily_sessions": daily, "last_updated": now.isoformat()},
+                    )
 
                     logger.info(
                         "Daily limit check passed",
                         user_id=user_id,
                         current_count=daily["count"],
-                        limit=settings.rate_limit_daily_sessions
+                        limit=settings.rate_limit_daily_sessions,
                     )
                 else:
                     daily = {"count": 1, "reset_at": midnight_utc.isoformat()}
-                    transaction.set(doc_ref, {
-                        "user_id": user_id,
-                        "daily_sessions": daily,
-                        "concurrent_sessions": {"count": 0, "active_session_ids": []},
-                        "last_updated": now.isoformat()
-                    })
-
-                    logger.info(
-                        "Created new rate limit record",
-                        user_id=user_id
+                    transaction.set(
+                        doc_ref,
+                        {
+                            "user_id": user_id,
+                            "daily_sessions": daily,
+                            "concurrent_sessions": {
+                                "count": 0,
+                                "active_session_ids": [],
+                            },
+                            "last_updated": now.isoformat(),
+                        },
                     )
+
+                    logger.info("Created new rate limit record", user_id=user_id)
 
             update_in_transaction(transaction, doc_ref)
 
@@ -128,7 +135,7 @@ class RateLimiter:
             logger.warning(
                 "Daily rate limit exceeded",
                 user_id=user_id,
-                limit=settings.rate_limit_daily_sessions
+                limit=settings.rate_limit_daily_sessions,
             )
             raise
         except Exception as e:
@@ -163,7 +170,7 @@ class RateLimiter:
                         logger.debug(
                             "Session already counted in concurrent limit",
                             user_id=user_id,
-                            session_id=session_id
+                            session_id=session_id,
                         )
                         return
 
@@ -176,22 +183,24 @@ class RateLimiter:
                     concurrent["count"] = len(active_sessions)
                     concurrent["active_session_ids"] = active_sessions
 
-                    transaction.update(doc_ref, {
-                        "concurrent_sessions": concurrent,
-                        "last_updated": now.isoformat()
-                    })
+                    transaction.update(
+                        doc_ref,
+                        {
+                            "concurrent_sessions": concurrent,
+                            "last_updated": now.isoformat(),
+                        },
+                    )
 
                     logger.info(
                         "Concurrent limit check passed",
                         user_id=user_id,
                         session_id=session_id,
                         current_count=concurrent["count"],
-                        limit=settings.rate_limit_concurrent_sessions
+                        limit=settings.rate_limit_concurrent_sessions,
                     )
                 else:
                     logger.warning(
-                        "User limit doc not found for concurrent check",
-                        user_id=user_id
+                        "User limit doc not found for concurrent check", user_id=user_id
                     )
 
             update_in_transaction(transaction, doc_ref)
@@ -200,18 +209,16 @@ class RateLimiter:
             logger.warning(
                 "Concurrent rate limit exceeded",
                 user_id=user_id,
-                limit=settings.rate_limit_concurrent_sessions
+                limit=settings.rate_limit_concurrent_sessions,
             )
             raise
         except Exception as e:
-            logger.error(
-                "Concurrent limit check failed",
-                user_id=user_id,
-                error=str(e)
-            )
+            logger.error("Concurrent limit check failed", user_id=user_id, error=str(e))
             raise
 
-    async def decrement_concurrent_sessions(self, user_id: str, session_id: str) -> None:
+    async def decrement_concurrent_sessions(
+        self, user_id: str, session_id: str
+    ) -> None:
         """
         Remove session from concurrent active list.
         Called when session is closed or times out.
@@ -236,16 +243,19 @@ class RateLimiter:
                         concurrent["count"] = len(active_sessions)
                         concurrent["active_session_ids"] = active_sessions
 
-                        transaction.update(doc_ref, {
-                            "concurrent_sessions": concurrent,
-                            "last_updated": now.isoformat()
-                        })
+                        transaction.update(
+                            doc_ref,
+                            {
+                                "concurrent_sessions": concurrent,
+                                "last_updated": now.isoformat(),
+                            },
+                        )
 
                         logger.info(
                             "Decremented concurrent sessions",
                             user_id=user_id,
                             session_id=session_id,
-                            remaining_count=concurrent["count"]
+                            remaining_count=concurrent["count"],
                         )
 
             update_in_transaction(transaction, doc_ref)
@@ -255,7 +265,7 @@ class RateLimiter:
                 "Failed to decrement concurrent sessions",
                 user_id=user_id,
                 session_id=session_id,
-                error=str(e)
+                error=str(e),
             )
 
     async def get_user_limits_status(self, user_id: str) -> Dict:
@@ -274,12 +284,12 @@ class RateLimiter:
                     "daily_sessions": {
                         "used": 0,
                         "limit": settings.rate_limit_daily_sessions,
-                        "reset_at": None
+                        "reset_at": None,
                     },
                     "concurrent_sessions": {
                         "active": 0,
-                        "limit": settings.rate_limit_concurrent_sessions
-                    }
+                        "limit": settings.rate_limit_concurrent_sessions,
+                    },
                 }
 
             data = snapshot.to_dict()
@@ -290,17 +300,19 @@ class RateLimiter:
                 "daily_sessions": {
                     "used": daily.get("count", 0),
                     "limit": settings.rate_limit_daily_sessions,
-                    "reset_at": daily.get("reset_at")
+                    "reset_at": daily.get("reset_at"),
                 },
                 "concurrent_sessions": {
                     "active": concurrent.get("count", 0),
                     "limit": settings.rate_limit_concurrent_sessions,
-                    "active_session_ids": concurrent.get("active_session_ids", [])
-                }
+                    "active_session_ids": concurrent.get("active_session_ids", []),
+                },
             }
 
         except Exception as e:
-            logger.error("Failed to get user limits status", user_id=user_id, error=str(e))
+            logger.error(
+                "Failed to get user limits status", user_id=user_id, error=str(e)
+            )
             return {}
 
 

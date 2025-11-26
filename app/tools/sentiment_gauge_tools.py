@@ -1,4 +1,5 @@
 """Sentiment Gauge Tools - Async Functions for Audience Reaction Analysis"""
+
 from typing import Optional
 from app.utils.logger import get_logger
 
@@ -6,20 +7,57 @@ logger = get_logger(__name__)
 
 # Sentiment keywords for lightweight analysis
 POSITIVE_KEYWORDS = [
-    "love", "amazing", "awesome", "great", "fantastic", "hilarious",
-    "brilliant", "perfect", "wonderful", "excited", "fun", "enjoyed",
-    "laughing", "yes", "more", "best", "incredible", "excellent"
+    "love",
+    "amazing",
+    "awesome",
+    "great",
+    "fantastic",
+    "hilarious",
+    "brilliant",
+    "perfect",
+    "wonderful",
+    "excited",
+    "fun",
+    "enjoyed",
+    "laughing",
+    "yes",
+    "more",
+    "best",
+    "incredible",
+    "excellent",
 ]
 
 NEGATIVE_KEYWORDS = [
-    "boring", "bad", "terrible", "awful", "hate", "worst", "slow",
-    "confusing", "awkward", "uncomfortable", "disappointed", "meh",
-    "lame", "tired", "done", "enough", "stop", "no"
+    "boring",
+    "bad",
+    "terrible",
+    "awful",
+    "hate",
+    "worst",
+    "slow",
+    "confusing",
+    "awkward",
+    "uncomfortable",
+    "disappointed",
+    "meh",
+    "lame",
+    "tired",
+    "done",
+    "enough",
+    "stop",
+    "no",
 ]
 
 ENGAGEMENT_KEYWORDS = {
-    "high": ["excited", "participating", "volunteering", "shouting", "active", "energetic"],
-    "low": ["quiet", "silent", "checking phones", "leaving", "distracted", "yawning"]
+    "high": [
+        "excited",
+        "participating",
+        "volunteering",
+        "shouting",
+        "active",
+        "energetic",
+    ],
+    "low": ["quiet", "silent", "checking phones", "leaving", "distracted", "yawning"],
 }
 
 
@@ -40,7 +78,7 @@ async def analyze_text(text: str) -> dict:
             "positive_indicators": 0,
             "negative_indicators": 0,
             "text_length": 0,
-            "analysis_summary": "No text provided for analysis"
+            "analysis_summary": "No text provided for analysis",
         }
 
     text_lower = text.lower()
@@ -72,7 +110,7 @@ async def analyze_text(text: str) -> dict:
         "positive": "Audience is responding well with positive energy.",
         "neutral": "Audience reaction is neutral - neither strongly positive nor negative.",
         "negative": "Audience seems underwhelmed or mildly negative.",
-        "very_negative": "Audience is showing strong negative reaction. Consider changing approach."
+        "very_negative": "Audience is showing strong negative reaction. Consider changing approach.",
     }
 
     result = {
@@ -81,14 +119,14 @@ async def analyze_text(text: str) -> dict:
         "positive_indicators": positive_count,
         "negative_indicators": negative_count,
         "text_length": len(text),
-        "analysis_summary": summary_map.get(sentiment, "Unable to determine sentiment")
+        "analysis_summary": summary_map.get(sentiment, "Unable to determine sentiment"),
     }
 
     logger.info(
         "Text sentiment analyzed",
         sentiment=sentiment,
         score=result["sentiment_score"],
-        text_length=result["text_length"]
+        text_length=result["text_length"],
     )
 
     return result
@@ -111,19 +149,17 @@ async def analyze_engagement(observations: list[str]) -> dict:
             "summary": "Insufficient data for engagement assessment",
             "high_engagement_indicators": 0,
             "low_engagement_indicators": 0,
-            "observation_count": 0
+            "observation_count": 0,
         }
 
     combined_text = " ".join(observations).lower()
 
     high_engagement_count = sum(
-        1 for keyword in ENGAGEMENT_KEYWORDS["high"]
-        if keyword in combined_text
+        1 for keyword in ENGAGEMENT_KEYWORDS["high"] if keyword in combined_text
     )
 
     low_engagement_count = sum(
-        1 for keyword in ENGAGEMENT_KEYWORDS["low"]
-        if keyword in combined_text
+        1 for keyword in ENGAGEMENT_KEYWORDS["low"] if keyword in combined_text
     )
 
     total_engagement_indicators = high_engagement_count + low_engagement_count
@@ -150,7 +186,7 @@ async def analyze_engagement(observations: list[str]) -> dict:
         "engaged": "Audience is engaged and attentive.",
         "moderate": "Audience engagement is moderate - some interest shown.",
         "low": "Audience engagement is low - may need energy boost.",
-        "disengaged": "Audience appears disengaged. Consider changing tactics."
+        "disengaged": "Audience appears disengaged. Consider changing tactics.",
     }
 
     result = {
@@ -159,22 +195,21 @@ async def analyze_engagement(observations: list[str]) -> dict:
         "high_engagement_indicators": high_engagement_count,
         "low_engagement_indicators": low_engagement_count,
         "observation_count": len(observations),
-        "summary": summary_map.get(engagement, "Unable to determine engagement level")
+        "summary": summary_map.get(engagement, "Unable to determine engagement level"),
     }
 
     logger.info(
         "Engagement analyzed",
         engagement=engagement,
         score=result["engagement_score"],
-        observations=len(observations)
+        observations=len(observations),
     )
 
     return result
 
 
 async def analyze_collective_mood(
-    text_inputs: Optional[list[str]] = None,
-    observations: Optional[list[str]] = None
+    text_inputs: Optional[list[str]] = None, observations: Optional[list[str]] = None
 ) -> dict:
     """Analyze overall collective audience mood from multiple signals.
 
@@ -203,14 +238,18 @@ async def analyze_collective_mood(
             "engagement_score": 0.5,
             "text_inputs_analyzed": 0,
             "observations_analyzed": 0,
-            "recommendation": "Monitor audience closely and adapt as needed."
+            "recommendation": "Monitor audience closely and adapt as needed.",
         }
 
     avg_sentiment_score = 0.0
     if sentiment_results:
-        avg_sentiment_score = sum(r["sentiment_score"] for r in sentiment_results) / len(sentiment_results)
+        avg_sentiment_score = sum(
+            r["sentiment_score"] for r in sentiment_results
+        ) / len(sentiment_results)
 
-    engagement_score = engagement_result["engagement_score"] if engagement_result else 0.5
+    engagement_score = (
+        engagement_result["engagement_score"] if engagement_result else 0.5
+    )
 
     overall_mood_score = (avg_sentiment_score + engagement_score) / 2
 
@@ -230,7 +269,7 @@ async def analyze_collective_mood(
         "positive": "Keep momentum going. Audience is with you.",
         "neutral": "Warm up the audience. Try a high-energy game or more interaction.",
         "lukewarm": "Change the energy. Consider switching game types or style.",
-        "disengaged": "Reset needed. Try audience participation or break from current approach."
+        "disengaged": "Reset needed. Try audience participation or break from current approach.",
     }
 
     result = {
@@ -240,13 +279,13 @@ async def analyze_collective_mood(
         "engagement_score": engagement_score,
         "text_inputs_analyzed": len(text_inputs) if text_inputs else 0,
         "observations_analyzed": len(observations) if observations else 0,
-        "recommendation": recommendations.get(overall_mood, "Monitor audience closely and adapt as needed.")
+        "recommendation": recommendations.get(
+            overall_mood, "Monitor audience closely and adapt as needed."
+        ),
     }
 
     logger.info(
-        "Collective mood analyzed",
-        mood=overall_mood,
-        mood_score=result["mood_score"]
+        "Collective mood analyzed", mood=overall_mood, mood_score=result["mood_score"]
     )
 
     return result

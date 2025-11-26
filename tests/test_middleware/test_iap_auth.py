@@ -24,18 +24,22 @@ class TestIAPAuthMiddleware:
         return {
             "x-goog-authenticated-user-email": "accounts.google.com:testuser@example.com",
             "x-goog-authenticated-user-id": "accounts.google.com:1234567890",
-            "x-goog-iap-jwt-assertion": "mock.jwt.token.here"
+            "x-goog-iap-jwt-assertion": "mock.jwt.token.here",
         }
 
     @pytest.fixture
     def mock_request(self):
         """Create mock request object"""
+
         def _create_request(path="/api/sessions", headers=None):
             mock_req = Mock(spec=Request)
             mock_req.url.path = path
-            mock_req.headers.get = lambda key, default=None: (headers or {}).get(key, default)
+            mock_req.headers.get = lambda key, default=None: (headers or {}).get(
+                key, default
+            )
             mock_req.state = Mock()
             return mock_req
+
         return _create_request
 
     @pytest.mark.asyncio
@@ -54,10 +58,10 @@ class TestIAPAuthMiddleware:
         user_email = middleware._extract_user_email(request)
         user_id = middleware._extract_user_id(request)
 
-        assert user_email == "testuser@example.com", \
+        assert user_email == "testuser@example.com", (
             f"Expected 'testuser@example.com', got '{user_email}'"
-        assert user_id == "1234567890", \
-            f"Expected '1234567890', got '{user_id}'"
+        )
+        assert user_id == "1234567890", f"Expected '1234567890', got '{user_id}'"
 
         print(f"✓ Valid IAP headers extracted correctly: {user_email}, {user_id}")
 
@@ -102,9 +106,7 @@ class TestIAPAuthMiddleware:
         print("✓ Missing user ID header correctly returns None (will trigger 401)")
 
     @pytest.mark.asyncio
-    async def test_tc_auth_iap_04_malformed_header_format_handled(
-        self, mock_request
-    ):
+    async def test_tc_auth_iap_04_malformed_header_format_handled(self, mock_request):
         """
         TC-AUTH-IAP-04: Malformed header format handled gracefully
 
@@ -113,7 +115,7 @@ class TestIAPAuthMiddleware:
         # Test direct email without prefix
         headers_no_prefix = {
             "x-goog-authenticated-user-email": "directemail@example.com",
-            "x-goog-authenticated-user-id": "9876543210"
+            "x-goog-authenticated-user-id": "9876543210",
         }
 
         request = mock_request(path="/api/sessions", headers=headers_no_prefix)
@@ -123,10 +125,10 @@ class TestIAPAuthMiddleware:
         user_id = middleware._extract_user_id(request)
 
         # Should fall back to using raw value
-        assert user_email == "directemail@example.com", \
+        assert user_email == "directemail@example.com", (
             "Should accept email without prefix as fallback"
-        assert user_id == "9876543210", \
-            "Should accept ID without prefix as fallback"
+        )
+        assert user_id == "9876543210", "Should accept ID without prefix as fallback"
 
         print("✓ Malformed headers handled gracefully with fallback")
 
@@ -142,7 +144,7 @@ class TestIAPAuthMiddleware:
         health_paths = ["/health", "/ready", "/health/", "/ready/"]
 
         for path in health_paths:
-            request = mock_request(path=path, headers={})
+            _request = mock_request(path=path, headers={})  # noqa: F841 - created to test path handling
             should_bypass = middleware._should_bypass_auth(path)
 
             assert should_bypass, f"Path {path} should bypass authentication"
@@ -163,11 +165,11 @@ class TestIAPAuthMiddleware:
             "/api/sessions/123",
             "/api/agent/test",
             # Note: "/" is intentionally in bypass paths for landing page access
-            "/admin"
+            "/admin",
         ]
 
         for path in protected_paths:
-            request = mock_request(path=path, headers={})
+            _request = mock_request(path=path, headers={})  # noqa: F841 - created to test path handling
             should_bypass = middleware._should_bypass_auth(path)
 
             assert not should_bypass, f"Path {path} should NOT bypass authentication"
@@ -175,8 +177,8 @@ class TestIAPAuthMiddleware:
         print("✓ Protected endpoints correctly require authentication")
 
     @pytest.mark.asyncio
-    @patch('app.middleware.iap_auth.JWT_VALIDATION_AVAILABLE', True)
-    @patch('app.middleware.iap_auth.id_token.verify_token')
+    @patch("app.middleware.iap_auth.JWT_VALIDATION_AVAILABLE", True)
+    @patch("app.middleware.iap_auth.id_token.verify_token")
     async def test_tc_auth_iap_07_jwt_validation_succeeds(
         self, mock_verify_token, valid_iap_headers, mock_request
     ):
@@ -189,7 +191,7 @@ class TestIAPAuthMiddleware:
         mock_verify_token.return_value = {
             "sub": "1234567890",
             "email": "testuser@example.com",
-            "iss": "https://cloud.google.com/iap"
+            "iss": "https://cloud.google.com/iap",
         }
 
         request = mock_request(path="/api/sessions", headers=valid_iap_headers)
@@ -203,8 +205,8 @@ class TestIAPAuthMiddleware:
         print("✓ JWT validation succeeds with valid token")
 
     @pytest.mark.asyncio
-    @patch('app.middleware.iap_auth.JWT_VALIDATION_AVAILABLE', True)
-    @patch('app.middleware.iap_auth.id_token.verify_token')
+    @patch("app.middleware.iap_auth.JWT_VALIDATION_AVAILABLE", True)
+    @patch("app.middleware.iap_auth.id_token.verify_token")
     async def test_tc_auth_iap_08_jwt_validation_fails_invalid_signature(
         self, mock_verify_token, valid_iap_headers, mock_request
     ):
@@ -237,7 +239,7 @@ class TestIAPAuthMiddleware:
         """
         headers_no_jwt = {
             "x-goog-authenticated-user-email": "accounts.google.com:test@example.com",
-            "x-goog-authenticated-user-id": "accounts.google.com:1234567890"
+            "x-goog-authenticated-user-id": "accounts.google.com:1234567890",
         }
 
         request = mock_request(path="/api/sessions", headers=headers_no_jwt)
@@ -296,7 +298,7 @@ class TestIAPAuthMiddlewareIntegration:
         return {
             "x-goog-authenticated-user-email": "accounts.google.com:testuser@example.com",
             "x-goog-authenticated-user-id": "accounts.google.com:1234567890",
-            "x-goog-iap-jwt-assertion": "mock.jwt.token.here"
+            "x-goog-iap-jwt-assertion": "mock.jwt.token.here",
         }
 
     @pytest.mark.asyncio
@@ -304,6 +306,7 @@ class TestIAPAuthMiddlewareIntegration:
         """
         Integration test: Valid IAP headers → request state populated
         """
+
         # Create mock ASGI scope
         async def mock_app(scope, receive, send):
             # App should receive populated state
@@ -311,15 +314,19 @@ class TestIAPAuthMiddlewareIntegration:
             assert scope["state"]["user_email"] == "testuser@example.com"
             assert scope["state"]["user_id"] == "1234567890"
 
-        middleware = IAPAuthMiddleware(app=mock_app)
+        _middleware = IAPAuthMiddleware(app=mock_app)  # noqa: F841 - testing instantiation
 
-        # Create ASGI scope with valid headers
-        scope = {
+        # Create ASGI scope with valid headers (not used in this test structure)
+        # _scope kept for documentation of expected structure
+        _ = {
             "type": "http",
             "method": "GET",
             "path": "/api/sessions",
             "headers": [
-                (b"x-goog-authenticated-user-email", b"accounts.google.com:testuser@example.com"),
+                (
+                    b"x-goog-authenticated-user-email",
+                    b"accounts.google.com:testuser@example.com",
+                ),
                 (b"x-goog-authenticated-user-id", b"accounts.google.com:1234567890"),
             ],
         }
@@ -328,6 +335,7 @@ class TestIAPAuthMiddlewareIntegration:
             return {"type": "http.request"}
 
         responses = []
+
         async def send(message):
             responses.append(message)
 

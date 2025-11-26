@@ -1,4 +1,5 @@
 """Stage Manager - Root Orchestrator Agent using Google ADK"""
+
 from google.adk.agents import Agent
 from app.agents.mc_agent import create_mc_agent
 from app.agents.room_agent import create_room_agent
@@ -149,9 +150,13 @@ def create_stage_manager(turn_count: int = 0) -> Agent:
     elif turn_count == 3:
         phase_transition_info = "NEXT TURN: Phase transition from Phase 1 to Phase 2!"
     elif turn_count == 4:
-        phase_transition_info = "JUST TRANSITIONED: Now in Phase 2 (Realistic Challenge Mode)!"
+        phase_transition_info = (
+            "JUST TRANSITIONED: Now in Phase 2 (Realistic Challenge Mode)!"
+        )
     else:
-        phase_transition_info = f"In Phase 2 (Realistic Challenge Mode). Turn {turn_count}."
+        phase_transition_info = (
+            f"In Phase 2 (Realistic Challenge Mode). Turn {turn_count}."
+        )
 
     # Partner description based on phase
     if partner_phase == 1:
@@ -175,7 +180,7 @@ def create_stage_manager(turn_count: int = 0) -> Agent:
         partner_phase=partner_phase,
         partner_phase_name=phase_name,
         phase_transition_info=phase_transition_info,
-        partner_description=partner_description
+        partner_description=partner_description,
     )
 
     # Create sub-agents
@@ -187,22 +192,22 @@ def create_stage_manager(turn_count: int = 0) -> Agent:
     logger.info(
         "Sub-agents created",
         sub_agents=["mc_agent", "room_agent", "partner_agent", "coach_agent"],
-        partner_phase=partner_phase
+        partner_phase=partner_phase,
     )
 
     # Create orchestrator agent with all sub-agents
     stage_manager = Agent(
         name="stage_manager",
         description=f"Stage Manager - Orchestrates MC, Room, Partner (Phase {partner_phase}), and Coach agents for adaptive improv training",
-        model="gemini-1.5-flash",
+        model=settings.vertexai_flash_model,
         instruction=instruction,
-        sub_agents=[mc, room, partner, coach]
+        sub_agents=[mc, room, partner, coach],
     )
 
     logger.info(
         "Stage Manager created successfully",
         turn_count=turn_count,
         partner_phase=partner_phase,
-        sub_agent_count=4
+        sub_agent_count=4,
     )
     return stage_manager

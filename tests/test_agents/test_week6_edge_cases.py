@@ -10,6 +10,9 @@ Focuses on:
 """
 
 import pytest
+from app.config import get_settings
+
+settings = get_settings()
 
 
 class TestPartnerAgentEdgeCases:
@@ -64,11 +67,13 @@ class TestPartnerAgentEdgeCases:
         p2 = create_partner_agent(phase=2)
 
         # Prompts should be substantial (> 500 chars) but not excessive (< 10000 chars)
-        assert 500 < len(p1.instruction) < 10000, \
+        assert 500 < len(p1.instruction) < 10000, (
             f"Phase 1 prompt length: {len(p1.instruction)}"
+        )
 
-        assert 500 < len(p2.instruction) < 10000, \
+        assert 500 < len(p2.instruction) < 10000, (
             f"Phase 2 prompt length: {len(p2.instruction)}"
+        )
 
 
 class TestCoachAgentEdgeCases:
@@ -138,7 +143,10 @@ class TestStageManagerEdgeCases:
         assert len(sm.sub_agents) == 4
 
         # Should be Phase 1
-        assert "phase 1" in sm.instruction.lower() or "supportive" in sm.instruction.lower()
+        assert (
+            "phase 1" in sm.instruction.lower()
+            or "supportive" in sm.instruction.lower()
+        )
 
     def test_stage_manager_turn_count_boundary(self):
         """Stage Manager should handle turn_count=3 and turn_count=4 differently"""
@@ -209,14 +217,24 @@ class TestPhaseTransitionEdgeCases:
         from app.agents.stage_manager import determine_partner_phase
 
         expected = {
-            0: 1, 1: 1, 2: 1, 3: 1,  # Phase 1
-            4: 2, 5: 2, 6: 2, 7: 2, 8: 2, 9: 2, 10: 2  # Phase 2
+            0: 1,
+            1: 1,
+            2: 1,
+            3: 1,  # Phase 1
+            4: 2,
+            5: 2,
+            6: 2,
+            7: 2,
+            8: 2,
+            9: 2,
+            10: 2,  # Phase 2
         }
 
         for turn, expected_phase in expected.items():
             actual_phase = determine_partner_phase(turn)
-            assert actual_phase == expected_phase, \
+            assert actual_phase == expected_phase, (
                 f"Turn {turn}: expected Phase {expected_phase}, got Phase {actual_phase}"
+            )
 
 
 class TestIntegrationEdgeCases:
@@ -229,8 +247,9 @@ class TestIntegrationEdgeCases:
         sm = create_stage_manager()
         names = [agent.name for agent in sm.sub_agents]
 
-        assert len(names) == len(set(names)), \
+        assert len(names) == len(set(names)), (
             f"Agent names should be unique, got: {names}"
+        )
 
     def test_all_agents_have_models_assigned(self):
         """All agents should have valid model assignments"""
@@ -238,10 +257,12 @@ class TestIntegrationEdgeCases:
 
         sm = create_stage_manager()
 
+        valid_models = [settings.vertexai_flash_model, settings.vertexai_pro_model]
         for agent in sm.sub_agents:
-            assert hasattr(agent, 'model'), f"Agent {agent.name} missing model"
-            assert agent.model in ['gemini-1.5-flash', 'gemini-1.5-pro'], \
+            assert hasattr(agent, "model"), f"Agent {agent.name} missing model"
+            assert agent.model in valid_models, (
                 f"Agent {agent.name} has invalid model: {agent.model}"
+            )
 
     def test_model_selection_appropriate(self):
         """Verify appropriate model selection for each agent"""
@@ -250,18 +271,21 @@ class TestIntegrationEdgeCases:
         sm = create_stage_manager()
 
         for agent in sm.sub_agents:
-            if agent.name == 'partner_agent':
+            if agent.name == "partner_agent":
                 # Partner needs creativity, should use Pro
-                assert agent.model == 'gemini-1.5-pro', \
+                assert agent.model == settings.vertexai_pro_model, (
                     "Partner should use Pro model"
-            elif agent.name == 'coach_agent':
+                )
+            elif agent.name == "coach_agent":
                 # Coach can use Flash for speed
-                assert agent.model == 'gemini-1.5-flash', \
+                assert agent.model == settings.vertexai_flash_model, (
                     "Coach should use Flash model"
-            elif agent.name == 'stage_manager':
+                )
+            elif agent.name == "stage_manager":
                 # Stage Manager coordinates, uses Flash
-                assert agent.model == 'gemini-1.5-flash', \
+                assert agent.model == settings.vertexai_flash_model, (
                     "Stage Manager should use Flash model"
+                )
 
 
 class TestPromptQualityEdgeCases:
@@ -278,8 +302,7 @@ class TestPromptQualityEdgeCases:
 
         # Check all sub-agents
         for agent in sm.sub_agents:
-            assert len(agent.instruction) > 0, \
-                f"Agent {agent.name} has empty prompt"
+            assert len(agent.instruction) > 0, f"Agent {agent.name} has empty prompt"
 
     def test_prompts_are_strings(self):
         """All prompts should be string type"""
@@ -290,8 +313,9 @@ class TestPromptQualityEdgeCases:
         assert isinstance(sm.instruction, str), "Stage Manager prompt not string"
 
         for agent in sm.sub_agents:
-            assert isinstance(agent.instruction, str), \
+            assert isinstance(agent.instruction, str), (
                 f"Agent {agent.name} prompt not string"
+            )
 
     def test_partner_prompts_differ_between_phases(self):
         """Phase 1 and Phase 2 prompts should be significantly different"""
@@ -336,7 +360,7 @@ class TestPerformanceEdgeCases:
         # All should be valid
         for agent in agents:
             assert agent.name == "partner_agent"
-            assert agent.model == "gemini-1.5-pro"
+            assert agent.model == settings.vertexai_pro_model
 
     def test_stage_manager_multiple_instances(self):
         """Multiple Stage Manager instances should coexist"""

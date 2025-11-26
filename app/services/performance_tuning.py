@@ -1,5 +1,7 @@
 """Performance Tuning Configuration and Utilities"""
+
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -68,12 +70,8 @@ class PerformanceConfig:
         import os
 
         return cls(
-            agent_timeout_seconds=int(
-                os.getenv(f"{env_prefix}AGENT_TIMEOUT", "30")
-            ),
-            cache_ttl_seconds=int(
-                os.getenv(f"{env_prefix}CACHE_TTL", "300")
-            ),
+            agent_timeout_seconds=int(os.getenv(f"{env_prefix}AGENT_TIMEOUT", "30")),
+            cache_ttl_seconds=int(os.getenv(f"{env_prefix}CACHE_TTL", "300")),
             max_context_tokens=int(
                 os.getenv(f"{env_prefix}MAX_CONTEXT_TOKENS", "4000")
             ),
@@ -85,7 +83,7 @@ class PerformanceConfig:
             ),
             firestore_batch_size=int(
                 os.getenv(f"{env_prefix}FIRESTORE_BATCH_SIZE", "500")
-            )
+            ),
         )
 
 
@@ -103,11 +101,7 @@ class ContextCompactor:
         self.max_tokens = max_tokens
         self.avg_tokens_per_turn = 150
 
-    def compact_history(
-        self,
-        conversation_history: list,
-        keep_recent: int = 3
-    ) -> list:
+    def compact_history(self, conversation_history: list, keep_recent: int = 3) -> list:
         """
         Compact conversation history to fit within token limits
 
@@ -159,7 +153,7 @@ class FirestoreBatchWriter:
     def __init__(self, db, batch_size: int = 500):
         self.db = db
         self.batch_size = batch_size
-        self._pending_writes = []
+        self._pending_writes: list[tuple[str, Any, dict]] = []
 
     def add_write(self, doc_ref, data: dict) -> None:
         """Add write operation to batch"""

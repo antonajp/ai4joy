@@ -4,6 +4,7 @@ Note: This module tests SessionManager integration with ADK sessions.
 The old adk_session_bridge has been replaced with adk_session_service
 which uses DatabaseSessionService instead of InMemorySessionService.
 """
+
 import pytest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import AsyncMock, patch, MagicMock
@@ -26,7 +27,9 @@ def mock_firestore_client():
 @pytest.fixture
 def mock_adk_session_service():
     """Mock ADK session service (replacing adk_bridge)"""
-    with patch("app.services.session_manager.get_adk_session_service") as mock_service_getter:
+    with patch(
+        "app.services.session_manager.get_adk_session_service"
+    ) as mock_service_getter:
         mock_service = AsyncMock()
         mock_service.create_session = AsyncMock()
         mock_service.get_session = AsyncMock()
@@ -50,20 +53,17 @@ def session_manager_no_adk(mock_firestore_client):
 
 
 @pytest.mark.asyncio
-async def test_create_session_with_adk(session_manager_with_adk, mock_firestore_client, mock_adk_session_service):
+async def test_create_session_with_adk(
+    session_manager_with_adk, mock_firestore_client, mock_adk_session_service
+):
     """Test session creation with ADK integration"""
-    session_data = SessionCreate(
-        location="Mars Colony",
-        user_name="Test User"
-    )
+    session_data = SessionCreate(location="Mars Colony", user_name="Test User")
 
     mock_doc_ref = MagicMock()
     mock_firestore_client.collection.return_value.document.return_value = mock_doc_ref
 
     session = await session_manager_with_adk.create_session(
-        user_id="user_123",
-        user_email="test@example.com",
-        session_data=session_data
+        user_id="user_123", user_email="test@example.com", session_data=session_data
     )
 
     assert session is not None
@@ -78,20 +78,17 @@ async def test_create_session_with_adk(session_manager_with_adk, mock_firestore_
 
 
 @pytest.mark.asyncio
-async def test_create_session_without_adk(session_manager_no_adk, mock_firestore_client):
+async def test_create_session_without_adk(
+    session_manager_no_adk, mock_firestore_client
+):
     """Test session creation without ADK integration"""
-    session_data = SessionCreate(
-        location="Mars Colony",
-        user_name="Test User"
-    )
+    session_data = SessionCreate(location="Mars Colony", user_name="Test User")
 
     mock_doc_ref = MagicMock()
     mock_firestore_client.collection.return_value.document.return_value = mock_doc_ref
 
     session = await session_manager_no_adk.create_session(
-        user_id="user_123",
-        user_email="test@example.com",
-        session_data=session_data
+        user_id="user_123", user_email="test@example.com", session_data=session_data
     )
 
     assert session is not None
@@ -99,7 +96,9 @@ async def test_create_session_without_adk(session_manager_no_adk, mock_firestore
 
 
 @pytest.mark.asyncio
-async def test_get_adk_session(session_manager_with_adk, mock_firestore_client, mock_adk_session_service):
+async def test_get_adk_session(
+    session_manager_with_adk, mock_firestore_client, mock_adk_session_service
+):
     """Test getting ADK session"""
     session_id = "sess_test123"
 
@@ -118,7 +117,7 @@ async def test_get_adk_session(session_manager_with_adk, mock_firestore_client, 
         "conversation_history": [],
         "metadata": {},
         "current_phase": "PHASE_1",
-        "turn_count": 0
+        "turn_count": 0,
     }
 
     mock_doc_ref = MagicMock()
@@ -126,13 +125,14 @@ async def test_get_adk_session(session_manager_with_adk, mock_firestore_client, 
     mock_firestore_client.collection.return_value.document.return_value = mock_doc_ref
 
     from google.adk.sessions.session import Session as ADKSession
+
     mock_adk_session = ADKSession(
         id=session_id,
         app_name="test_app",
         user_id="user_123",
         state={},
         events=[],
-        last_update_time=0.0
+        last_update_time=0.0,
     )
     mock_adk_session_service.get_session.return_value = mock_adk_session
 
@@ -153,7 +153,9 @@ async def test_get_adk_session_returns_none_when_disabled(session_manager_no_adk
 
 
 @pytest.mark.asyncio
-async def test_sync_adk_session_to_firestore(session_manager_with_adk, mock_firestore_client):
+async def test_sync_adk_session_to_firestore(
+    session_manager_with_adk, mock_firestore_client
+):
     """Test syncing ADK session to Firestore
 
     Note: With DatabaseSessionService, state updates are automatically persisted
@@ -168,15 +170,14 @@ async def test_sync_adk_session_to_firestore(session_manager_with_adk, mock_fire
         user_id="user_123",
         state={"turn_count": 5, "current_phase": "PHASE_2"},
         events=[],
-        last_update_time=0.0
+        last_update_time=0.0,
     )
 
     mock_doc_ref = MagicMock()
     mock_firestore_client.collection.return_value.document.return_value = mock_doc_ref
 
     await session_manager_with_adk.sync_adk_session_to_firestore(
-        adk_session=adk_session,
-        session_id="sess_test"
+        adk_session=adk_session, session_id="sess_test"
     )
 
     # Verify Firestore was updated with state from ADK session
@@ -197,12 +198,11 @@ async def test_sync_does_nothing_when_adk_disabled(session_manager_no_adk):
         user_id="user_123",
         state={},
         events=[],
-        last_update_time=0.0
+        last_update_time=0.0,
     )
 
     await session_manager_no_adk.sync_adk_session_to_firestore(
-        adk_session=adk_session,
-        session_id="sess_test"
+        adk_session=adk_session, session_id="sess_test"
     )
 
 
@@ -217,7 +217,9 @@ def test_session_manager_factory_with_adk():
 def test_session_manager_factory_without_adk():
     """Test factory function creates manager with ADK disabled"""
     with patch("app.services.session_manager.firestore.Client"):
-        with patch("app.services.session_manager.get_adk_session_service") as mock_service:
+        with patch(
+            "app.services.session_manager.get_adk_session_service"
+        ) as mock_service:
             mock_service.return_value = None
             manager = get_session_manager(use_adk_sessions=False)
             assert manager.use_adk_sessions is False

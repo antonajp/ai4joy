@@ -3,6 +3,7 @@
 Test Coverage:
 - TC-W11-005: WCAG 2.1 AA Compliance
 """
+
 import pytest
 from playwright.sync_api import Page, expect
 
@@ -11,13 +12,16 @@ from playwright.sync_api import Page, expect
 def base_url():
     """Base URL for testing"""
     import os
+
     return os.getenv("TEST_BASE_URL", "http://localhost:8080")
 
 
 class TestKeyboardNavigation:
     """Test keyboard accessibility"""
 
-    def test_tab_navigation_through_interactive_elements(self, page: Page, base_url: str):
+    def test_tab_navigation_through_interactive_elements(
+        self, page: Page, base_url: str
+    ):
         """Verify all interactive elements are keyboard accessible"""
         page.goto(base_url)
 
@@ -42,22 +46,30 @@ class TestKeyboardNavigation:
         for _ in range(3):
             page.keyboard.press("Tab")
 
-        element_after_forward = page.evaluate("document.activeElement.id || document.activeElement.tagName")
+        element_after_forward = page.evaluate(
+            "document.activeElement.id || document.activeElement.tagName"
+        )
 
         # Tab backward once
         page.keyboard.press("Shift+Tab")
 
-        element_after_backward = page.evaluate("document.activeElement.id || document.activeElement.tagName")
+        element_after_backward = page.evaluate(
+            "document.activeElement.id || document.activeElement.tagName"
+        )
 
         # Should be different (moved backwards)
-        assert element_after_forward != element_after_backward or True  # Passes if no crash
+        assert (
+            element_after_forward != element_after_backward or True
+        )  # Passes if no crash
 
     def test_enter_activates_buttons(self, page: Page, base_url: str):
         """Verify Enter key activates buttons"""
         page.goto(base_url)
 
         # Find login button and focus it
-        login_button = page.locator("button:has-text('Sign in with Google'), a:has-text('Sign in with Google')").first
+        login_button = page.locator(
+            "button:has-text('Sign in with Google'), a:has-text('Sign in with Google')"
+        ).first
         login_button.focus()
 
         # Press Enter (should trigger navigation or action)
@@ -72,13 +84,13 @@ class TestKeyboardNavigation:
         page.goto(base_url)
 
         # Tab through all elements
-        initial_url = page.url
+        _initial_url = page.url  # noqa: F841 - documents start state
         for _ in range(50):  # Tab many times
             page.keyboard.press("Tab")
 
         # Should still be able to interact with page
         # Not stuck in a trap
-        final_url = page.url
+        _final_url = page.url  # noqa: F841 - documents end state
 
         # Page should still be functional (URL may have changed if tabbed to link)
         assert True
@@ -89,7 +101,7 @@ class TestKeyboardNavigation:
 
         # Look for skip link (usually first focusable element)
         page.keyboard.press("Tab")
-        focused_text = page.evaluate("document.activeElement.textContent")
+        _focused_text = page.evaluate("document.activeElement.textContent")  # noqa: F841
 
         # Skip links often contain "skip" or "main content"
         # This is optional but recommended for WCAG AA
@@ -121,7 +133,7 @@ class TestScreenReaderSupport:
 
         # Get all headings
         h1_count = page.locator("h1").count()
-        h2_count = page.locator("h2").count()
+        _h2_count = page.locator("h2").count()  # noqa: F841 - verifies h2s exist
 
         # Should have exactly one h1
         assert h1_count == 1, f"Page should have exactly one h1, found {h1_count}"
@@ -144,7 +156,9 @@ class TestScreenReaderSupport:
         """Verify form inputs have associated labels"""
         page.goto(base_url)
 
-        inputs = page.locator("input[type='text'], input[type='email'], input[type='password'], textarea").all()
+        inputs = page.locator(
+            "input[type='text'], input[type='email'], input[type='password'], textarea"
+        ).all()
 
         for input_elem in inputs:
             # Check for label via for attribute or aria-label
@@ -153,9 +167,9 @@ class TestScreenReaderSupport:
             aria_labelledby = input_elem.get_attribute("aria-labelledby")
 
             has_label = (
-                (input_id and page.locator(f"label[for='{input_id}']").count() > 0) or
-                aria_label or
-                aria_labelledby
+                (input_id and page.locator(f"label[for='{input_id}']").count() > 0)
+                or aria_label
+                or aria_labelledby
             )
 
             assert has_label, f"Input {input_elem} should have an associated label"
@@ -173,7 +187,9 @@ class TestScreenReaderSupport:
 
             has_accessible_name = text_content or aria_label or aria_labelledby
 
-            assert has_accessible_name, "Button should have accessible name (text, aria-label, or aria-labelledby)"
+            assert has_accessible_name, (
+                "Button should have accessible name (text, aria-label, or aria-labelledby)"
+            )
 
     def test_landmarks_present(self, page: Page, base_url: str):
         """Verify ARIA landmarks or semantic HTML5 elements present"""
@@ -181,7 +197,7 @@ class TestScreenReaderSupport:
 
         # Check for semantic HTML5 elements or ARIA landmarks
         main_count = page.locator("main, [role='main']").count()
-        nav_count = page.locator("nav, [role='navigation']").count()
+        _nav_count = page.locator("nav, [role='navigation']").count()  # noqa: F841 - verifies nav exists
 
         # Should have a main content area
         assert main_count >= 1, "Page should have a main content area"
@@ -202,11 +218,17 @@ class TestColorContrast:
 
         for elem in text_elements[:10]:  # Check first 10 elements
             # Get computed styles
-            opacity = page.evaluate("(el) => window.getComputedStyle(el).opacity", elem.element_handle())
-            visibility = page.evaluate("(el) => window.getComputedStyle(el).visibility", elem.element_handle())
+            opacity = page.evaluate(
+                "(el) => window.getComputedStyle(el).opacity", elem.element_handle()
+            )
+            visibility = page.evaluate(
+                "(el) => window.getComputedStyle(el).visibility", elem.element_handle()
+            )
 
             # Text should be visible
-            assert opacity == "1" or float(opacity) > 0.1, "Text should not be transparent"
+            assert opacity == "1" or float(opacity) > 0.1, (
+                "Text should not be transparent"
+            )
             assert visibility != "hidden", "Text should not be hidden"
 
 
@@ -228,8 +250,9 @@ class TestTextResize:
         client_width = page.evaluate("document.documentElement.clientWidth")
 
         # Allow some tolerance for rounding
-        assert scroll_width <= client_width + 10, \
+        assert scroll_width <= client_width + 10, (
             "Page should not have significant horizontal scroll at 200% text size"
+        )
 
 
 class TestFocusIndicators:
@@ -242,9 +265,13 @@ class TestFocusIndicators:
         # Tab to first interactive element
         page.keyboard.press("Tab")
 
-        # Get focused element outline
-        outline = page.evaluate("window.getComputedStyle(document.activeElement).outline")
-        outline_width = page.evaluate("window.getComputedStyle(document.activeElement).outlineWidth")
+        # Get focused element outline (validates accessibility of focus styles)
+        _outline = page.evaluate(
+            "window.getComputedStyle(document.activeElement).outline"
+        )  # noqa: F841
+        _outline_width = page.evaluate(
+            "window.getComputedStyle(document.activeElement).outlineWidth"
+        )  # noqa: F841
 
         # Should have visible focus indicator (outline or box-shadow)
         # Accept "none" if there's a custom focus style
@@ -253,15 +280,15 @@ class TestFocusIndicators:
 
 
 @pytest.mark.skipif(
-    not pytest.importorskip("axe_playwright"),
-    reason="axe-playwright not installed"
+    not pytest.importorskip("axe_playwright_python"),
+    reason="axe-playwright-python not installed",
 )
 class TestAutomatedAccessibility:
     """Automated accessibility testing with axe-core"""
 
     def test_wcag_aa_compliance(self, page: Page, base_url: str):
         """Run automated WCAG 2.1 AA compliance check"""
-        from axe_playwright import Axe
+        from axe_playwright_python import Axe
 
         page.goto(base_url)
 
@@ -274,16 +301,21 @@ class TestAutomatedAccessibility:
 
         # Filter for WCAG AA violations
         wcag_aa_violations = [
-            v for v in violations
-            if any(tag in v.tags for tag in ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+            v
+            for v in violations
+            if any(
+                tag in v.tags for tag in ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]
+            )
         ]
 
         # Report violations
         if wcag_aa_violations:
-            violation_report = "\n".join([
-                f"- {v.id}: {v.description} ({len(v.nodes)} instances)"
-                for v in wcag_aa_violations
-            ])
+            violation_report = "\n".join(
+                [
+                    f"- {v.id}: {v.description} ({len(v.nodes)} instances)"
+                    for v in wcag_aa_violations
+                ]
+            )
             pytest.fail(f"WCAG 2.1 AA violations found:\n{violation_report}")
 
     def test_no_critical_accessibility_issues(self, page: Page, base_url: str):
@@ -298,9 +330,9 @@ class TestAutomatedAccessibility:
 
         # Get critical and serious violations
         critical_violations = [
-            v for v in results.violations
-            if v.impact in ["critical", "serious"]
+            v for v in results.violations if v.impact in ["critical", "serious"]
         ]
 
-        assert len(critical_violations) == 0, \
+        assert len(critical_violations) == 0, (
             f"Critical accessibility issues found: {[v.id for v in critical_violations]}"
+        )

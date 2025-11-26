@@ -14,22 +14,22 @@ Usage:
 import sys
 import argparse
 import requests
-from typing import Dict, Any, Optional
+from typing import Optional
 from datetime import datetime
 import json
 
 
 class Color:
-    GREEN = '\033[92m'
-    RED = '\033[91m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    END = '\033[0m'
+    GREEN = "\033[92m"
+    RED = "\033[91m"
+    YELLOW = "\033[93m"
+    BLUE = "\033[94m"
+    END = "\033[0m"
 
 
 class SmokeTest:
     def __init__(self, base_url: str, verbose: bool = False, skip_auth: bool = False):
-        self.base_url = base_url.rstrip('/')
+        self.base_url = base_url.rstrip("/")
         self.verbose = verbose
         self.skip_auth = skip_auth
         self.session_id: Optional[str] = None
@@ -52,11 +52,9 @@ class SmokeTest:
             print(f"  {message}")
 
     def record_result(self, test_name: str, passed: bool, message: str = ""):
-        self.test_results.append({
-            "test": test_name,
-            "passed": passed,
-            "message": message
-        })
+        self.test_results.append(
+            {"test": test_name, "passed": passed, "message": message}
+        )
 
     def test_health(self) -> bool:
         try:
@@ -98,7 +96,9 @@ class SmokeTest:
                     return True
 
             self.log(f"Readiness check failed: status {response.status_code}", "error")
-            self.record_result("readiness_check", False, f"Status: {response.status_code}")
+            self.record_result(
+                "readiness_check", False, f"Status: {response.status_code}"
+            )
             return False
 
         except Exception as e:
@@ -118,19 +118,16 @@ class SmokeTest:
             headers = {
                 "Content-Type": "application/json",
                 "X-Goog-Authenticated-User-Id": "smoke-test-user",
-                "X-Goog-Authenticated-User-Email": "smoke-test@example.com"
+                "X-Goog-Authenticated-User-Email": "smoke-test@example.com",
             }
 
-            payload = {
-                "location": "Smoke Test Arena",
-                "user_name": "Smoke Test User"
-            }
+            payload = {"location": "Smoke Test Arena", "user_name": "Smoke Test User"}
 
             response = requests.post(
                 f"{self.base_url}/api/v1/session/start",
                 json=payload,
                 headers=headers,
-                timeout=30
+                timeout=30,
             )
 
             self.verbose_log(f"Status: {response.status_code}")
@@ -143,11 +140,15 @@ class SmokeTest:
                 if self.session_id and data.get("status") == "initialized":
                     self.log("Session creation passed", "success")
                     self.verbose_log(f"Session ID: {self.session_id}")
-                    self.record_result("session_creation", True, f"Session: {self.session_id}")
+                    self.record_result(
+                        "session_creation", True, f"Session: {self.session_id}"
+                    )
                     return True
 
             self.log(f"Session creation failed: status {response.status_code}", "error")
-            self.record_result("session_creation", False, f"Status: {response.status_code}")
+            self.record_result(
+                "session_creation", False, f"Status: {response.status_code}"
+            )
             return False
 
         except Exception as e:
@@ -167,19 +168,19 @@ class SmokeTest:
             headers = {
                 "Content-Type": "application/json",
                 "X-Goog-Authenticated-User-Id": "smoke-test-user",
-                "X-Goog-Authenticated-User-Email": "smoke-test@example.com"
+                "X-Goog-Authenticated-User-Email": "smoke-test@example.com",
             }
 
             payload = {
                 "user_input": "Hello! This is a smoke test for our improv scene.",
-                "turn_number": 1
+                "turn_number": 1,
             }
 
             response = requests.post(
                 f"{self.base_url}/api/v1/session/{self.session_id}/turn",
                 json=payload,
                 headers=headers,
-                timeout=60
+                timeout=60,
             )
 
             self.verbose_log(f"Status: {response.status_code}")
@@ -188,17 +189,20 @@ class SmokeTest:
             if response.status_code == 200:
                 data = response.json()
 
-                if (data.get("partner_response") and
-                    data.get("room_vibe") and
-                    data.get("turn_number") == 1):
-
+                if (
+                    data.get("partner_response")
+                    and data.get("room_vibe")
+                    and data.get("turn_number") == 1
+                ):
                     self.log("Turn execution passed", "success")
                     self.verbose_log(f"Partner: {data['partner_response'][:100]}...")
                     self.record_result("turn_execution", True)
                     return True
 
             self.log(f"Turn execution failed: status {response.status_code}", "error")
-            self.record_result("turn_execution", False, f"Status: {response.status_code}")
+            self.record_result(
+                "turn_execution", False, f"Status: {response.status_code}"
+            )
             return False
 
         except Exception as e:
@@ -217,13 +221,13 @@ class SmokeTest:
 
             headers = {
                 "X-Goog-Authenticated-User-Id": "smoke-test-user",
-                "X-Goog-Authenticated-User-Email": "smoke-test@example.com"
+                "X-Goog-Authenticated-User-Email": "smoke-test@example.com",
             }
 
             response = requests.post(
                 f"{self.base_url}/api/v1/session/{self.session_id}/close",
                 headers=headers,
-                timeout=10
+                timeout=10,
             )
 
             self.verbose_log(f"Status: {response.status_code}")
@@ -237,7 +241,9 @@ class SmokeTest:
                     return True
 
             self.log(f"Session closure failed: status {response.status_code}", "error")
-            self.record_result("session_closure", False, f"Status: {response.status_code}")
+            self.record_result(
+                "session_closure", False, f"Status: {response.status_code}"
+            )
             return False
 
         except Exception as e:
@@ -246,32 +252,42 @@ class SmokeTest:
             return False
 
     def run_all_tests(self) -> bool:
-        print(f"\n{Color.BLUE}{'='*60}{Color.END}")
+        print(f"\n{Color.BLUE}{'=' * 60}{Color.END}")
         print(f"{Color.BLUE}Improv Olympics Smoke Test Suite{Color.END}")
         print(f"{Color.BLUE}URL: {self.base_url}{Color.END}")
         print(f"{Color.BLUE}Time: {datetime.now().isoformat()}{Color.END}")
-        print(f"{Color.BLUE}{'='*60}{Color.END}\n")
+        print(f"{Color.BLUE}{'=' * 60}{Color.END}\n")
 
         results = [
             self.test_health(),
             self.test_ready(),
             self.test_create_session(),
             self.test_execute_turn(),
-            self.test_close_session()
+            self.test_close_session(),
         ]
 
-        print(f"\n{Color.BLUE}{'='*60}{Color.END}")
+        print(f"\n{Color.BLUE}{'=' * 60}{Color.END}")
         print(f"{Color.BLUE}Test Results Summary{Color.END}")
-        print(f"{Color.BLUE}{'='*60}{Color.END}\n")
+        print(f"{Color.BLUE}{'=' * 60}{Color.END}\n")
 
         passed_count = sum(1 for r in self.test_results if r["passed"] is True)
         failed_count = sum(1 for r in self.test_results if r["passed"] is False)
         skipped_count = sum(1 for r in self.test_results if r["passed"] is None)
 
         for result in self.test_results:
-            status_icon = "✓" if result["passed"] is True else ("✗" if result["passed"] is False else "⊘")
-            color = Color.GREEN if result["passed"] is True else (Color.RED if result["passed"] is False else Color.YELLOW)
-            print(f"{color}{status_icon}{Color.END} {result['test']}: {result['message'] if result['message'] else 'OK'}")
+            status_icon = (
+                "✓"
+                if result["passed"] is True
+                else ("✗" if result["passed"] is False else "⊘")
+            )
+            color = (
+                Color.GREEN
+                if result["passed"] is True
+                else (Color.RED if result["passed"] is False else Color.YELLOW)
+            )
+            print(
+                f"{color}{status_icon}{Color.END} {result['test']}: {result['message'] if result['message'] else 'OK'}"
+            )
 
         print(f"\n{Color.BLUE}Total:{Color.END} {len(self.test_results)} tests")
         print(f"{Color.GREEN}Passed:{Color.END} {passed_count}")
@@ -281,13 +297,13 @@ class SmokeTest:
         all_passed = all(r is True or r is None for r in results)
 
         if all_passed:
-            print(f"\n{Color.GREEN}{'='*60}{Color.END}")
+            print(f"\n{Color.GREEN}{'=' * 60}{Color.END}")
             print(f"{Color.GREEN}All smoke tests passed!{Color.END}")
-            print(f"{Color.GREEN}{'='*60}{Color.END}\n")
+            print(f"{Color.GREEN}{'=' * 60}{Color.END}\n")
         else:
-            print(f"\n{Color.RED}{'='*60}{Color.END}")
+            print(f"\n{Color.RED}{'=' * 60}{Color.END}")
             print(f"{Color.RED}Some smoke tests failed!{Color.END}")
-            print(f"{Color.RED}{'='*60}{Color.END}\n")
+            print(f"{Color.RED}{'=' * 60}{Color.END}\n")
 
         return all_passed
 
@@ -299,30 +315,18 @@ def main():
     parser.add_argument(
         "--url",
         required=True,
-        help="Base URL of the service (e.g., https://your-service.run.app)"
+        help="Base URL of the service (e.g., https://your-service.run.app)",
     )
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
     parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Enable verbose output"
+        "--skip-auth", action="store_true", help="Skip tests requiring authentication"
     )
-    parser.add_argument(
-        "--skip-auth",
-        action="store_true",
-        help="Skip tests requiring authentication"
-    )
-    parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Output results as JSON"
-    )
+    parser.add_argument("--json", action="store_true", help="Output results as JSON")
 
     args = parser.parse_args()
 
     smoke_test = SmokeTest(
-        base_url=args.url,
-        verbose=args.verbose,
-        skip_auth=args.skip_auth
+        base_url=args.url, verbose=args.verbose, skip_auth=args.skip_auth
     )
 
     success = smoke_test.run_all_tests()
@@ -332,7 +336,7 @@ def main():
             "timestamp": datetime.now().isoformat(),
             "base_url": args.url,
             "success": success,
-            "results": smoke_test.test_results
+            "results": smoke_test.test_results,
         }
         print(json.dumps(output, indent=2))
 

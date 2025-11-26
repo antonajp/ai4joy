@@ -1,9 +1,10 @@
 """Health Check Endpoints"""
+
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
 from datetime import datetime
-from typing import Dict, Any
-from google.cloud import firestore
+from typing import Dict, Any, Union
+from google.cloud import firestore  # type: ignore[attr-defined]
 
 from app.config import get_settings
 from app.utils.logger import get_logger
@@ -25,12 +26,12 @@ async def health_check() -> Dict[str, Any]:
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat() + "Z",
-        "service": settings.app_name
+        "service": settings.app_name,
     }
 
 
 @router.get("/ready", status_code=status.HTTP_200_OK)
-async def readiness_check() -> Dict[str, Any]:
+async def readiness_check() -> Union[Dict[str, Any], JSONResponse]:
     """
     Readiness check with dependency validation.
     Checks connectivity to Firestore and other critical services.
@@ -39,15 +40,11 @@ async def readiness_check() -> Dict[str, Any]:
         200 OK if all dependencies are healthy
         503 Service Unavailable if any dependency fails
     """
-    checks = {
-        "firestore": False,
-        "vertexai": False
-    }
+    checks = {"firestore": False, "vertexai": False}
 
     try:
         db = firestore.Client(
-            project=settings.gcp_project_id,
-            database=settings.firestore_database
+            project=settings.gcp_project_id, database=settings.firestore_database
         )
 
         test_collection = db.collection("_health_check")
@@ -63,6 +60,7 @@ async def readiness_check() -> Dict[str, Any]:
 
     try:
         import vertexai
+
         vertexai.init(project=settings.gcp_project_id, location=settings.gcp_location)
         checks["vertexai"] = True
         logger.debug("VertexAI initialization check passed")
@@ -75,14 +73,13 @@ async def readiness_check() -> Dict[str, Any]:
     response = {
         "status": "ready" if all_healthy else "not_ready",
         "timestamp": datetime.utcnow().isoformat() + "Z",
-        "checks": checks
+        "checks": checks,
     }
 
     if not all_healthy:
         logger.warning("Readiness check failed", checks=checks)
         return JSONResponse(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content=response
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=response
         )
 
     return response

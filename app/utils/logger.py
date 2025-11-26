@@ -1,4 +1,5 @@
 """Structured logging for Cloud Logging integration with OpenTelemetry trace correlation"""
+
 import logging
 import json
 import sys
@@ -8,7 +9,7 @@ from contextvars import ContextVar
 
 from opentelemetry import trace
 
-trace_id_var: ContextVar[Optional[str]] = ContextVar('trace_id', default=None)
+trace_id_var: ContextVar[Optional[str]] = ContextVar("trace_id", default=None)
 
 
 class CloudLogger:
@@ -58,8 +59,11 @@ class CloudLogger:
             # Format: projects/{project}/traces/{trace_id}
             if not trace_id.startswith("projects/"):
                 from app.config import get_settings
+
                 settings = get_settings()
-                log_entry["logging.googleapis.com/trace"] = f"projects/{settings.gcp_project_id}/traces/{trace_id}"
+                log_entry["logging.googleapis.com/trace"] = (
+                    f"projects/{settings.gcp_project_id}/traces/{trace_id}"
+                )
 
         if kwargs:
             log_entry.update(kwargs)
@@ -71,7 +75,7 @@ class CloudLogger:
         try:
             span = trace.get_current_span()
             if span and span.get_span_context().is_valid:
-                return format(span.get_span_context().trace_id, '032x')
+                return format(span.get_span_context().trace_id, "032x")
         except Exception:
             pass
         return None
@@ -102,7 +106,7 @@ class CloudLogger:
         operation: str,
         duration: Optional[float] = None,
         success: bool = True,
-        **kwargs
+        **kwargs,
     ):
         """
         Convenience method for logging agent execution.
@@ -118,7 +122,7 @@ class CloudLogger:
             "agent": agent_name,
             "operation": operation,
             "success": success,
-            **kwargs
+            **kwargs,
         }
 
         if duration is not None:
@@ -135,7 +139,7 @@ class CloudLogger:
         cache_type: str,
         hit: bool,
         key: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ):
         """
         Convenience method for logging cache operations.
@@ -151,16 +155,13 @@ class CloudLogger:
             "cache_type": cache_type,
             "operation": operation,
             "cache_hit": hit,
-            **kwargs
+            **kwargs,
         }
 
         if key:
             log_data["cache_key"] = key
 
-        self.debug(
-            f"Cache {operation} - {'hit' if hit else 'miss'}",
-            **log_data
-        )
+        self.debug(f"Cache {operation} - {'hit' if hit else 'miss'}", **log_data)
 
 
 def get_logger(name: str, level: str = "INFO") -> CloudLogger:

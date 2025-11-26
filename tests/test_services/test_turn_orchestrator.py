@@ -50,7 +50,7 @@ class TestTurnOrchestratorContextBuilding:
             updated_at=datetime.now(timezone.utc),
             expires_at=datetime.now(timezone.utc),
             conversation_history=[],
-            turn_count=0
+            turn_count=0,
         )
 
     def test_tc_turn_01a_empty_history_context(self, orchestrator, base_session):
@@ -61,9 +61,7 @@ class TestTurnOrchestratorContextBuilding:
         location and current turn number.
         """
         context = orchestrator._build_context(
-            session=base_session,
-            user_input="Hello, I'm ready to start!",
-            turn_number=1
+            session=base_session, user_input="Hello, I'm ready to start!", turn_number=1
         )
 
         assert "Location: Mars Colony" in context
@@ -81,24 +79,24 @@ class TestTurnOrchestratorContextBuilding:
             {
                 "turn_number": 1,
                 "user_input": "Welcome to Mars!",
-                "partner_response": "Thanks! The red rocks are beautiful."
+                "partner_response": "Thanks! The red rocks are beautiful.",
             },
             {
                 "turn_number": 2,
                 "user_input": "Let's check the oxygen levels.",
-                "partner_response": "Good idea, I'll grab the scanner."
+                "partner_response": "Good idea, I'll grab the scanner.",
             },
             {
                 "turn_number": 3,
                 "user_input": "The readings look low!",
-                "partner_response": "We need to act fast."
-            }
+                "partner_response": "We need to act fast.",
+            },
         ]
 
         context = orchestrator._build_context(
             session=base_session,
             user_input="I'll contact mission control",
-            turn_number=4
+            turn_number=4,
         )
 
         assert "Location: Mars Colony" in context
@@ -109,7 +107,9 @@ class TestTurnOrchestratorContextBuilding:
         assert "Let's check the oxygen levels." in context
         assert "The readings look low!" in context
 
-    def test_tc_turn_01c_context_limits_to_three_turns(self, orchestrator, base_session):
+    def test_tc_turn_01c_context_limits_to_three_turns(
+        self, orchestrator, base_session
+    ):
         """
         TC-TURN-01c: Context Only Includes Last 3 Turns
 
@@ -117,14 +117,16 @@ class TestTurnOrchestratorContextBuilding:
         should be included to avoid context bloat.
         """
         base_session.conversation_history = [
-            {"turn_number": i, "user_input": f"Input {i}", "partner_response": f"Response {i}"}
+            {
+                "turn_number": i,
+                "user_input": f"Input {i}",
+                "partner_response": f"Response {i}",
+            }
             for i in range(1, 8)
         ]
 
         context = orchestrator._build_context(
-            session=base_session,
-            user_input="Current input",
-            turn_number=8
+            session=base_session, user_input="Current input", turn_number=8
         )
 
         # Should include turns 5, 6, 7 (last 3)
@@ -158,11 +160,13 @@ class TestTurnOrchestratorPromptConstruction:
             updated_at=datetime.now(timezone.utc),
             expires_at=datetime.now(timezone.utc),
             conversation_history=[],
-            turn_count=0
+            turn_count=0,
         )
 
     @pytest.mark.asyncio
-    async def test_tc_turn_02a_phase1_prompt_construction(self, orchestrator, base_session):
+    async def test_tc_turn_02a_phase1_prompt_construction(
+        self, orchestrator, base_session
+    ):
         """
         TC-TURN-02a: Phase 1 Prompt Construction (Turns 1-3)
 
@@ -172,7 +176,7 @@ class TestTurnOrchestratorPromptConstruction:
         prompt = await orchestrator._construct_scene_prompt(
             session=base_session,
             user_input="Let's explore this coral reef!",
-            turn_number=2
+            turn_number=2,
         )
 
         assert "Scene Turn 2" in prompt
@@ -186,7 +190,9 @@ class TestTurnOrchestratorPromptConstruction:
         assert "Coach Agent" not in prompt
 
     @pytest.mark.asyncio
-    async def test_tc_turn_02b_phase2_prompt_construction(self, orchestrator, base_session):
+    async def test_tc_turn_02b_phase2_prompt_construction(
+        self, orchestrator, base_session
+    ):
         """
         TC-TURN-02b: Phase 2 Prompt Construction (Turns 4+)
 
@@ -195,7 +201,7 @@ class TestTurnOrchestratorPromptConstruction:
         prompt = await orchestrator._construct_scene_prompt(
             session=base_session,
             user_input="We need to repair the hull breach!",
-            turn_number=5
+            turn_number=5,
         )
 
         assert "Scene Turn 5" in prompt
@@ -204,23 +210,25 @@ class TestTurnOrchestratorPromptConstruction:
         assert "We need to repair the hull breach!" in prompt
 
     @pytest.mark.asyncio
-    async def test_tc_turn_02c_coach_inclusion_at_turn_15(self, orchestrator, base_session):
+    async def test_tc_turn_02c_coach_inclusion_at_turn_15(
+        self, orchestrator, base_session
+    ):
         """
         TC-TURN-02c: Coach Agent Included at Turn 15+
 
         Coach feedback should be requested starting at turn 15.
         """
         prompt = await orchestrator._construct_scene_prompt(
-            session=base_session,
-            user_input="Final scene action",
-            turn_number=15
+            session=base_session, user_input="Final scene action", turn_number=15
         )
 
         assert "Coach Agent: Provide constructive feedback" in prompt
         assert "COACH:" in prompt
 
     @pytest.mark.asyncio
-    async def test_tc_turn_02d_coach_not_included_before_turn_15(self, orchestrator, base_session):
+    async def test_tc_turn_02d_coach_not_included_before_turn_15(
+        self, orchestrator, base_session
+    ):
         """
         TC-TURN-02d: No Coach Before Turn 15
 
@@ -228,12 +236,12 @@ class TestTurnOrchestratorPromptConstruction:
         """
         for turn in [1, 5, 10, 14]:
             prompt = await orchestrator._construct_scene_prompt(
-                session=base_session,
-                user_input="Scene input",
-                turn_number=turn
+                session=base_session, user_input="Scene input", turn_number=turn
             )
 
-            assert "Coach Agent" not in prompt, f"Coach should not appear in turn {turn}"
+            assert "Coach Agent" not in prompt, (
+                f"Coach should not appear in turn {turn}"
+            )
 
 
 class TestTurnOrchestratorResponseParsing:
@@ -257,11 +265,13 @@ ROOM: The audience is leaning forward, clearly engaged by the building tension a
 COACH: Nice work establishing clear stakes and collaborative action. Remember to keep building on each other's offers."""
 
         parsed = orchestrator._parse_agent_response(
-            response=agent_response,
-            turn_number=15
+            response=agent_response, turn_number=15
         )
 
-        assert parsed["partner_response"] == "Great idea! Let's check the oxygen levels together. I'll grab the analyzer from the storage bay."
+        assert (
+            parsed["partner_response"]
+            == "Great idea! Let's check the oxygen levels together. I'll grab the analyzer from the storage bay."
+        )
         assert "leaning forward" in parsed["room_vibe"]["analysis"]
         assert parsed["room_vibe"]["energy"] == "engaged"
         assert parsed["coach_feedback"] is not None
@@ -278,12 +288,13 @@ COACH: Nice work establishing clear stakes and collaborative action. Remember to
         agent_response = "Just a plain text response without sections"
 
         parsed = orchestrator._parse_agent_response(
-            response=agent_response,
-            turn_number=3
+            response=agent_response, turn_number=3
         )
 
         # Should use entire response as partner response
-        assert parsed["partner_response"] == "Just a plain text response without sections"
+        assert (
+            parsed["partner_response"] == "Just a plain text response without sections"
+        )
 
         # Should use default room vibe
         assert "engaged" in parsed["room_vibe"]["analysis"].lower()
@@ -303,11 +314,12 @@ COACH: Nice work establishing clear stakes and collaborative action. Remember to
         agent_response = "PARTNER: Let's do this! I'm ready to start the scene."
 
         parsed = orchestrator._parse_agent_response(
-            response=agent_response,
-            turn_number=2
+            response=agent_response, turn_number=2
         )
 
-        assert parsed["partner_response"] == "Let's do this! I'm ready to start the scene."
+        assert (
+            parsed["partner_response"] == "Let's do this! I'm ready to start the scene."
+        )
         assert parsed["room_vibe"]["analysis"]  # Should have default
         assert parsed["coach_feedback"] is None
 
@@ -324,15 +336,13 @@ COACH: Great work!"""
 
         # Turn 10: Coach should be ignored
         parsed_10 = orchestrator._parse_agent_response(
-            response=agent_response,
-            turn_number=10
+            response=agent_response, turn_number=10
         )
         assert parsed_10["coach_feedback"] is None
 
         # Turn 15: Coach should be parsed
         parsed_15 = orchestrator._parse_agent_response(
-            response=agent_response,
-            turn_number=15
+            response=agent_response, turn_number=15
         )
         assert parsed_15["coach_feedback"] == "Great work!"
 
@@ -343,8 +353,7 @@ COACH: Great work!"""
         Parsed response should include turn number and timestamp.
         """
         parsed = orchestrator._parse_agent_response(
-            response="PARTNER: Test response",
-            turn_number=7
+            response="PARTNER: Test response", turn_number=7
         )
 
         assert parsed["turn_number"] == 7
@@ -381,7 +390,7 @@ class TestTurnOrchestratorSessionStateUpdates:
             updated_at=datetime.now(timezone.utc),
             expires_at=datetime.now(timezone.utc),
             conversation_history=[],
-            turn_count=0
+            turn_count=0,
         )
 
     @pytest.mark.asyncio
@@ -399,14 +408,14 @@ class TestTurnOrchestratorSessionStateUpdates:
             "room_vibe": {"analysis": "High energy", "energy": "engaged"},
             "current_phase": 1,
             "timestamp": datetime.now(timezone.utc),
-            "coach_feedback": None
+            "coach_feedback": None,
         }
 
         await orchestrator._update_session_after_turn(
             session=base_session,
             user_input="Let's continue the scene",
             turn_response=turn_response,
-            turn_number=3
+            turn_number=3,
         )
 
         session_manager.update_session_atomic.assert_called_once()
@@ -435,14 +444,14 @@ class TestTurnOrchestratorSessionStateUpdates:
             "partner_response": "Scene continues",
             "room_vibe": {"analysis": "Good", "energy": "engaged"},
             "current_phase": 2,  # Phase transition!
-            "timestamp": datetime.now(timezone.utc)
+            "timestamp": datetime.now(timezone.utc),
         }
 
         await orchestrator._update_session_after_turn(
             session=base_session,
             user_input="Turn 4 input",
             turn_response=turn_response,
-            turn_number=4
+            turn_number=4,
         )
 
         session_manager.update_session_atomic.assert_called_once()
@@ -465,14 +474,14 @@ class TestTurnOrchestratorSessionStateUpdates:
             "partner_response": "Welcome!",
             "room_vibe": {"analysis": "Good", "energy": "engaged"},
             "current_phase": 1,
-            "timestamp": datetime.now(timezone.utc)
+            "timestamp": datetime.now(timezone.utc),
         }
 
         await orchestrator._update_session_after_turn(
             session=base_session,
             user_input="First input",
             turn_response=turn_response,
-            turn_number=1
+            turn_number=1,
         )
 
         session_manager.update_session_atomic.assert_called_once()
@@ -496,14 +505,14 @@ class TestTurnOrchestratorSessionStateUpdates:
             "room_vibe": {"analysis": "Complete", "energy": "satisfied"},
             "current_phase": 2,
             "timestamp": datetime.now(timezone.utc),
-            "coach_feedback": "Great work!"
+            "coach_feedback": "Great work!",
         }
 
         await orchestrator._update_session_after_turn(
             session=base_session,
             user_input="Final input",
             turn_response=turn_response,
-            turn_number=15
+            turn_number=15,
         )
 
         session_manager.update_session_atomic.assert_called_once()
@@ -525,14 +534,14 @@ class TestTurnOrchestratorSessionStateUpdates:
             "room_vibe": {"analysis": "Good", "energy": "engaged"},
             "current_phase": 2,
             "timestamp": datetime.now(timezone.utc),
-            "coach_feedback": "Excellent use of Yes-And principle!"
+            "coach_feedback": "Excellent use of Yes-And principle!",
         }
 
         await orchestrator._update_session_after_turn(
             session=base_session,
             user_input="Input",
             turn_response=turn_response,
-            turn_number=15
+            turn_number=15,
         )
 
         session_manager.update_session_atomic.assert_called_once()
@@ -553,6 +562,10 @@ class TestTurnOrchestratorErrorHandling:
         manager.update_session_phase = AsyncMock()
         manager.update_session_status = AsyncMock()
         manager.update_session_atomic = AsyncMock()
+        # Mock get_adk_session to return a mock ADK session
+        mock_adk_session = Mock()
+        mock_adk_session.events = []
+        manager.get_adk_session = AsyncMock(return_value=mock_adk_session)
         return manager
 
     @pytest.fixture
@@ -571,7 +584,7 @@ class TestTurnOrchestratorErrorHandling:
             updated_at=datetime.now(timezone.utc),
             expires_at=datetime.now(timezone.utc),
             conversation_history=[],
-            turn_count=3
+            turn_count=3,
         )
 
     @pytest.mark.asyncio
@@ -583,8 +596,8 @@ class TestTurnOrchestratorErrorHandling:
 
         When ADK Runner fails, error should be logged and re-raised.
         """
-        with patch('app.services.turn_orchestrator.create_stage_manager') as mock_create:
-            with patch('app.services.turn_orchestrator.Runner') as mock_runner:
+        with patch("app.services.turn_orchestrator.create_stage_manager"):
+            with patch("app.services.turn_orchestrator.Runner") as mock_runner:
                 # Simulate runner failure
                 mock_runner_instance = Mock()
                 mock_runner.return_value = mock_runner_instance
@@ -593,18 +606,16 @@ class TestTurnOrchestratorErrorHandling:
                     raise RuntimeError("ADK execution failed")
 
                 # Patch the async run method
-                with patch.object(orchestrator, '_run_agent_async', side_effect=failing_run):
+                with patch.object(
+                    orchestrator, "_run_agent_async", side_effect=failing_run
+                ):
                     with pytest.raises(RuntimeError, match="ADK execution failed"):
                         await orchestrator.execute_turn(
-                            session=base_session,
-                            user_input="Test input",
-                            turn_number=4
+                            session=base_session, user_input="Test input", turn_number=4
                         )
 
     @pytest.mark.asyncio
-    async def test_tc_turn_06b_malformed_response_handling(
-        self, orchestrator
-    ):
+    async def test_tc_turn_06b_malformed_response_handling(self, orchestrator):
         """
         TC-TURN-06b: Malformed Response Handled Gracefully
 
@@ -612,14 +623,10 @@ class TestTurnOrchestratorErrorHandling:
         without crashing. Empty responses raise ValueError.
         """
         with pytest.raises(ValueError, match="Partner response cannot be empty"):
-            orchestrator._parse_agent_response(
-                response="",
-                turn_number=5
-            )
+            orchestrator._parse_agent_response(response="", turn_number=5)
 
         parsed = orchestrator._parse_agent_response(
-            response="###INVALID_FORMAT###",
-            turn_number=5
+            response="###INVALID_FORMAT###", turn_number=5
         )
         assert parsed["partner_response"] == "###INVALID_FORMAT###"
         assert "room_vibe" in parsed
@@ -640,7 +647,7 @@ class TestTurnOrchestratorErrorHandling:
             "partner_response": "Response",
             "room_vibe": {"analysis": "Good", "energy": "engaged"},
             "current_phase": 2,
-            "timestamp": datetime.now(timezone.utc)
+            "timestamp": datetime.now(timezone.utc),
         }
 
         with pytest.raises(Exception, match="Firestore error"):
@@ -648,7 +655,7 @@ class TestTurnOrchestratorErrorHandling:
                 session=base_session,
                 user_input="Input",
                 turn_response=turn_response,
-                turn_number=5
+                turn_number=5,
             )
 
 
@@ -671,11 +678,13 @@ class TestTurnOrchestratorPhaseIntegration:
             updated_at=datetime.now(timezone.utc),
             expires_at=datetime.now(timezone.utc),
             conversation_history=[],
-            turn_count=0
+            turn_count=0,
         )
 
     @pytest.mark.asyncio
-    async def test_tc_turn_07a_phase_1_for_turns_1_to_4(self, orchestrator, base_session):
+    async def test_tc_turn_07a_phase_1_for_turns_1_to_4(
+        self, orchestrator, base_session
+    ):
         """
         TC-TURN-07a: Phase 1 for Turns 1-4
 
@@ -684,20 +693,19 @@ class TestTurnOrchestratorPhaseIntegration:
         """
         for turn in [1, 2, 3, 4]:
             prompt = await orchestrator._construct_scene_prompt(
-                session=base_session,
-                user_input="Test",
-                turn_number=turn
+                session=base_session, user_input="Test", turn_number=turn
             )
             assert "Phase 1 (Supportive)" in prompt
 
             parsed = orchestrator._parse_agent_response(
-                response="PARTNER: Test",
-                turn_number=turn
+                response="PARTNER: Test", turn_number=turn
             )
             assert parsed["current_phase"] == 1
 
     @pytest.mark.asyncio
-    async def test_tc_turn_07b_phase_2_from_turn_5_onwards(self, orchestrator, base_session):
+    async def test_tc_turn_07b_phase_2_from_turn_5_onwards(
+        self, orchestrator, base_session
+    ):
         """
         TC-TURN-07b: Phase 2 from Turn 5 Onwards
 
@@ -706,15 +714,12 @@ class TestTurnOrchestratorPhaseIntegration:
         """
         for turn in [5, 6, 10, 15]:
             prompt = await orchestrator._construct_scene_prompt(
-                session=base_session,
-                user_input="Test",
-                turn_number=turn
+                session=base_session, user_input="Test", turn_number=turn
             )
             assert "Phase 2 (Fallible)" in prompt
 
             parsed = orchestrator._parse_agent_response(
-                response="PARTNER: Test",
-                turn_number=turn
+                response="PARTNER: Test", turn_number=turn
             )
             assert parsed["current_phase"] == 2
 
@@ -740,9 +745,13 @@ class TestTurnOrchestratorAsyncExecution:
         """
         from app.services.turn_orchestrator import get_singleton_runner, reset_runner
 
-        with patch('app.services.turn_orchestrator.get_adk_session_service') as mock_get_service:
-            with patch('app.services.turn_orchestrator.Runner') as mock_runner_class:
-                with patch('app.services.turn_orchestrator.create_stage_manager') as mock_create_stage:
+        with patch(
+            "app.services.turn_orchestrator.get_adk_session_service"
+        ) as mock_get_service:
+            with patch("app.services.turn_orchestrator.Runner") as mock_runner_class:
+                with patch(
+                    "app.services.turn_orchestrator.create_stage_manager"
+                ) as mock_create_stage:
                     reset_runner()
 
                     mock_session_service = Mock()
@@ -755,21 +764,20 @@ class TestTurnOrchestratorAsyncExecution:
                     mock_runner_class.return_value = mock_runner_instance
 
                     async def mock_run_async(*args, **kwargs):
-                        yield {
-                            "type": "final",
-                            "content": "PARTNER: Test response"
-                        }
+                        yield {"type": "final", "content": "PARTNER: Test response"}
 
                     mock_runner_instance.run_async = mock_run_async
 
                     runner1 = get_singleton_runner()
                     runner2 = get_singleton_runner()
 
-                    assert runner1 is runner2, "Singleton Runner should return same instance"
+                    assert runner1 is runner2, (
+                        "Singleton Runner should return same instance"
+                    )
 
                     mock_runner_class.assert_called_once()
                     call_args = mock_runner_class.call_args
-                    assert call_args[1]['session_service'] is mock_session_service
+                    assert call_args[1]["session_service"] is mock_session_service
 
                     reset_runner()
 
@@ -784,16 +792,24 @@ class TestTurnOrchestratorAsyncExecution:
 
         session_manager = Mock()
         session_manager.update_session_atomic = AsyncMock()
+        # Mock get_adk_session to return a mock ADK session
+        mock_adk_session = Mock()
+        mock_adk_session.events = []
+        session_manager.get_adk_session = AsyncMock(return_value=mock_adk_session)
 
         orchestrator = TurnOrchestrator(session_manager)
 
-        with patch('app.services.turn_orchestrator.get_singleton_runner') as mock_get_runner:
+        with patch(
+            "app.services.turn_orchestrator.get_singleton_runner"
+        ) as mock_get_runner:
             mock_runner = Mock()
 
             async def mock_run_async(*args, **kwargs):
                 mock_event = Mock()
                 mock_event.content = Mock()
-                mock_event.content.parts = [Mock(text="PARTNER: Test response\nROOM: Good energy")]
+                mock_event.content.parts = [
+                    Mock(text="PARTNER: Test response\nROOM: Good energy")
+                ]
                 yield mock_event
 
             mock_runner.run_async = mock_run_async
@@ -810,13 +826,11 @@ class TestTurnOrchestratorAsyncExecution:
                 expires_at=datetime.now(timezone.utc),
                 conversation_history=[],
                 turn_count=0,
-                current_phase="PHASE_1"
+                current_phase="PHASE_1",
             )
 
             await orchestrator.execute_turn(
-                session=session,
-                user_input="Test input",
-                turn_number=1
+                session=session, user_input="Test input", turn_number=1
             )
 
             mock_get_runner.assert_called_once()
@@ -852,7 +866,7 @@ class TestTurnOrchestratorEdgeCases:
             updated_at=datetime.now(timezone.utc),
             expires_at=datetime.now(timezone.utc),
             conversation_history=[],
-            turn_count=0
+            turn_count=0,
         )
 
     @pytest.mark.asyncio
@@ -865,16 +879,16 @@ class TestTurnOrchestratorEdgeCases:
         long_input = "A" * 1000
 
         prompt = await orchestrator._construct_scene_prompt(
-            session=base_session,
-            user_input=long_input,
-            turn_number=5
+            session=base_session, user_input=long_input, turn_number=5
         )
 
         assert long_input in prompt
         assert len(prompt) > 1000
 
     @pytest.mark.asyncio
-    async def test_tc_turn_08b_special_characters_in_input(self, orchestrator, base_session):
+    async def test_tc_turn_08b_special_characters_in_input(
+        self, orchestrator, base_session
+    ):
         """
         TC-TURN-08b: Special Characters in User Input
 
@@ -883,9 +897,7 @@ class TestTurnOrchestratorEdgeCases:
         special_input = 'Test with "quotes" and <tags> and & symbols!'
 
         prompt = await orchestrator._construct_scene_prompt(
-            session=base_session,
-            user_input=special_input,
-            turn_number=2
+            session=base_session, user_input=special_input, turn_number=2
         )
 
         assert special_input in prompt
@@ -899,9 +911,7 @@ class TestTurnOrchestratorEdgeCases:
         base_session.location = ""
 
         context = orchestrator._build_context(
-            session=base_session,
-            user_input="Test",
-            turn_number=1
+            session=base_session, user_input="Test", turn_number=1
         )
 
         assert "Location:" in context
@@ -918,8 +928,7 @@ ROOM: Confused energy
 ROOM: Actually good energy"""
 
         parsed = orchestrator._parse_agent_response(
-            response=confusing_response,
-            turn_number=5
+            response=confusing_response, turn_number=5
         )
 
         # Should parse first occurrence

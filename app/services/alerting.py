@@ -1,4 +1,5 @@
 """Alerting service for monitoring thresholds and anomalies"""
+
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -13,6 +14,7 @@ logger = get_logger(__name__)
 
 class AlertSeverity(str, Enum):
     """Alert severity levels"""
+
     INFO = "INFO"
     WARNING = "WARNING"
     CRITICAL = "CRITICAL"
@@ -21,6 +23,7 @@ class AlertSeverity(str, Enum):
 @dataclass
 class Alert:
     """Alert data structure"""
+
     severity: AlertSeverity
     metric: str
     message: str
@@ -44,11 +47,15 @@ class AlertingService:
         self,
         latency_threshold: float = None,
         error_rate_threshold: float = None,
-        cache_hit_rate_threshold: float = None
+        cache_hit_rate_threshold: float = None,
     ):
         self.latency_threshold = latency_threshold or settings.alert_latency_threshold
-        self.error_rate_threshold = error_rate_threshold or settings.alert_error_rate_threshold
-        self.cache_hit_rate_threshold = cache_hit_rate_threshold or settings.alert_cache_hit_rate_threshold
+        self.error_rate_threshold = (
+            error_rate_threshold or settings.alert_error_rate_threshold
+        )
+        self.cache_hit_rate_threshold = (
+            cache_hit_rate_threshold or settings.alert_cache_hit_rate_threshold
+        )
 
         self.alerts: List[Alert] = []
 
@@ -56,10 +63,12 @@ class AlertingService:
             "Alerting service initialized",
             latency_threshold=self.latency_threshold,
             error_rate_threshold=self.error_rate_threshold,
-            cache_hit_rate_threshold=self.cache_hit_rate_threshold
+            cache_hit_rate_threshold=self.cache_hit_rate_threshold,
         )
 
-    def check_latency(self, p95_latency: float, metric_name: str = "turn_latency") -> Optional[Alert]:
+    def check_latency(
+        self, p95_latency: float, metric_name: str = "turn_latency"
+    ) -> Optional[Alert]:
         """
         Check p95 latency against threshold.
 
@@ -71,7 +80,11 @@ class AlertingService:
             Alert if threshold exceeded, None otherwise
         """
         if p95_latency > self.latency_threshold:
-            severity = AlertSeverity.CRITICAL if p95_latency > self.latency_threshold * 1.5 else AlertSeverity.WARNING
+            severity = (
+                AlertSeverity.CRITICAL
+                if p95_latency > self.latency_threshold * 1.5
+                else AlertSeverity.WARNING
+            )
 
             alert = Alert(
                 severity=severity,
@@ -80,7 +93,7 @@ class AlertingService:
                 current_value=p95_latency,
                 threshold=self.latency_threshold,
                 timestamp=datetime.now(timezone.utc),
-                metadata={"metric_name": metric_name}
+                metadata={"metric_name": metric_name},
             )
 
             self._record_alert(alert)
@@ -88,7 +101,9 @@ class AlertingService:
 
         return None
 
-    def check_error_rate(self, total_requests: int, error_count: int) -> Optional[Alert]:
+    def check_error_rate(
+        self, total_requests: int, error_count: int
+    ) -> Optional[Alert]:
         """
         Check error rate against threshold.
 
@@ -105,7 +120,11 @@ class AlertingService:
         error_rate = error_count / total_requests
 
         if error_rate > self.error_rate_threshold:
-            severity = AlertSeverity.CRITICAL if error_rate > self.error_rate_threshold * 2 else AlertSeverity.WARNING
+            severity = (
+                AlertSeverity.CRITICAL
+                if error_rate > self.error_rate_threshold * 2
+                else AlertSeverity.WARNING
+            )
 
             alert = Alert(
                 severity=severity,
@@ -114,10 +133,7 @@ class AlertingService:
                 current_value=error_rate,
                 threshold=self.error_rate_threshold,
                 timestamp=datetime.now(timezone.utc),
-                metadata={
-                    "total_requests": total_requests,
-                    "error_count": error_count
-                }
+                metadata={"total_requests": total_requests, "error_count": error_count},
             )
 
             self._record_alert(alert)
@@ -125,7 +141,9 @@ class AlertingService:
 
         return None
 
-    def check_cache_hit_rate(self, cache_hits: int, cache_total: int) -> Optional[Alert]:
+    def check_cache_hit_rate(
+        self, cache_hits: int, cache_total: int
+    ) -> Optional[Alert]:
         """
         Check cache hit rate against threshold.
 
@@ -142,7 +160,11 @@ class AlertingService:
         hit_rate = cache_hits / cache_total
 
         if hit_rate < self.cache_hit_rate_threshold:
-            severity = AlertSeverity.WARNING if hit_rate > self.cache_hit_rate_threshold * 0.5 else AlertSeverity.CRITICAL
+            severity = (
+                AlertSeverity.WARNING
+                if hit_rate > self.cache_hit_rate_threshold * 0.5
+                else AlertSeverity.CRITICAL
+            )
 
             alert = Alert(
                 severity=severity,
@@ -151,10 +173,7 @@ class AlertingService:
                 current_value=hit_rate,
                 threshold=self.cache_hit_rate_threshold,
                 timestamp=datetime.now(timezone.utc),
-                metadata={
-                    "cache_hits": cache_hits,
-                    "cache_total": cache_total
-                }
+                metadata={"cache_hits": cache_hits, "cache_total": cache_total},
             )
 
             self._record_alert(alert)
@@ -169,7 +188,7 @@ class AlertingService:
         log_method = {
             AlertSeverity.INFO: logger.info,
             AlertSeverity.WARNING: logger.warning,
-            AlertSeverity.CRITICAL: logger.critical
+            AlertSeverity.CRITICAL: logger.critical,
         }[alert.severity]
 
         log_method(
@@ -178,7 +197,7 @@ class AlertingService:
             metric=alert.metric,
             current_value=alert.current_value,
             threshold=alert.threshold,
-            metadata=alert.metadata
+            metadata=alert.metadata,
         )
 
     def get_recent_alerts(self, count: int = 10) -> List[Alert]:
@@ -200,7 +219,7 @@ class AlertingService:
             "total": len(self.alerts),
             "info": len(self.get_alerts_by_severity(AlertSeverity.INFO)),
             "warning": len(self.get_alerts_by_severity(AlertSeverity.WARNING)),
-            "critical": len(self.get_alerts_by_severity(AlertSeverity.CRITICAL))
+            "critical": len(self.get_alerts_by_severity(AlertSeverity.CRITICAL)),
         }
 
         return summary

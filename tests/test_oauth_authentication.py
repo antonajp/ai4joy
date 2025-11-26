@@ -16,12 +16,14 @@ import requests
 from typing import Dict, Optional
 
 # Skip production OAuth tests by default unless explicitly enabled
-INTEGRATION_TESTS_ENABLED = os.getenv("ENABLE_INTEGRATION_TESTS", "false").lower() == "true"
+INTEGRATION_TESTS_ENABLED = (
+    os.getenv("ENABLE_INTEGRATION_TESTS", "false").lower() == "true"
+)
 
 
 @pytest.mark.skipif(
     not INTEGRATION_TESTS_ENABLED,
-    reason="OAuth integration tests require running server. Set ENABLE_INTEGRATION_TESTS=true to run."
+    reason="OAuth integration tests require running server. Set ENABLE_INTEGRATION_TESTS=true to run.",
 )
 class TestOAuthAuthentication:
     """
@@ -36,7 +38,7 @@ class TestOAuthAuthentication:
     @pytest.fixture
     def service_url(self, config) -> str:
         """Base URL for the deployed service."""
-        return config.get('service_url', 'https://ai4joy.org')
+        return config.get("service_url", "https://ai4joy.org")
 
     @pytest.fixture
     def unauthorized_session(self) -> requests.Session:
@@ -44,9 +46,7 @@ class TestOAuthAuthentication:
         return requests.Session()
 
     def test_tc_auth_01_unauthenticated_access_blocked(
-        self,
-        service_url: str,
-        unauthorized_session: requests.Session
+        self, service_url: str, unauthorized_session: requests.Session
     ):
         """
         TC-AUTH-01: Unauthenticated Access Blocked
@@ -59,26 +59,24 @@ class TestOAuthAuthentication:
         - Redirect URL contains 'accounts.google.com'
         - Cannot access application without authentication
         """
-        response = unauthorized_session.get(
-            f"{service_url}/",
-            allow_redirects=False
-        )
+        response = unauthorized_session.get(f"{service_url}/", allow_redirects=False)
 
         # Should redirect to OAuth consent screen
-        assert response.status_code in [302, 303], \
-            f"Expected redirect (302/303), got {response.status_code}"
+        assert response.status_code in [
+            302,
+            303,
+        ], f"Expected redirect (302/303), got {response.status_code}"
 
-        redirect_location = response.headers.get('Location', '')
-        assert 'accounts.google.com' in redirect_location or \
-               'iap' in redirect_location.lower(), \
-            f"Redirect should go to Google OAuth, got: {redirect_location}"
+        redirect_location = response.headers.get("Location", "")
+        assert (
+            "accounts.google.com" in redirect_location
+            or "iap" in redirect_location.lower()
+        ), f"Redirect should go to Google OAuth, got: {redirect_location}"
 
         print(f"✓ Unauthenticated request correctly redirected to: {redirect_location}")
 
     def test_tc_auth_02_health_check_accessible_without_auth(
-        self,
-        service_url: str,
-        unauthorized_session: requests.Session
+        self, service_url: str, unauthorized_session: requests.Session
     ):
         """
         TC-AUTH-02: Health Check Accessible Without Auth
@@ -90,24 +88,22 @@ class TestOAuthAuthentication:
         - GET /health returns 200 OK without authentication
         - Response indicates service is healthy
         """
-        health_endpoints = ['/health', '/ready']
+        health_endpoints = ["/health", "/ready"]
 
         for endpoint in health_endpoints:
-            response = unauthorized_session.get(
-                f"{service_url}{endpoint}",
-                timeout=10
+            response = unauthorized_session.get(f"{service_url}{endpoint}", timeout=10)
+
+            assert response.status_code == 200, (
+                f"{endpoint} should be accessible without auth, got {response.status_code}"
             )
 
-            assert response.status_code == 200, \
-                f"{endpoint} should be accessible without auth, got {response.status_code}"
-
-            print(f"✓ {endpoint} accessible without authentication: {response.status_code}")
+            print(
+                f"✓ {endpoint} accessible without authentication: {response.status_code}"
+            )
 
     @pytest.mark.manual
     def test_tc_auth_03_oauth_flow_success(
-        self,
-        service_url: str,
-        authorized_user_credentials: Dict
+        self, service_url: str, authorized_user_credentials: Dict
     ):
         """
         TC-AUTH-03: OAuth Flow Success (MANUAL TEST)
@@ -136,10 +132,7 @@ class TestOAuthAuthentication:
         pytest.skip("Manual test - requires browser automation")
 
     @pytest.mark.manual
-    def test_tc_auth_04_unauthorized_user_denied(
-        self,
-        service_url: str
-    ):
+    def test_tc_auth_04_unauthorized_user_denied(self, service_url: str):
         """
         TC-AUTH-04: Unauthorized User Denied (MANUAL TEST)
 
@@ -165,9 +158,7 @@ class TestOAuthAuthentication:
 
     @pytest.mark.integration
     def test_tc_auth_05_iap_headers_present(
-        self,
-        service_url: str,
-        authenticated_request_headers: Optional[Dict]
+        self, service_url: str, authenticated_request_headers: Optional[Dict]
     ):
         """
         TC-AUTH-05: IAP Headers Present
@@ -183,29 +174,31 @@ class TestOAuthAuthentication:
         or access to Cloud Run logs to inspect incoming requests.
         """
         if not authenticated_request_headers:
-            pytest.skip("No authenticated request headers available - requires deployed app with debug endpoint")
+            pytest.skip(
+                "No authenticated request headers available - requires deployed app with debug endpoint"
+            )
 
         required_headers = [
-            'X-Goog-Authenticated-User-Email',
-            'X-Goog-Authenticated-User-ID'
+            "X-Goog-Authenticated-User-Email",
+            "X-Goog-Authenticated-User-ID",
         ]
 
         for header in required_headers:
-            assert header in authenticated_request_headers, \
+            assert header in authenticated_request_headers, (
                 f"Required IAP header '{header}' not present in request"
+            )
 
             header_value = authenticated_request_headers[header]
             assert header_value, f"IAP header '{header}' is empty"
-            assert 'accounts.google.com' in header_value, \
+            assert "accounts.google.com" in header_value, (
                 f"IAP header should contain 'accounts.google.com', got: {header_value}"
+            )
 
             print(f"✓ IAP header '{header}' present: {header_value}")
 
     @pytest.mark.integration
     def test_tc_auth_06_session_user_association(
-        self,
-        service_url: str,
-        authenticated_session: Optional[requests.Session]
+        self, service_url: str, authenticated_session: Optional[requests.Session]
     ):
         """
         TC-AUTH-06: Session User Association
@@ -218,40 +211,43 @@ class TestOAuthAuthentication:
         - User can only access their own sessions
         """
         if not authenticated_session:
-            pytest.skip("Requires authenticated session - run after OAuth integration implemented")
+            pytest.skip(
+                "Requires authenticated session - run after OAuth integration implemented"
+            )
 
         # Create a session
         response = authenticated_session.post(
             f"{service_url}/session/start",
             json={"location": "Test Location"},
-            timeout=30
+            timeout=30,
         )
 
-        assert response.status_code == 200, \
+        assert response.status_code == 200, (
             f"Session creation failed: {response.status_code}"
+        )
 
         session_data = response.json()
-        assert 'session_id' in session_data, "Response should contain session_id"
-        assert 'user_id' in session_data, "Session should be associated with user_id"
+        assert "session_id" in session_data, "Response should contain session_id"
+        assert "user_id" in session_data, "Session should be associated with user_id"
 
-        session_id = session_data['session_id']
-        user_id = session_data['user_id']
+        session_id = session_data["session_id"]
+        user_id = session_data["user_id"]
 
         assert user_id, "user_id should not be empty"
         print(f"✓ Session {session_id} associated with user {user_id}")
 
         # Verify session retrieval includes user_id
         get_response = authenticated_session.get(
-            f"{service_url}/session/{session_id}",
-            timeout=10
+            f"{service_url}/session/{session_id}", timeout=10
         )
 
         assert get_response.status_code == 200
         retrieved_session = get_response.json()
-        assert retrieved_session['user_id'] == user_id, \
+        assert retrieved_session["user_id"] == user_id, (
             "Retrieved session should have same user_id"
+        )
 
-        print(f"✓ Session user association verified")
+        print("✓ Session user association verified")
 
 
 class TestIAPHeaderExtraction:
@@ -275,8 +271,8 @@ class TestIAPHeaderExtraction:
         # assert extracted_email == expected_email
 
         # For now, test the expected parsing logic
-        if ':' in iap_header:
-            extracted_email = iap_header.split(':', 1)[1]
+        if ":" in iap_header:
+            extracted_email = iap_header.split(":", 1)[1]
             assert extracted_email == expected_email
             print(f"✓ Correctly extracted email: {extracted_email}")
 
@@ -290,8 +286,8 @@ class TestIAPHeaderExtraction:
         iap_header = "accounts.google.com:10769150350006150715113082367"
         expected_user_id = "10769150350006150715113082367"
 
-        if ':' in iap_header:
-            extracted_user_id = iap_header.split(':', 1)[1]
+        if ":" in iap_header:
+            extracted_user_id = iap_header.split(":", 1)[1]
             assert extracted_user_id == expected_user_id
             print(f"✓ Correctly extracted user ID: {extracted_user_id}")
 
@@ -323,7 +319,7 @@ class TestIAPHeaderExtraction:
             "user@example.com",  # Missing prefix
             "accounts.google.com",  # Missing separator and email
             "",  # Empty
-            "wrongprefix:user@example.com"  # Wrong prefix
+            "wrongprefix:user@example.com",  # Wrong prefix
         ]
 
         for invalid_header in invalid_headers:
@@ -335,7 +331,7 @@ class TestIAPHeaderExtraction:
 
 @pytest.mark.skipif(
     not INTEGRATION_TESTS_ENABLED,
-    reason="OAuth sign-out tests require running server. Set ENABLE_INTEGRATION_TESTS=true to run."
+    reason="OAuth sign-out tests require running server. Set ENABLE_INTEGRATION_TESTS=true to run.",
 )
 class TestOAuthSignOut:
     """Tests for OAuth sign-out functionality."""
@@ -369,13 +365,15 @@ class TestOAuthSignOut:
 
 # Test fixtures and helpers
 
+
 @pytest.fixture
 def config() -> Dict:
     """Configuration for OAuth tests."""
     import os
+
     return {
-        'service_url': os.getenv('SERVICE_URL', 'https://ai4joy.org'),
-        'project_id': os.getenv('GCP_PROJECT_ID', 'improvOlympics'),
+        "service_url": os.getenv("SERVICE_URL", "https://ai4joy.org"),
+        "project_id": os.getenv("GCP_PROJECT_ID", "improvOlympics"),
     }
 
 
@@ -389,16 +387,14 @@ def authorized_user_credentials() -> Optional[Dict]:
     - TEST_USER_PASSWORD (use Secret Manager, not committed to repo)
     """
     import os
-    email = os.getenv('TEST_USER_EMAIL')
-    password = os.getenv('TEST_USER_PASSWORD')
+
+    email = os.getenv("TEST_USER_EMAIL")
+    password = os.getenv("TEST_USER_PASSWORD")
 
     if not email or not password:
         return None
 
-    return {
-        'email': email,
-        'password': password
-    }
+    return {"email": email, "password": password}
 
 
 @pytest.fixture

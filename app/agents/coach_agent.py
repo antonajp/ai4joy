@@ -1,4 +1,5 @@
 """Coach Agent - Improv Teaching and Feedback using Google ADK"""
+
 from google.adk.agents import Agent
 from app.config import get_settings
 from app.utils.logger import get_logger
@@ -128,14 +129,14 @@ def create_coach_agent() -> Agent:
     coach = Agent(
         name="coach_agent",
         description="Improv coach providing constructive feedback and teaching based on core principles",
-        model="gemini-1.5-flash",  # Flash is sufficient for coaching, faster responses
+        model=settings.vertexai_flash_model,
         instruction=COACH_SYSTEM_PROMPT,
         tools=[
             improv_expert_tools.get_all_principles,
             improv_expert_tools.get_principle_by_id,
             improv_expert_tools.get_beginner_essentials,
-            improv_expert_tools.search_principles_by_keyword
-        ]
+            improv_expert_tools.search_principles_by_keyword,
+        ],
     )
 
     logger.info("Coach Agent created successfully with 4 improv expert tools")

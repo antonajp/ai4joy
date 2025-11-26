@@ -1,4 +1,5 @@
 """IAP Authentication Middleware for Google Identity-Aware Proxy"""
+
 from fastapi import Request, HTTPException, status
 from typing import Optional, Dict
 from functools import wraps
@@ -32,11 +33,11 @@ def get_authenticated_user(request: Request) -> Dict[str, str]:
             "Missing IAP authentication headers",
             path=request.url.path,
             has_email=bool(user_email),
-            has_id=bool(user_id)
+            has_id=bool(user_id),
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required - IAP headers missing"
+            detail="Authentication required - IAP headers missing",
         )
 
     user_email_clean = user_email.replace("accounts.google.com:", "")
@@ -46,13 +47,10 @@ def get_authenticated_user(request: Request) -> Dict[str, str]:
         "User authenticated via IAP",
         user_email=user_email_clean,
         user_id=user_id_clean,
-        path=request.url.path
+        path=request.url.path,
     )
 
-    return {
-        "user_email": user_email_clean,
-        "user_id": user_id_clean
-    }
+    return {"user_email": user_email_clean, "user_id": user_id_clean}
 
 
 def require_auth(func):
@@ -69,6 +67,7 @@ def require_auth(func):
             user = get_authenticated_user(request)
             return {"user": user}
     """
+
     @wraps(func)
     async def wrapper(*args, **kwargs):
         request = None
@@ -82,10 +81,12 @@ def require_auth(func):
             request = kwargs["request"]
 
         if not request:
-            logger.error("require_auth decorator used on function without Request parameter")
+            logger.error(
+                "require_auth decorator used on function without Request parameter"
+            )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Internal server error"
+                detail="Internal server error",
             )
 
         try:
@@ -96,7 +97,7 @@ def require_auth(func):
             logger.debug(
                 "Authentication successful for endpoint",
                 endpoint=func.__name__,
-                user_email=user_info["user_email"]
+                user_email=user_info["user_email"],
             )
 
         except HTTPException:
@@ -105,11 +106,10 @@ def require_auth(func):
             logger.error(
                 "Unexpected error in authentication",
                 endpoint=func.__name__,
-                error=str(e)
+                error=str(e),
             )
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authentication failed"
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication failed"
             )
 
         return await func(*args, **kwargs)
@@ -149,21 +149,21 @@ class IAPAuthMiddleware:
             user_info = get_authenticated_user(request)
             scope["state"] = {
                 "user_email": user_info["user_email"],
-                "user_id": user_info["user_id"]
+                "user_id": user_info["user_id"],
             }
 
             await self.app(scope, receive, send)
 
         except HTTPException as e:
             from fastapi.responses import JSONResponse
+
             response = JSONResponse(
-                status_code=e.status_code,
-                content={"detail": e.detail}
+                status_code=e.status_code, content={"detail": e.detail}
             )
             await response(scope, receive, send)
 
     def _should_bypass_auth(self, path: str) -> bool:
         """Check if path should bypass authentication"""
-        clean_path = path.split('?')[0].rstrip('/')
-        bypass_paths_clean = [p.rstrip('/') for p in self.bypass_paths]
+        clean_path = path.split("?")[0].rstrip("/")
+        bypass_paths_clean = [p.rstrip("/") for p in self.bypass_paths]
         return clean_path in bypass_paths_clean

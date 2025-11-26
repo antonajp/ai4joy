@@ -1,6 +1,7 @@
 """PII Detection and Redaction Service"""
+
 import re
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -19,12 +20,7 @@ class PIIMatch:
 class PIIDetectionResult:
     """Result of PII detection operation"""
 
-    def __init__(
-        self,
-        has_pii: bool,
-        redacted_text: str,
-        detections: List[PIIMatch]
-    ):
+    def __init__(self, has_pii: bool, redacted_text: str, detections: List[PIIMatch]):
         self.has_pii = has_pii
         self.redacted_text = redacted_text
         self.detections = detections
@@ -41,34 +37,29 @@ class PIIDetector:
     - Credit card numbers
     """
 
-    EMAIL_PATTERN = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+    EMAIL_PATTERN = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
 
     PHONE_PATTERNS = [
-        r'\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b',
-        r'\(\d{3}\)\s?\d{3}[-.\s]?\d{4}',
-        r'\+\d{1,3}[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}',
+        r"\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b",
+        r"\(\d{3}\)\s?\d{3}[-.\s]?\d{4}",
+        r"\+\d{1,3}[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}",
     ]
 
-    SSN_PATTERN = r'\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b'
+    SSN_PATTERN = r"\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b"
 
     CREDIT_CARD_PATTERNS = [
-        r'\b(?:4[0-9]{12}(?:[0-9]{3})?)\b',
-        r'\b(?:5[1-5][0-9]{14})\b',
-        r'\b(?:3[47][0-9]{13})\b',
-        r'\b(?:6(?:011|5[0-9]{2})[0-9]{12})\b',
-        r'\b(?:3(?:0[0-5]|[68][0-9])[0-9]{11})\b',
+        r"\b(?:4[0-9]{12}(?:[0-9]{3})?)\b",
+        r"\b(?:5[1-5][0-9]{14})\b",
+        r"\b(?:3[47][0-9]{13})\b",
+        r"\b(?:6(?:011|5[0-9]{2})[0-9]{12})\b",
+        r"\b(?:3(?:0[0-5]|[68][0-9])[0-9]{11})\b",
     ]
 
     def __init__(self):
         self._stats = {
             "total_checks": 0,
             "pii_detected": 0,
-            "by_type": {
-                "email": 0,
-                "phone": 0,
-                "ssn": 0,
-                "credit_card": 0
-            }
+            "by_type": {"email": 0, "phone": 0, "ssn": 0, "credit_card": 0},
         }
 
     def detect_pii(self, text: str) -> PIIDetectionResult:
@@ -107,7 +98,7 @@ class PIIDetector:
             logger.warning(
                 "PII detected in user input",
                 detection_count=len(detections),
-                types=[d.pii_type for d in detections]
+                types=[d.pii_type for d in detections],
             )
 
             redacted_text = self._redact_pii(text, detections)
@@ -115,9 +106,7 @@ class PIIDetector:
             redacted_text = text
 
         return PIIDetectionResult(
-            has_pii=has_pii,
-            redacted_text=redacted_text,
-            detections=detections
+            has_pii=has_pii, redacted_text=redacted_text, detections=detections
         )
 
     def redact_pii(self, text: str) -> str:
@@ -146,12 +135,14 @@ class PIIDetector:
         """Find email addresses in text"""
         matches = []
         for match in re.finditer(self.EMAIL_PATTERN, text):
-            matches.append(PIIMatch(
-                pii_type="email",
-                start=match.start(),
-                end=match.end(),
-                value=match.group()
-            ))
+            matches.append(
+                PIIMatch(
+                    pii_type="email",
+                    start=match.start(),
+                    end=match.end(),
+                    value=match.group(),
+                )
+            )
         return matches
 
     def _find_phones(self, text: str) -> List[PIIMatch]:
@@ -160,14 +151,16 @@ class PIIDetector:
         for pattern in self.PHONE_PATTERNS:
             for match in re.finditer(pattern, text):
                 phone_str = match.group()
-                digits_only = re.sub(r'\D', '', phone_str)
+                digits_only = re.sub(r"\D", "", phone_str)
                 if len(digits_only) >= 10:
-                    matches.append(PIIMatch(
-                        pii_type="phone",
-                        start=match.start(),
-                        end=match.end(),
-                        value=match.group()
-                    ))
+                    matches.append(
+                        PIIMatch(
+                            pii_type="phone",
+                            start=match.start(),
+                            end=match.end(),
+                            value=match.group(),
+                        )
+                    )
         return matches
 
     def _find_ssns(self, text: str) -> List[PIIMatch]:
@@ -175,14 +168,16 @@ class PIIDetector:
         matches = []
         for match in re.finditer(self.SSN_PATTERN, text):
             ssn_str = match.group()
-            digits_only = re.sub(r'\D', '', ssn_str)
+            digits_only = re.sub(r"\D", "", ssn_str)
             if len(digits_only) == 9:
-                matches.append(PIIMatch(
-                    pii_type="ssn",
-                    start=match.start(),
-                    end=match.end(),
-                    value=match.group()
-                ))
+                matches.append(
+                    PIIMatch(
+                        pii_type="ssn",
+                        start=match.start(),
+                        end=match.end(),
+                        value=match.group(),
+                    )
+                )
         return matches
 
     def _find_credit_cards(self, text: str) -> List[PIIMatch]:
@@ -191,18 +186,21 @@ class PIIDetector:
         for pattern in self.CREDIT_CARD_PATTERNS:
             for match in re.finditer(pattern, text):
                 cc_str = match.group()
-                digits_only = re.sub(r'\D', '', cc_str)
+                digits_only = re.sub(r"\D", "", cc_str)
                 if self._luhn_check(digits_only):
-                    matches.append(PIIMatch(
-                        pii_type="credit_card",
-                        start=match.start(),
-                        end=match.end(),
-                        value=match.group()
-                    ))
+                    matches.append(
+                        PIIMatch(
+                            pii_type="credit_card",
+                            start=match.start(),
+                            end=match.end(),
+                            value=match.group(),
+                        )
+                    )
         return matches
 
     def _luhn_check(self, card_number: str) -> bool:
         """Validate credit card number using Luhn algorithm"""
+
         def digits_of(n):
             return [int(d) for d in str(n)]
 
@@ -222,14 +220,14 @@ class PIIDetector:
         for detection in detections_sorted:
             redaction_token = f"[REDACTED_{detection.pii_type.upper()}]"
             redacted = (
-                redacted[:detection.start] +
-                redaction_token +
-                redacted[detection.end:]
+                redacted[: detection.start]
+                + redaction_token
+                + redacted[detection.end :]
             )
 
         return redacted
 
-    def get_stats(self) -> Dict[str, any]:
+    def get_stats(self) -> Dict[str, Any]:
         """Get PII detection statistics"""
         return {
             "total_checks": self._stats["total_checks"],
@@ -239,7 +237,7 @@ class PIIDetector:
                 if self._stats["total_checks"] > 0
                 else 0.0
             ),
-            "by_type": self._stats["by_type"].copy()
+            "by_type": self._stats["by_type"].copy(),
         }
 
 

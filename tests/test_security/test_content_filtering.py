@@ -1,4 +1,5 @@
 """Tests for Content Filtering Service"""
+
 import pytest
 from app.services.content_filter import ContentFilter, get_content_filter
 
@@ -38,7 +39,9 @@ class TestContentFilter:
 
         for input_text in profane_inputs:
             result = content_filter.filter_input(input_text)
-            assert len(result.violations) > 0, f"Should detect profanity in: {input_text}"
+            assert len(result.violations) > 0, (
+                f"Should detect profanity in: {input_text}"
+            )
             assert any("profanity" in v for v in result.violations)
 
     def test_severe_content_blocked(self, content_filter):
@@ -50,7 +53,9 @@ class TestContentFilter:
 
         for input_text in severe_inputs:
             result = content_filter.filter_input(input_text)
-            assert not result.is_allowed, f"Severe content should be blocked: {input_text}"
+            assert not result.is_allowed, (
+                f"Severe content should be blocked: {input_text}"
+            )
             assert result.severity == "severe"
             assert result.cleaned_input == ""
 
@@ -65,7 +70,9 @@ class TestContentFilter:
 
         for input_text in toxic_inputs:
             result = content_filter.filter_input(input_text)
-            assert len(result.violations) > 0, f"Should detect toxicity in: {input_text}"
+            assert len(result.violations) > 0, (
+                f"Should detect toxicity in: {input_text}"
+            )
             assert any("toxic" in v for v in result.violations)
 
     def test_partial_word_matches(self, content_filter):
@@ -90,7 +97,9 @@ class TestContentFilter:
 
         for input_text in case_variants:
             result = content_filter.filter_input(input_text)
-            assert len(result.violations) > 0, f"Should detect regardless of case: {input_text}"
+            assert len(result.violations) > 0, (
+                f"Should detect regardless of case: {input_text}"
+            )
 
     def test_legitimate_improv_content_allowed(self, content_filter):
         """Test that legitimate improv content isn't falsely flagged"""

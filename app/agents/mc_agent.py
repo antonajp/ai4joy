@@ -1,4 +1,5 @@
 """MC Agent - High-Energy Game Host using Google ADK"""
+
 from google.adk.agents import Agent
 from app.tools import game_database_tools
 from app.config import get_settings
@@ -52,13 +53,13 @@ def create_mc_agent() -> Agent:
     agent = Agent(
         name="mc_agent",
         description="Master of Ceremonies - High-energy game host who welcomes users, suggests games, and explains rules enthusiastically",
-        model="gemini-1.5-flash",
+        model=settings.vertexai_flash_model,
         instruction=MC_SYSTEM_PROMPT,
         tools=[
             game_database_tools.get_all_games,
             game_database_tools.get_game_by_id,
-            game_database_tools.search_games
-        ]
+            game_database_tools.search_games,
+        ],
     )
 
     logger.info("MC Agent created successfully")

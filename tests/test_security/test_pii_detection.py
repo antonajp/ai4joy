@@ -1,4 +1,5 @@
 """Tests for PII Detection and Redaction Service"""
+
 import pytest
 from app.services.pii_detector import PIIDetector, get_pii_detector
 
@@ -45,7 +46,10 @@ class TestPIIDetector:
         """Test detection and redaction of Social Security Numbers"""
         ssn_formats = [
             ("SSN: 123-45-6789", "SSN: [REDACTED_SSN]"),
-            ("Social Security Number 123 45 6789", "Social Security Number [REDACTED_SSN]"),
+            (
+                "Social Security Number 123 45 6789",
+                "Social Security Number [REDACTED_SSN]",
+            ),
             ("My SSN is 123456789", "My SSN is [REDACTED_SSN]"),
         ]
 
@@ -82,8 +86,12 @@ class TestPIIDetector:
         for card_number in invalid_cards:
             input_text = f"Number: {card_number}"
             result = pii_detector.detect_pii(input_text)
-            credit_card_detections = [d for d in result.detections if d.pii_type == "credit_card"]
-            assert len(credit_card_detections) == 0, f"Should not detect invalid card: {card_number}"
+            credit_card_detections = [
+                d for d in result.detections if d.pii_type == "credit_card"
+            ]
+            assert len(credit_card_detections) == 0, (
+                f"Should not detect invalid card: {card_number}"
+            )
 
     def test_multiple_pii_types_in_single_input(self, pii_detector):
         """Test detection of multiple PII types in one input"""
@@ -111,7 +119,9 @@ class TestPIIDetector:
         for input_text in improv_texts:
             result = pii_detector.detect_pii(input_text)
             if result.has_pii:
-                pytest.fail(f"False positive PII detection in: {input_text} - detected: {[d.pii_type for d in result.detections]}")
+                pytest.fail(
+                    f"False positive PII detection in: {input_text} - detected: {[d.pii_type for d in result.detections]}"
+                )
 
     def test_redact_pii_convenience_method(self, pii_detector):
         """Test the redact_pii convenience method"""

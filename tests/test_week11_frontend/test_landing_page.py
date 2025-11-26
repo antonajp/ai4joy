@@ -4,6 +4,9 @@ Test Coverage:
 - TC-W11-001: Landing Page Rendering
 - TC-W11-006: Static File Serving (partial)
 """
+
+import re
+
 import pytest
 from playwright.sync_api import Page, expect
 
@@ -12,6 +15,7 @@ from playwright.sync_api import Page, expect
 def base_url():
     """Base URL for testing"""
     import os
+
     return os.getenv("TEST_BASE_URL", "http://localhost:8080")
 
 
@@ -37,7 +41,9 @@ class TestLandingPageRendering:
         page.goto(base_url)
 
         # Find login button
-        login_button = page.locator("button:has-text('Sign in with Google'), a:has-text('Sign in with Google')")
+        login_button = page.locator(
+            "button:has-text('Sign in with Google'), a:has-text('Sign in with Google')"
+        )
         expect(login_button).to_be_visible()
 
     def test_landing_page_has_description(self, page: Page, base_url: str):
@@ -48,12 +54,10 @@ class TestLandingPageRendering:
         body_text = page.locator("body").inner_text()
 
         # Look for key phrases
-        assert any(phrase in body_text.lower() for phrase in [
-            "improv",
-            "collaboration",
-            "social gym",
-            "practice"
-        ]), "Landing page should describe the service"
+        assert any(
+            phrase in body_text.lower()
+            for phrase in ["improv", "collaboration", "social gym", "practice"]
+        ), "Landing page should describe the service"
 
     def test_landing_page_responsive_mobile(self, page: Page, base_url: str):
         """Verify landing page is responsive on mobile viewport"""
@@ -63,13 +67,17 @@ class TestLandingPageRendering:
         page.goto(base_url)
 
         # Page should still load and be usable
-        login_button = page.locator("button:has-text('Sign in with Google'), a:has-text('Sign in with Google')")
+        login_button = page.locator(
+            "button:has-text('Sign in with Google'), a:has-text('Sign in with Google')"
+        )
         expect(login_button).to_be_visible()
 
         # No horizontal scroll
         scroll_width = page.evaluate("document.documentElement.scrollWidth")
         client_width = page.evaluate("document.documentElement.clientWidth")
-        assert scroll_width <= client_width, "Page should not have horizontal scroll on mobile"
+        assert scroll_width <= client_width, (
+            "Page should not have horizontal scroll on mobile"
+        )
 
     def test_landing_page_responsive_tablet(self, page: Page, base_url: str):
         """Verify landing page is responsive on tablet viewport"""
@@ -101,8 +109,9 @@ class TestStaticFileServing:
 
         def handle_response(response):
             if ".css" in response.url:
-                assert "text/css" in response.headers.get("content-type", ""), \
+                assert "text/css" in response.headers.get("content-type", ""), (
                     f"CSS file {response.url} has incorrect MIME type"
+                )
                 css_loaded.append(response.url)
 
         page.on("response", handle_response)
@@ -112,12 +121,17 @@ class TestStaticFileServing:
         # Note: This assumes the landing page includes CSS
         # If no CSS, this test should be adjusted
 
-    def test_javascript_files_load_with_correct_mime_type(self, page: Page, base_url: str):
+    def test_javascript_files_load_with_correct_mime_type(
+        self, page: Page, base_url: str
+    ):
         """Verify JavaScript files load with correct MIME type"""
         js_loaded = []
 
         def handle_response(response):
-            if ".js" in response.url and "application/javascript" in response.headers.get("content-type", ""):
+            if (
+                ".js" in response.url
+                and "application/javascript" in response.headers.get("content-type", "")
+            ):
                 js_loaded.append(response.url)
 
         page.on("response", handle_response)
@@ -130,10 +144,13 @@ class TestStaticFileServing:
         image_loaded = []
 
         def handle_response(response):
-            if any(ext in response.url for ext in [".png", ".jpg", ".jpeg", ".svg", ".gif"]):
+            if any(
+                ext in response.url for ext in [".png", ".jpg", ".jpeg", ".svg", ".gif"]
+            ):
                 content_type = response.headers.get("content-type", "")
-                assert "image/" in content_type, \
+                assert "image/" in content_type, (
                     f"Image {response.url} has incorrect MIME type: {content_type}"
+                )
                 image_loaded.append(response.url)
 
         page.on("response", handle_response)
@@ -148,18 +165,18 @@ class TestStaticFileServing:
         def handle_response(response):
             if "/static/" in response.url:
                 cache_control = response.headers.get("cache-control", "")
-                static_files.append({
-                    "url": response.url,
-                    "cache_control": cache_control
-                })
+                static_files.append(
+                    {"url": response.url, "cache_control": cache_control}
+                )
 
         page.on("response", handle_response)
         page.goto(base_url)
 
         # Verify cache headers are set
         for file in static_files:
-            assert file["cache_control"], \
+            assert file["cache_control"], (
                 f"Static file {file['url']} missing Cache-Control header"
+            )
 
     def test_text_files_have_compression(self, page: Page, base_url: str):
         """Verify text-based files are compressed (gzip)"""
@@ -192,8 +209,7 @@ class TestStaticFileServing:
         # Wait for page to fully load
         page.wait_for_load_state("networkidle")
 
-        assert len(console_errors) == 0, \
-            f"Console errors detected: {console_errors}"
+        assert len(console_errors) == 0, f"Console errors detected: {console_errors}"
 
     def test_no_failed_network_requests(self, page: Page, base_url: str):
         """Verify no failed network requests (404, 500)"""
@@ -201,10 +217,7 @@ class TestStaticFileServing:
 
         def handle_response(response):
             if response.status >= 400:
-                failed_requests.append({
-                    "url": response.url,
-                    "status": response.status
-                })
+                failed_requests.append({"url": response.url, "status": response.status})
 
         page.on("response", handle_response)
         page.goto(base_url)
@@ -212,8 +225,6 @@ class TestStaticFileServing:
         # Wait for page to fully load
         page.wait_for_load_state("networkidle")
 
-        assert len(failed_requests) == 0, \
+        assert len(failed_requests) == 0, (
             f"Failed network requests detected: {failed_requests}"
-
-
-import re
+        )
