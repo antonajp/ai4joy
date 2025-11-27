@@ -12,7 +12,7 @@ from app.models.session import Session, SessionStatus
 from app.services.session_manager import SessionManager
 from app.services.adk_session_service import get_adk_session_service
 from app.services.adk_memory_service import get_adk_memory_service
-from app.tools.game_database_tools import get_all_games, get_game_by_id
+from app.services.firestore_tool_data_service import get_all_games, get_game_by_id
 from app.utils.logger import get_logger
 from app.config import get_settings
 
