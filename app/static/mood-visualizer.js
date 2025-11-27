@@ -1,11 +1,17 @@
 /**
  * MoodVisualizer - Dynamic Background Color Visualization for Audience Mood
  *
- * This module provides visual feedback for audience mood during improv scenes:
- * - Neutral (white): Starting state
- * - Negative (red): Brightness increases with mood intensity
- * - Excited/Anticipatory (blue): Brightness increases with engagement
- * - Laughter (green): Flash on detection, sustained with intensity
+ * This module provides visual feedback for audience mood during improv scenes
+ * using a warm-to-cool energy-based color spectrum (UX-reviewed):
+ * - Neutral: Soft Lavender (#E6E6FA) - calm baseline, signals system active
+ * - Negative/Disengaged: Cool Gray-Blue (#B0BEC5 → #78909C) - low energy
+ * - Excited/Anticipatory: Warm Amber (#FFE4B5 → #FFB74D) - high energy
+ * - Laughter: Vibrant Coral (#FFE0D6 → #FF8A65) - warm, playful
+ *
+ * Color palette designed for:
+ * - Emotional arousal theory alignment
+ * - Colorblind accessibility (no red/green pairing)
+ * - Cultural neutrality
  *
  * @see IQS-56 for feature specification
  */
@@ -20,19 +26,23 @@ class MoodVisualizer {
 
         this.flashTimeout = null;
         this.transitionDuration = 1500; // ms for smooth transitions
-        this.flashDuration = 800; // ms for laughter flash
+        this.flashDuration = 450; // ms for laughter flash (reduced from 800ms per UX review)
         this.sustainedLaughterCount = 0;
-        this.maxSustainedCount = 3; // After this many consecutive laughs, hold green
+        this.maxSustainedCount = 3; // After this many consecutive laughs, hold coral
 
         // Flash rate limiting for seizure prevention (WCAG 2.3.1)
         this.lastFlashTime = 0;
-        this.minFlashInterval = 1000; // Minimum 1 second between flashes
+        this.minFlashInterval = 1500; // Minimum 1.5 seconds between flashes (increased per UX review)
 
         // Respect user preferences for reduced motion
         this.flashEnabled = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-        // Initialize CSS variables
+        // Track previous mood state for ARIA announcements
+        this.previousMoodState = 'neutral';
+
+        // Initialize CSS variables and ARIA region
         this.initializeStyles();
+        this.initializeAriaRegion();
     }
 
     /**
@@ -40,8 +50,46 @@ class MoodVisualizer {
      */
     initializeStyles() {
         const root = document.documentElement;
-        root.style.setProperty('--mood-bg-color', 'rgb(255, 255, 255)');
+        // Neutral: Soft Lavender (#E6E6FA)
+        root.style.setProperty('--mood-bg-color', 'rgb(230, 230, 250)');
         root.style.setProperty('--mood-transition', `background-color ${this.transitionDuration}ms ease-in-out`);
+    }
+
+    /**
+     * Initialize ARIA live region for mood state announcements
+     */
+    initializeAriaRegion() {
+        // Check if ARIA region already exists
+        if (document.getElementById('mood-status')) return;
+
+        const ariaRegion = document.createElement('div');
+        ariaRegion.id = 'mood-status';
+        ariaRegion.className = 'sr-only';
+        ariaRegion.setAttribute('role', 'status');
+        ariaRegion.setAttribute('aria-live', 'polite');
+        ariaRegion.setAttribute('aria-atomic', 'true');
+        ariaRegion.textContent = 'Audience mood: Neutral';
+        document.body.appendChild(ariaRegion);
+    }
+
+    /**
+     * Announce mood state change to screen readers
+     * @param {string} moodState - The current mood state name
+     */
+    announceMoodState(moodState) {
+        if (moodState === this.previousMoodState) return;
+
+        const ariaRegion = document.getElementById('mood-status');
+        if (ariaRegion) {
+            const moodLabels = {
+                'neutral': 'Neutral',
+                'negative': 'Low energy',
+                'excited': 'Excited',
+                'laughter': 'Laughter detected'
+            };
+            ariaRegion.textContent = `Audience mood: ${moodLabels[moodState] || moodState}`;
+        }
+        this.previousMoodState = moodState;
     }
 
     /**
@@ -71,61 +119,70 @@ class MoodVisualizer {
     /**
      * Calculate background color based on mood state
      *
-     * Mood Color Mapping:
-     * - Neutral (white): sentiment near 0, moderate engagement
-     * - Negative (red): sentiment < -0.2
-     * - Excited (blue): sentiment > 0.3 && engagement > 0.6
-     * - Laughter (green): laughter_detected = true
+     * UX-Reviewed Color Palette (warm-to-cool energy spectrum):
+     * - Neutral: Soft Lavender #E6E6FA - rgb(230, 230, 250)
+     * - Negative: Cool Gray-Blue #B0BEC5 → #78909C
+     * - Excited: Warm Amber #FFE4B5 → #FFB74D
+     * - Sustained Laughter: Vibrant Coral #FFE0D6 → #FF8A65
      */
     calculateMoodColor() {
         const { sentiment_score, engagement_score } = this.currentMood;
 
-        // Sustained laughter - hold green
+        // Sustained laughter - hold Vibrant Coral
         if (this.sustainedLaughterCount >= this.maxSustainedCount) {
             const intensity = Math.min(engagement_score, 1.0);
-            return {
-                r: Math.floor(255 * (1 - intensity * 0.5)),
-                g: 255,
-                b: Math.floor(255 * (1 - intensity * 0.4)),
-                intensity: intensity
-            };
-        }
-
-        // Negative mood (red spectrum)
-        if (sentiment_score < -0.2) {
-            const intensity = Math.min(Math.abs(sentiment_score), 1.0);
+            this.announceMoodState('laughter');
+            // Coral: #FFE0D6 (255, 224, 214) → #FF8A65 (255, 138, 101)
             return {
                 r: 255,
-                g: Math.floor(255 * (1 - intensity * 0.5)),
-                b: Math.floor(255 * (1 - intensity * 0.5)),
+                g: Math.floor(224 - (86 * intensity)),   // 224 → 138
+                b: Math.floor(214 - (113 * intensity)),  // 214 → 101
                 intensity: intensity
             };
         }
 
-        // Positive + High engagement = Excited (blue spectrum)
+        // Negative mood - Cool Gray-Blue spectrum
+        if (sentiment_score < -0.2) {
+            const intensity = Math.min(Math.abs(sentiment_score), 1.0);
+            this.announceMoodState('negative');
+            // Gray-Blue: #B0BEC5 (176, 190, 197) → #78909C (120, 144, 156)
+            return {
+                r: Math.floor(176 - (56 * intensity)),   // 176 → 120
+                g: Math.floor(190 - (46 * intensity)),   // 190 → 144
+                b: Math.floor(197 - (41 * intensity)),   // 197 → 156
+                intensity: intensity
+            };
+        }
+
+        // Positive + High engagement = Excited - Warm Amber spectrum
         if (sentiment_score > 0.3 && engagement_score > 0.6) {
             const intensity = Math.min((sentiment_score + engagement_score) / 2, 1.0);
+            this.announceMoodState('excited');
+            // Amber: #FFE4B5 (255, 228, 181) → #FFB74D (255, 183, 77)
             return {
-                r: Math.floor(255 * (1 - intensity * 0.4)),
-                g: Math.floor(255 * (1 - intensity * 0.2)),
-                b: 255,
+                r: 255,
+                g: Math.floor(228 - (45 * intensity)),   // 228 → 183
+                b: Math.floor(181 - (104 * intensity)),  // 181 → 77
                 intensity: intensity
             };
         }
 
-        // Moderate positive (light blue tint)
+        // Moderate positive - Light Amber tint
         if (sentiment_score > 0.2) {
             const intensity = sentiment_score * 0.4;
+            this.announceMoodState('neutral');
+            // Subtle amber tint from lavender base
             return {
-                r: Math.floor(255 * (1 - intensity * 0.2)),
-                g: Math.floor(255 * (1 - intensity * 0.1)),
-                b: 255,
+                r: Math.floor(230 + (25 * intensity)),   // 230 → 255
+                g: Math.floor(230 - (2 * intensity)),    // 230 → 228
+                b: Math.floor(250 - (69 * intensity)),   // 250 → 181
                 intensity: intensity
             };
         }
 
-        // Default to neutral (white)
-        return { r: 255, g: 255, b: 255, intensity: 0 };
+        // Default to neutral - Soft Lavender (#E6E6FA)
+        this.announceMoodState('neutral');
+        return { r: 230, g: 230, b: 250, intensity: 0 };
     }
 
     /**
@@ -146,7 +203,7 @@ class MoodVisualizer {
     }
 
     /**
-     * Flash green for laughter moments
+     * Flash Vibrant Coral for laughter moments
      * Includes rate limiting for seizure prevention (WCAG 2.3.1)
      */
     flashLaughter() {
@@ -173,27 +230,29 @@ class MoodVisualizer {
         }
 
         this.lastFlashTime = now;
+        this.announceMoodState('laughter');
 
-        // Calculate green intensity based on engagement and sustained count
+        // Calculate coral intensity based on engagement and sustained count
         const baseIntensity = Math.min(this.currentMood.engagement_score, 1.0);
         const sustainBoost = Math.min(this.sustainedLaughterCount * 0.1, 0.3);
         const intensity = Math.min(baseIntensity + sustainBoost, 1.0);
 
-        const green = {
-            r: Math.floor(255 * (1 - intensity * 0.5)),
-            g: 255,
-            b: Math.floor(255 * (1 - intensity * 0.4))
+        // Vibrant Coral: #FFE0D6 (255, 224, 214) → #FF8A65 (255, 138, 101)
+        const coral = {
+            r: 255,
+            g: Math.floor(224 - (86 * intensity)),   // 224 → 138
+            b: Math.floor(214 - (113 * intensity))   // 214 → 101
         };
 
-        const greenRgb = `rgb(${green.r}, ${green.g}, ${green.b})`;
+        const coralRgb = `rgb(${coral.r}, ${coral.g}, ${coral.b})`;
 
-        // Apply green immediately with fast transition
-        document.documentElement.style.setProperty('--mood-bg-color', greenRgb);
+        // Apply coral immediately with fast transition
+        document.documentElement.style.setProperty('--mood-bg-color', coralRgb);
 
         const chatContainer = document.querySelector('.chat-container');
         if (chatContainer) {
-            chatContainer.style.transition = 'background-color 200ms ease-in';
-            chatContainer.style.backgroundColor = greenRgb;
+            chatContainer.style.transition = 'background-color 150ms ease-in';
+            chatContainer.style.backgroundColor = coralRgb;
         }
 
         // If sustained laughter, don't return to mood color
@@ -208,7 +267,7 @@ class MoodVisualizer {
     }
 
     /**
-     * Reset to neutral state
+     * Reset to neutral state (Soft Lavender)
      */
     reset() {
         this.currentMood = {
@@ -217,6 +276,7 @@ class MoodVisualizer {
             laughter_detected: false
         };
         this.sustainedLaughterCount = 0;
+        this.previousMoodState = 'neutral';
 
         if (this.flashTimeout) {
             clearTimeout(this.flashTimeout);
@@ -224,6 +284,7 @@ class MoodVisualizer {
         }
 
         this.updateBackgroundColor();
+        this.announceMoodState('neutral');
     }
 
     /**
@@ -233,6 +294,7 @@ class MoodVisualizer {
         return {
             mood: this.currentMood,
             sustainedLaughterCount: this.sustainedLaughterCount,
+            moodState: this.previousMoodState,
             color: this.calculateMoodColor()
         };
     }
