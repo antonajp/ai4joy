@@ -364,6 +364,108 @@ ROOM: [Audience vibe analysis]
             )
             raise
 
+    def _extract_mood_metrics(self, room_analysis: str) -> Dict[str, Any]:
+        """Extract mood metrics from room analysis text for visual mood indication.
+
+        Analyzes room analysis text to extract:
+        - sentiment_score: -1.0 to 1.0 (negative to positive)
+        - engagement_score: 0.0 to 1.0 (disengaged to highly engaged)
+        - laughter_detected: boolean for laughter keywords
+
+        Args:
+            room_analysis: Text from ROOM section describing audience reaction
+
+        Returns:
+            Dict with sentiment_score, engagement_score, laughter_detected
+        """
+        # Default neutral metrics for invalid input
+        neutral_metrics = {
+            "sentiment_score": 0.0,
+            "engagement_score": 0.5,
+            "laughter_detected": False,
+        }
+
+        # Validate input type and content
+        if not isinstance(room_analysis, str):
+            logger.warning(
+                "room_analysis is not a string, returning neutral metrics",
+                input_type=type(room_analysis).__name__,
+            )
+            return neutral_metrics
+
+        if not room_analysis or not room_analysis.strip():
+            logger.debug("Empty room_analysis, returning neutral metrics")
+            return neutral_metrics
+
+        # Prevent excessively long strings from causing performance issues
+        MAX_ANALYSIS_LENGTH = 5000
+        if len(room_analysis) > MAX_ANALYSIS_LENGTH:
+            logger.warning(
+                "room_analysis exceeds max length, truncating",
+                length=len(room_analysis),
+                max_length=MAX_ANALYSIS_LENGTH,
+            )
+            room_analysis = room_analysis[:MAX_ANALYSIS_LENGTH]
+
+        analysis_lower = room_analysis.strip().lower()
+
+        # Laughter detection keywords
+        laughter_keywords = [
+            "laugh", "laughing", "hilarious", "cracking up", "roar",
+            "hysterical", "chuckle", "giggle", "guffaw"
+        ]
+        laughter_detected = any(keyword in analysis_lower for keyword in laughter_keywords)
+
+        # Engagement score calculation - check negative first to avoid substring issues
+        # ("disengaged" contains "engaged", so check disengaged first)
+        engagement_score = 0.5  # Default neutral
+        engagement_map = [
+            (["disengaged", "checking their phones", "not paying attention"], 0.1),
+            (["bored", "distracted", "low energy", "low engagement"], 0.2),
+            (["moderate", "watching"], 0.5),
+            (["highly engaged", "leaning forward", "on the edge"], 0.9),
+            (["engaged", "attentive", "following", "interested"], 0.7),
+        ]
+        for keywords, score in engagement_map:
+            if any(keyword in analysis_lower for keyword in keywords):
+                engagement_score = score
+                break
+
+        # Sentiment score calculation
+        sentiment_score = 0.0  # Default neutral
+
+        # Positive sentiment keywords (higher weight)
+        positive_high = ["loving", "enthusiastic", "excited", "thrilled", "ecstatic"]
+        positive_mid = ["positive", "enjoying", "happy", "pleased", "delighted"]
+
+        # Negative sentiment keywords
+        negative_high = ["hostile", "angry", "furious"]
+        negative_mid = ["negative", "bored", "disengaged", "disappointed", "frustrated"]
+
+        # Calculate sentiment based on keyword presence
+        if any(word in analysis_lower for word in positive_high):
+            sentiment_score = 0.8
+        elif any(word in analysis_lower for word in positive_mid):
+            sentiment_score = 0.5
+        elif any(word in analysis_lower for word in negative_high):
+            sentiment_score = -0.8
+        elif any(word in analysis_lower for word in negative_mid):
+            sentiment_score = -0.5
+
+        # Boost sentiment if laughter detected
+        if laughter_detected and sentiment_score >= 0:
+            sentiment_score = max(sentiment_score, 0.5)
+
+        # Ensure bounds
+        sentiment_score = max(-1.0, min(1.0, sentiment_score))
+        engagement_score = max(0.0, min(1.0, engagement_score))
+
+        return {
+            "sentiment_score": sentiment_score,
+            "engagement_score": engagement_score,
+            "laughter_detected": laughter_detected,
+        }
+
     def _parse_agent_response(self, response: str, turn_number: int) -> Dict[str, Any]:
         """Parse structured response from Stage Manager using robust regex patterns.
 
@@ -421,9 +523,11 @@ ROOM: [Audience vibe analysis]
         room_match = re.search(room_pattern, response, re.IGNORECASE | re.DOTALL)
         if room_match:
             room_analysis = room_match.group(1).strip()
+            mood_metrics = self._extract_mood_metrics(room_analysis)
             turn_response["room_vibe"] = {
                 "analysis": room_analysis,
                 "energy": "engaged",  # Default for now
+                "mood_metrics": mood_metrics,
             }
         else:
             logger.debug(
@@ -432,6 +536,11 @@ ROOM: [Audience vibe analysis]
             turn_response["room_vibe"] = {
                 "analysis": "Audience is engaged and enjoying the scene",
                 "energy": "positive",
+                "mood_metrics": {
+                    "sentiment_score": 0.0,
+                    "engagement_score": 0.5,
+                    "laughter_detected": False,
+                },
             }
 
         # Parse COACH section (optional, only expected at turn >= 15)
