@@ -3,7 +3,7 @@
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
 from datetime import datetime
-from typing import Dict, Any, Union
+from typing import Dict, Any
 from google.cloud import firestore  # type: ignore[attr-defined]
 
 from app.config import get_settings
@@ -30,8 +30,8 @@ async def health_check() -> Dict[str, Any]:
     }
 
 
-@router.get("/ready", status_code=status.HTTP_200_OK)
-async def readiness_check() -> Union[Dict[str, Any], JSONResponse]:
+@router.get("/ready", status_code=status.HTTP_200_OK, response_model=None)
+async def readiness_check():
     """
     Readiness check with dependency validation.
     Checks connectivity to Firestore and other critical services.

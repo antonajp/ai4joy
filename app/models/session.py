@@ -24,9 +24,6 @@ class SessionStatus(str, Enum):
 class SessionCreate(BaseModel):
     """Request model for creating new session"""
 
-    location: str = Field(
-        ..., description="Scene location", min_length=1, max_length=200
-    )
     user_name: Optional[str] = Field(None, description="Optional display name")
 
 
@@ -38,7 +35,6 @@ class Session(BaseModel):
     user_email: str
     user_name: Optional[str] = None
 
-    location: str
     status: SessionStatus = SessionStatus.INITIALIZED
 
     created_at: datetime
@@ -66,7 +62,6 @@ class SessionResponse(BaseModel):
 
     session_id: str
     status: str
-    location: str
     created_at: datetime
     expires_at: datetime
     turn_count: int = 0

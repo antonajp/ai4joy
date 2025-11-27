@@ -119,7 +119,6 @@ async def start_session(
         "Session creation requested",
         user_id=user_id,
         user_email=user_email,
-        location=session_data.location,
     )
 
     try:
@@ -159,7 +158,6 @@ async def start_session(
     return SessionResponse(
         session_id=session.session_id,
         status=session.status,
-        location=session.location,
         created_at=session.created_at,
         expires_at=session.expires_at,
         turn_count=session.turn_count,
@@ -199,7 +197,6 @@ async def get_session_info(
     return SessionResponse(
         session_id=session.session_id,
         status=session.status,
-        location=session.location,
         created_at=session.created_at,
         expires_at=session.expires_at,
         turn_count=session.turn_count,

@@ -3,7 +3,7 @@
 from google.adk.agents import Agent
 from app.config import get_settings
 from app.utils.logger import get_logger
-from app.tools import improv_expert_tools
+from app.toolsets import ImprovPrinciplesToolset
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -118,26 +118,24 @@ how to improve. You're not just teaching improv - you're building improvisers.""
 
 
 def create_coach_agent() -> Agent:
-    """Create Coach Agent with improv expert tools integration.
+    """Create Coach Agent with Firestore-backed improv principles toolset.
 
     Returns:
         Configured ADK Agent for coaching role with access to improv principles.
     """
-    logger.info("Creating Coach Agent with improv expert tools")
+    logger.info("Creating Coach Agent with ImprovPrinciplesToolset")
 
-    # Create coach agent with improv expert tools
+    # Create toolset with Firestore-backed principles database
+    principles_toolset = ImprovPrinciplesToolset()
+
+    # Create coach agent with improv principles toolset
     coach = Agent(
         name="coach_agent",
         description="Improv coach providing constructive feedback and teaching based on core principles",
         model=settings.vertexai_flash_model,
         instruction=COACH_SYSTEM_PROMPT,
-        tools=[
-            improv_expert_tools.get_all_principles,
-            improv_expert_tools.get_principle_by_id,
-            improv_expert_tools.get_beginner_essentials,
-            improv_expert_tools.search_principles_by_keyword,
-        ],
+        tools=[principles_toolset],
     )
 
-    logger.info("Coach Agent created successfully with 4 improv expert tools")
+    logger.info("Coach Agent created successfully with ImprovPrinciplesToolset")
     return coach

@@ -155,10 +155,10 @@ async def test_e_tool_function_execution():
     assert len(games) > 0, "get_all_games returned empty list"
 
     # Test get_game_by_id
-    game = await game_database_tools.get_game_by_id("freeze_tag")
+    game = await game_database_tools.get_game_by_id("long_form")
     assert game is not None, "get_game_by_id returned None"
     assert "name" in game, "Game dict missing 'name' field"
-    assert game["name"] == "Freeze Tag", f"Expected 'Freeze Tag', got {game['name']}"
+    assert game["name"] == "Long Form", f"Expected 'Long Form', got {game['name']}"
 
     # Test search_games
     high_energy_games = await game_database_tools.search_games(energy_level="high")
@@ -168,7 +168,7 @@ async def test_e_tool_function_execution():
 
     print("✅ All tool functions execute successfully")
     print(f"   - Total games: {len(games)}")
-    print(f"   - Freeze Tag found: {game['name']}")
+    print(f"   - Long Form found: {game['name']}")
     print(f"   - High energy games: {len(high_energy_games)}")
 
     return True

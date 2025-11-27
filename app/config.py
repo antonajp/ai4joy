@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     firestore_sessions_collection: str = "sessions"
     firestore_user_limits_collection: str = "user_limits"
 
+    # Tool Data Collections - stores game database, improv principles, and archetypes
+    firestore_games_collection: str = "improv_games"
+    firestore_principles_collection: str = "improv_principles"
+    firestore_archetypes_collection: str = "audience_archetypes"
+    firestore_sentiment_keywords_collection: str = "sentiment_keywords"
+
     # Model names without version suffixes use auto-updated aliases
     # See: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions
     vertexai_flash_model: str = "gemini-2.0-flash"

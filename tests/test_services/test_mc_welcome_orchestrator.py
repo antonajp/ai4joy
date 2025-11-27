@@ -72,7 +72,7 @@ class TestMCWelcomeInitialWelcome:
                 new_callable=AsyncMock,
             ) as mock_games:
                 mock_games.return_value = [
-                    {"id": "freeze_tag", "name": "Freeze Tag", "difficulty": "beginner"}
+                    {"id": "long_form", "name": "Long Form", "difficulty": "beginner"}
                 ]
 
                 result = await orchestrator.execute_welcome(
@@ -104,11 +104,11 @@ class TestMCWelcomeInitialWelcome:
             ) as mock_games:
                 mock_games.return_value = [
                     {
-                        "id": "freeze_tag",
-                        "name": "Freeze Tag",
+                        "id": "long_form",
+                        "name": "Long Form",
                         "difficulty": "beginner",
                     },
-                    {"id": "185", "name": "185", "difficulty": "intermediate"},
+                    {"id": "questions_only", "name": "Questions Only", "difficulty": "intermediate"},
                 ]
 
                 result = await orchestrator.execute_welcome(
@@ -117,7 +117,7 @@ class TestMCWelcomeInitialWelcome:
 
         assert "available_games" in result
         assert len(result["available_games"]) == 2
-        assert result["available_games"][0]["name"] == "Freeze Tag"
+        assert result["available_games"][0]["name"] == "Long Form"
 
     @pytest.mark.asyncio
     async def test_tc_mc_01c_initial_welcome_updates_session_status(
@@ -191,14 +191,14 @@ class TestMCWelcomeGameSelection:
         with patch.object(
             orchestrator, "_run_mc_agent", new_callable=AsyncMock
         ) as mock_run:
-            mock_run.return_value = "You're feeling silly? Perfect! Let's play Freeze Tag - it's high energy and fun!"
+            mock_run.return_value = "You're feeling silly? Perfect! Let's play Long Form - it's flexible and fun!"
 
             with patch(
                 "app.services.mc_welcome_orchestrator.get_all_games",
                 new_callable=AsyncMock,
             ) as mock_games:
                 mock_games.return_value = [
-                    {"id": "freeze_tag", "name": "Freeze Tag", "difficulty": "beginner"}
+                    {"id": "long_form", "name": "Long Form", "difficulty": "beginner"}
                 ]
 
                 result = await orchestrator.execute_welcome(
@@ -206,7 +206,7 @@ class TestMCWelcomeGameSelection:
                 )
 
         assert "mc_response" in result
-        assert "Freeze Tag" in result["mc_response"]
+        assert "Long Form" in result["mc_response"]
         assert result["phase"] == "game_selection"
 
     @pytest.mark.asyncio
@@ -221,25 +221,25 @@ class TestMCWelcomeGameSelection:
         with patch.object(
             orchestrator, "_run_mc_agent", new_callable=AsyncMock
         ) as mock_run:
-            mock_run.return_value = "Let's play Freeze Tag tonight!"
+            mock_run.return_value = "Let's play Long Form tonight!"
 
             with patch(
                 "app.services.mc_welcome_orchestrator.get_all_games",
                 new_callable=AsyncMock,
             ) as mock_games:
                 mock_games.return_value = [
-                    {"id": "freeze_tag", "name": "Freeze Tag", "difficulty": "beginner"}
+                    {"id": "long_form", "name": "Long Form", "difficulty": "beginner"}
                 ]
 
                 result = await orchestrator.execute_welcome(
                     session=mc_welcome_session, user_input="Surprise me!"
                 )
 
-        assert result["selected_game"]["id"] == "freeze_tag"
+        assert result["selected_game"]["id"] == "long_form"
         session_manager.update_session_game.assert_called_once_with(
             session_id="test-session-123",
-            game_id="freeze_tag",
-            game_name="Freeze Tag",
+            game_id="long_form",
+            game_name="Long Form",
         )
 
     @pytest.mark.asyncio
@@ -254,14 +254,14 @@ class TestMCWelcomeGameSelection:
         with patch.object(
             orchestrator, "_run_mc_agent", new_callable=AsyncMock
         ) as mock_run:
-            mock_run.return_value = "Let's play Freeze Tag!"
+            mock_run.return_value = "Let's play Long Form!"
 
             with patch(
                 "app.services.mc_welcome_orchestrator.get_all_games",
                 new_callable=AsyncMock,
             ) as mock_games:
                 mock_games.return_value = [
-                    {"id": "freeze_tag", "name": "Freeze Tag", "difficulty": "beginner"}
+                    {"id": "long_form", "name": "Long Form", "difficulty": "beginner"}
                 ]
 
                 await orchestrator.execute_welcome(
@@ -297,8 +297,8 @@ class TestMCWelcomeAudienceSuggestion:
             user_email="test@example.com",
             location="Mars Colony",
             status=SessionStatus.GAME_SELECT,
-            selected_game_id="freeze_tag",
-            selected_game_name="Freeze Tag",
+            selected_game_id="long_form",
+            selected_game_name="Long Form",
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
             expires_at=datetime.now(timezone.utc),
@@ -399,8 +399,8 @@ class TestMCWelcomeSceneStart:
             user_email="test@example.com",
             location="Mars Colony",
             status=SessionStatus.SUGGESTION_PHASE,
-            selected_game_id="freeze_tag",
-            selected_game_name="Freeze Tag",
+            selected_game_id="long_form",
+            selected_game_name="Long Form",
             audience_suggestion="A coffee shop",
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
@@ -447,13 +447,13 @@ class TestMCWelcomeSceneStart:
         with patch.object(
             orchestrator, "_run_mc_agent", new_callable=AsyncMock
         ) as mock_run:
-            mock_run.return_value = "Playing Freeze Tag at a coffee shop! Yes, And! Go!"
+            mock_run.return_value = "Playing Long Form at a coffee shop! Yes, And! Go!"
 
             result = await orchestrator.execute_welcome(
                 session=suggestion_phase_session, user_input=None
             )
 
-        assert result["game_name"] == "Freeze Tag"
+        assert result["game_name"] == "Long Form"
         assert result["audience_suggestion"] == "A coffee shop"
 
     @pytest.mark.asyncio

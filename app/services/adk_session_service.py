@@ -9,7 +9,7 @@ Key Features:
 - Singleton pattern for shared session service across all requests
 - SQLite persistence with async support (aiosqlite)
 - Automatic table creation and management by ADK
-- Session state persistence for location, user info, phase, status
+- Session state persistence for user info, phase, status
 
 Usage:
     from app.services.adk_session_service import get_adk_session_service
@@ -111,7 +111,6 @@ async def create_adk_session(session) -> ADKSession:
     )
 
     state = {
-        "location": session.location,
         "user_email": session.user_email,
         "user_name": session.user_name,
         "current_phase": session.current_phase or "PHASE_1",

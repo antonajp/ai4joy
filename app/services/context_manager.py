@@ -6,7 +6,7 @@ ADK automatically handles:
 - Event-based conversation tracking
 
 This service focuses on:
-- Custom context building (location, phase info)
+- Custom context building (game, suggestion, phase info)
 - Session-specific metadata formatting
 - Conversation history compaction for display
 """
@@ -30,7 +30,15 @@ class ContextManager:
     def build_optimized_context(
         self, session: Session, user_input: str, turn_number: int
     ) -> str:
-        context_parts = [f"Location: {session.location}", f"Turn {turn_number}"]
+        context_parts = []
+
+        # Include game and suggestion context
+        if session.selected_game_name:
+            context_parts.append(f"Game: {session.selected_game_name}")
+        if session.audience_suggestion:
+            context_parts.append(f"Suggestion: {session.audience_suggestion}")
+
+        context_parts.append(f"Turn {turn_number}")
 
         if not session.conversation_history:
             return "\n".join(context_parts)

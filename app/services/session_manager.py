@@ -32,7 +32,6 @@ class SessionManager:
         "user_id": "1234567890",
         "user_email": "user@example.com",
         "user_name": "Test User",
-        "location": "Mars Colony",
         "status": "active",
         "created_at": "2025-11-23T15:00:00Z",
         "updated_at": "2025-11-23T15:30:00Z",
@@ -40,7 +39,10 @@ class SessionManager:
         "conversation_history": [],
         "metadata": {},
         "current_phase": "PHASE_1",
-        "turn_count": 5
+        "turn_count": 5,
+        "selected_game_id": "185",
+        "selected_game_name": "185",
+        "audience_suggestion": "lawyers"
     }
     """
 
@@ -79,7 +81,6 @@ class SessionManager:
             user_id=user_id,
             user_email=user_email,
             user_name=session_data.user_name,
-            location=session_data.location,
             status=SessionStatus.INITIALIZED,
             created_at=now,
             updated_at=now,
@@ -98,7 +99,6 @@ class SessionManager:
                 session_id=session_id,
                 user_id=user_id,
                 user_email=user_email,
-                location=session_data.location,
             )
 
             # Create ADK session with DatabaseSessionService
@@ -113,7 +113,6 @@ class SessionManager:
                     user_id=session.user_id,
                     session_id=session.session_id,
                     state={
-                        "location": session.location,
                         "user_email": session.user_email,
                         "user_name": session.user_name,
                         "current_phase": session.current_phase or "PHASE_1",
@@ -474,7 +473,6 @@ class SessionManager:
             user_id=firestore_session.user_id,
             session_id=firestore_session.session_id,
             state={
-                "location": firestore_session.location,
                 "user_email": firestore_session.user_email,
                 "user_name": firestore_session.user_name,
                 "current_phase": firestore_session.current_phase or "PHASE_1",

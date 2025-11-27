@@ -212,7 +212,15 @@ class TurnOrchestrator:
         self, session: Session, user_input: str, turn_number: int
     ) -> str:
         """Build conversation context for agent"""
-        context_parts = [f"Location: {session.location}", f"Turn {turn_number}"]
+        context_parts = []
+
+        # Include game and suggestion context
+        if session.selected_game_name:
+            context_parts.append(f"Game: {session.selected_game_name}")
+        if session.audience_suggestion:
+            context_parts.append(f"Suggestion: {session.audience_suggestion}")
+
+        context_parts.append(f"Turn {turn_number}")
 
         # Add recent conversation history (last 3 turns for context)
         if session.conversation_history:
@@ -235,9 +243,10 @@ class TurnOrchestrator:
 
         memory_context = ""
         if turn_number == 1 and settings.memory_service_enabled:
+            game_context = session.selected_game_name or "improv"
             memories = await search_user_memories(
                 user_id=session.user_id,
-                query=f"improv techniques preferences performance {session.location}",
+                query=f"improv techniques preferences performance {game_context}",
                 limit=3,
             )
             if memories:
@@ -267,9 +276,14 @@ class TurnOrchestrator:
         else:
             coach_instruction = ""
 
+        # Build scene context from game and suggestion
+        game_name = session.selected_game_name or "improv scene"
+        suggestion = session.audience_suggestion or "the suggestion"
+
         prompt = f"""Scene Turn {turn_number} - {phase_name}
 
-Location: {session.location}
+Game: {game_name}
+Suggestion: {suggestion}
 User's contribution: {user_input}
 {memory_context}
 Coordinate the following:
@@ -322,11 +336,23 @@ ROOM: [Audience vibe analysis]
                 async for event in runner.run_async(
                     user_id=user_id, session_id=session_id, new_message=new_message
                 ):
+                    # Skip events that contain tool/function calls (internal orchestration)
+                    # These include transfer_to_agent calls that shouldn't be shown to users
+                    if hasattr(event, "get_function_calls") and event.get_function_calls():
+                        continue
+
                     if hasattr(event, "content") and event.content:
                         if hasattr(event.content, "parts"):
                             for part in event.content.parts:
+                                # Skip function call parts
+                                if hasattr(part, "function_call") and part.function_call:
+                                    continue
                                 if hasattr(part, "text") and part.text:
-                                    response_parts.append(part.text)
+                                    # Filter out any leaked tool call text patterns
+                                    text = part.text
+                                    if "called tool" in text and "transfer_to_agent" in text:
+                                        continue
+                                    response_parts.append(text)
 
             await asyncio.wait_for(run_with_timeout(), timeout=timeout)
 

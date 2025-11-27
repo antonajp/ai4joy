@@ -174,14 +174,14 @@ async function checkAuthStatus() {
 /**
  * Create a new session
  */
-async function createSession(location) {
+async function createSession() {
     const response = await fetch(`${API_BASE}/session/start`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
         credentials: 'include',
-        body: JSON.stringify({ location })
+        body: JSON.stringify({})
     });
 
     if (!response.ok) {
@@ -356,24 +356,16 @@ function handleStartSession() {
 }
 
 /**
- * Handle session form submission
+ * Handle session form submission (start new session)
  */
 async function handleSessionFormSubmit(event) {
     event.preventDefault();
 
-    const locationInput = document.getElementById('location-input');
-    const location = locationInput.value.trim();
-
-    if (!location) {
-        showToast('Please enter a location', 'error');
-        return;
-    }
-
     try {
-        showLoading('Creating your scene...');
+        showLoading('Creating your session...');
         hideModal('setup-modal');
 
-        const session = await createSession(location);
+        const session = await createSession();
         AppState.currentSession = session;
         AppState.currentTurn = 0;
 
@@ -393,8 +385,6 @@ async function handleSessionFormSubmit(event) {
  */
 function handleCancelSession() {
     hideModal('setup-modal');
-    const locationInput = document.getElementById('location-input');
-    if (locationInput) locationInput.value = '';
 }
 
 // ============================================
@@ -489,6 +479,7 @@ async function startMCWelcomePhase(sessionId) {
 
         if (response.selected_game) {
             AppState.selectedGame = response.selected_game;
+            updateGameDisplay(response.selected_game.name);
         }
 
         if (response.audience_suggestion) {
@@ -547,6 +538,7 @@ async function handleMCWelcomeInput(userInput) {
 
         if (response.selected_game) {
             AppState.selectedGame = response.selected_game;
+            updateGameDisplay(response.selected_game.name);
             displaySystemMessage(`Game selected: ${response.selected_game.name}`);
         }
 
@@ -709,13 +701,19 @@ async function executeFirstTurn(sessionId) {
  * Update session info panel
  */
 function updateSessionInfo(session) {
-    const locationEl = document.getElementById('session-location');
     const statusEl = document.getElementById('session-status');
     const turnEl = document.getElementById('turn-counter');
 
-    if (locationEl) locationEl.textContent = session.location;
     if (statusEl) statusEl.textContent = session.status;
     if (turnEl) turnEl.textContent = session.turn_count;
+}
+
+/**
+ * Update game display in sidebar
+ */
+function updateGameDisplay(gameName) {
+    const gameEl = document.getElementById('session-game');
+    if (gameEl) gameEl.textContent = gameName || 'Not selected';
 }
 
 /**

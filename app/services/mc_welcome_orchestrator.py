@@ -12,7 +12,7 @@ from app.models.session import Session, SessionStatus
 from app.services.session_manager import SessionManager
 from app.services.adk_session_service import get_adk_session_service
 from app.services.adk_memory_service import get_adk_memory_service
-from app.tools.game_database_tools import get_all_games
+from app.tools.game_database_tools import get_all_games, get_game_by_id
 from app.utils.logger import get_logger
 from app.config import get_settings
 
@@ -201,13 +201,27 @@ Be brief but enthusiastic! 2-3 sentences max."""
     ) -> Dict[str, Any]:
         """Handle audience suggestion collection."""
         game_name = session.selected_game_name or "the game"
+        game_id = session.selected_game_id
+
+        # Fetch actual game rules from database
+        game_rules = []
+        if game_id:
+            game_data = await get_game_by_id(game_id)
+            if game_data and "rules" in game_data:
+                game_rules = game_data["rules"]
+
+        rules_text = ""
+        if game_rules:
+            rules_text = "\n".join(f"• {rule}" for rule in game_rules[:3])
+            rules_text = f"\n\nHere are the rules to explain:\n{rules_text}"
 
         if user_input:
             prompt = f"""The user gave an audience suggestion: "{user_input}"
 
 Accept their suggestion with enthusiasm!
-Then briefly explain the rules of {game_name} in 2-3 simple bullet points.
-End by saying you're about to start the scene and introduce their scene partner.
+Then explain the rules of {game_name} clearly.{rules_text}
+
+End by building excitement for the scene that's about to start.
 
 Keep it high-energy but concise! About 3-4 sentences."""
 
@@ -262,16 +276,27 @@ Keep it brief and fun."""
         """Handle rules explanation and transition to scene work."""
         game_name = session.selected_game_name or "improv"
         suggestion = session.audience_suggestion or "a fun location"
+        game_id = session.selected_game_id
+
+        # Fetch game-specific details for context
+        game_description = ""
+        if game_id:
+            game_data = await get_game_by_id(game_id)
+            if game_data and "description" in game_data:
+                game_description = f"\nGame format: {game_data['description']}"
 
         prompt = f"""Time to start the scene!
 
-The game is {game_name} and the audience suggestion is "{suggestion}".
+The game is {game_name} and the audience suggestion is "{suggestion}".{game_description}
 
 Give a final pump-up message:
 1. Remind them of the key rule (Yes, And!)
-2. Introduce their scene partner (they'll be supportive in Phase 1)
+2. Tell them their scene partner is ready and waiting to support them
 3. Set the scene briefly using the suggestion
-4. Invite them to start with their first line
+4. Tell them to deliver their first line - their partner will respond right after
+
+IMPORTANT: Do NOT use placeholder text like [player's name] or [wait for partner]. Speak directly to the user.
+Do NOT include stage directions or system text. Just speak as the MC.
 
 Be exciting and encouraging! About 3-4 sentences.
 End with something like "Take it away!" or "You're on!"
@@ -305,6 +330,27 @@ This is the transition to scene work, so make it feel like a big moment!"""
         """Run the MC Agent with the given prompt."""
         runner = self._get_mc_runner()
 
+        # Ensure MC session exists before running agent
+        # ADK's run_async requires the session to already exist
+        session_service = get_adk_session_service()
+        mc_app_name = f"{settings.app_name}_mc"
+        existing_session = await session_service.get_session(
+            app_name=mc_app_name, user_id=user_id, session_id=session_id
+        )
+        if not existing_session:
+            logger.info(
+                "Creating MC session",
+                session_id=session_id,
+                user_id=user_id,
+                app_name=mc_app_name,
+            )
+            await session_service.create_session(
+                app_name=mc_app_name,
+                user_id=user_id,
+                session_id=session_id,
+                state={},
+            )
+
         try:
             new_message = types.Content(
                 role="user", parts=[types.Part.from_text(text=prompt)]
@@ -316,11 +362,23 @@ This is the transition to scene work, so make it feel like a big moment!"""
                 async for event in runner.run_async(
                     user_id=user_id, session_id=session_id, new_message=new_message
                 ):
+                    # Skip events that contain tool/function calls (internal orchestration)
+                    # These include transfer_to_agent calls that shouldn't be shown to users
+                    if hasattr(event, "get_function_calls") and event.get_function_calls():
+                        continue
+
                     if hasattr(event, "content") and event.content:
                         if hasattr(event.content, "parts"):
                             for part in event.content.parts:
+                                # Skip function call parts
+                                if hasattr(part, "function_call") and part.function_call:
+                                    continue
                                 if hasattr(part, "text") and part.text:
-                                    response_parts.append(part.text)
+                                    # Filter out any leaked tool call text patterns
+                                    text = part.text
+                                    if "called tool" in text and "transfer_to_agent" in text:
+                                        continue
+                                    response_parts.append(text)
 
             await asyncio.wait_for(run_with_timeout(), timeout=timeout)
 

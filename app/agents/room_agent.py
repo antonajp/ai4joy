@@ -1,7 +1,7 @@
 """Room Agent - Collective Sentiment Analyzer using Google ADK"""
 
 from google.adk.agents import Agent
-from app.tools import sentiment_gauge_tools, demographic_tools
+from app.toolsets import AudienceArchetypesToolset, SentimentAnalysisToolset
 from app.config import get_settings
 from app.utils.logger import get_logger
 
@@ -54,24 +54,21 @@ def create_room_agent() -> Agent:
     """Create Room Agent instance with ADK framework.
 
     Returns:
-        Configured ADK Agent for Room role with sentiment and demographic tools.
+        Configured ADK Agent for Room role with Firestore-backed toolsets.
     """
     logger.info("Creating Room Agent with ADK")
+
+    # Create toolsets with Firestore backends
+    sentiment_toolset = SentimentAnalysisToolset()
+    archetypes_toolset = AudienceArchetypesToolset()
 
     agent = Agent(
         name="room_agent",
         description="Room Agent - Collective sentiment analyzer who reads audience mood, engagement, and energy to help adapt the show",
         model=settings.vertexai_flash_model,
         instruction=ROOM_SYSTEM_PROMPT,
-        tools=[
-            sentiment_gauge_tools.analyze_text,
-            sentiment_gauge_tools.analyze_engagement,
-            sentiment_gauge_tools.analyze_collective_mood,
-            demographic_tools.generate_audience_sample,
-            demographic_tools.analyze_audience_traits,
-            demographic_tools.get_vibe_check,
-        ],
+        tools=[sentiment_toolset, archetypes_toolset],
     )
 
-    logger.info("Room Agent created successfully")
+    logger.info("Room Agent created successfully with SentimentAnalysis and AudienceArchetypes toolsets")
     return agent
