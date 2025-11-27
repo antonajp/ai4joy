@@ -880,7 +880,7 @@ function displayPartnerMessage(text, timestamp) {
 }
 
 /**
- * Display room vibe message
+ * Display room vibe message and update mood visualization
  */
 function displayRoomMessage(roomVibe, timestamp) {
     const container = document.getElementById('messages-container');
@@ -889,7 +889,12 @@ function displayRoomMessage(roomVibe, timestamp) {
     // Extract vibe text from room_vibe object
     const vibeText = typeof roomVibe === 'string'
         ? roomVibe
-        : roomVibe.vibe || JSON.stringify(roomVibe);
+        : roomVibe.analysis || roomVibe.vibe || JSON.stringify(roomVibe);
+
+    // Update mood visualization if mood_metrics are present
+    if (roomVibe && roomVibe.mood_metrics && typeof moodVisualizer !== 'undefined') {
+        moodVisualizer.update(roomVibe.mood_metrics);
+    }
 
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message message-room';
