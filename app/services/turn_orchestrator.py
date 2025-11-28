@@ -435,12 +435,19 @@ ROOM: [Audience vibe analysis]
         sentiment_score = 0.0  # Default neutral
 
         # Positive sentiment keywords (higher weight)
-        positive_high = ["loving", "enthusiastic", "excited", "thrilled", "ecstatic"]
-        positive_mid = ["positive", "enjoying", "happy", "pleased", "delighted"]
+        positive_high = [
+            "loving", "enthusiastic", "excited", "thrilled", "ecstatic",
+            "uproarious", "wild", "erupting", "explosive",
+        ]
+        positive_mid = [
+            "positive", "enjoying", "happy", "pleased", "delighted",
+            "jovial", "lighthearted", "playful", "amused", "fun",
+            "warmth", "warm", "cheerful", "joyful", "gleeful",
+        ]
 
         # Negative sentiment keywords
-        negative_high = ["hostile", "angry", "furious"]
-        negative_mid = ["negative", "bored", "disengaged", "disappointed", "frustrated"]
+        negative_high = ["hostile", "angry", "furious", "heckling"]
+        negative_mid = ["negative", "bored", "disengaged", "disappointed", "frustrated", "confused", "lost"]
 
         # Calculate sentiment based on keyword presence
         if any(word in analysis_lower for word in positive_high):
@@ -452,9 +459,11 @@ ROOM: [Audience vibe analysis]
         elif any(word in analysis_lower for word in negative_mid):
             sentiment_score = -0.5
 
-        # Boost sentiment if laughter detected
-        if laughter_detected and sentiment_score >= 0:
-            sentiment_score = max(sentiment_score, 0.5)
+        # Boost scores if laughter detected (laughter indicates high positive engagement)
+        if laughter_detected:
+            if sentiment_score >= 0:
+                sentiment_score = max(sentiment_score, 0.7)  # Laughter is strongly positive
+            engagement_score = max(engagement_score, 0.8)  # Laughter shows high engagement
 
         # Ensure bounds
         sentiment_score = max(-1.0, min(1.0, sentiment_score))
