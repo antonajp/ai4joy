@@ -742,7 +742,7 @@ header {
     flex: 1;
     display: flex;
     flex-direction: column;
-    background: white;
+    background: transparent;  /* Allow mood visualization to show through */
     overflow: hidden;
 }
 
@@ -753,6 +753,7 @@ header {
     display: flex;
     flex-direction: column;
     gap: var(--space-lg);
+    background: transparent;  /* Allow mood visualization to show through */
 }
 
 /* Message Bubbles */
@@ -983,7 +984,9 @@ header {
 .chat-input-form {
     border-top: 1px solid var(--gray-200);
     padding: var(--space-lg);
-    background: white;
+    background: rgba(255, 255, 255, 0.85);  /* Semi-transparent to show mood color */
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
     display: flex;
     gap: var(--space-md);
 }
