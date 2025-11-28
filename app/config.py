@@ -49,6 +49,13 @@ class Settings(BaseSettings):
     # Example: "user1@example.com,user2@example.com"
     allowed_users: str = os.getenv("ALLOWED_USERS", "")
 
+    # Firestore-based user management (Phase 0.5)
+    # When enabled, uses Firestore users collection instead of ALLOWED_USERS env var
+    use_firestore_auth: bool = (
+        os.getenv("USE_FIRESTORE_AUTH", "false").lower() == "true"
+    )
+    firestore_users_collection: str = "users"
+
     @property
     def allowed_users_list(self) -> list[str]:
         """Parse comma-separated allowed users into a list"""

@@ -391,6 +391,11 @@ resource "google_cloud_run_v2_service" "improv_app" {
         value = var.allowed_users
       }
 
+      env {
+        name  = "USE_FIRESTORE_AUTH"
+        value = tostring(var.use_firestore_auth)
+      }
+
       ports {
         container_port = 8080
       }

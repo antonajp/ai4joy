@@ -142,3 +142,61 @@ def get_authenticated_user(request: Request) -> dict:
         "user_id": request.state.user_id,
         "user_name": getattr(request.state, "user_name", ""),
     }
+
+
+# =============================================================================
+# Firestore User Validation Functions (Phase 0.5)
+# =============================================================================
+
+
+def should_use_firestore_auth() -> bool:
+    """Check if Firestore-based auth is enabled.
+
+    Returns:
+        True if USE_FIRESTORE_AUTH is enabled
+    """
+    return settings.use_firestore_auth
+
+
+def validate_user_access_legacy(email: str) -> bool:
+    """Validate user against ALLOWED_USERS list (legacy method).
+
+    Args:
+        email: User email address
+
+    Returns:
+        True if user is in allowed list
+    """
+    allowed_users = settings.allowed_users_list
+    if not allowed_users:
+        # If no allowed users configured, allow all
+        return True
+    return email in allowed_users
+
+
+async def validate_user_access(email: str):
+    """Validate user access using Firestore.
+
+    Args:
+        email: User email address
+
+    Returns:
+        UserProfile if user exists, None otherwise
+    """
+    from app.services.user_service import get_user_by_email
+
+    return await get_user_by_email(email)
+
+
+async def on_successful_auth(email: str) -> None:
+    """Handle successful authentication - update last login.
+
+    Args:
+        email: User email address
+    """
+    from app.services.user_service import update_last_login
+
+    try:
+        await update_last_login(email)
+    except Exception as e:
+        logger.warning("Failed to update last login", email=email, error=str(e))

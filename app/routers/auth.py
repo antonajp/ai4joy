@@ -104,14 +104,14 @@ async def auth_callback(request: Request):
         )
 
         # Check if user is allowed to access the application
+        # Uses Firestore-based authorization when USE_FIRESTORE_AUTH is enabled
         user_email = user_info.get("email", "")
-        allowed_users = settings.allowed_users_list
+        is_authorized = await check_user_authorization(user_email)
 
-        if allowed_users and user_email not in allowed_users:
+        if not is_authorized:
             logger.warning(
-                "Access denied - user not in whitelist",
+                "Access denied - user not authorized",
                 user_email=user_email,
-                whitelist_count=len(allowed_users),
             )
             # Return user-friendly HTML error page
             html_content = f"""
@@ -282,3 +282,30 @@ async def get_current_user(request: Request):
     except Exception as e:
         logger.warning("Session validation failed", error=str(e))
         return {"authenticated": False, "user": None}
+
+
+async def check_user_authorization(email: str) -> bool:
+    """Check if user is authorized to access the application.
+
+    Uses Firestore if USE_FIRESTORE_AUTH is enabled, otherwise
+    falls back to ALLOWED_USERS environment variable.
+
+    Args:
+        email: User email address
+
+    Returns:
+        True if user is authorized
+    """
+    from app.middleware.oauth_auth import (
+        should_use_firestore_auth,
+        validate_user_access,
+        validate_user_access_legacy,
+    )
+
+    if should_use_firestore_auth():
+        # Check Firestore users collection
+        user_profile = await validate_user_access(email)
+        return user_profile is not None
+    else:
+        # Legacy: Check ALLOWED_USERS env var
+        return validate_user_access_legacy(email)
