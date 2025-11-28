@@ -124,3 +124,9 @@ variable "user_concurrent_session_limit" {
   type        = number
   default     = 3
 }
+
+variable "use_firestore_auth" {
+  description = "Enable Firestore-based user authentication (set false to use ALLOWED_USERS)"
+  type        = bool
+  default     = false
+}

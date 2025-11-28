@@ -36,7 +36,7 @@ from app.services.adk_observability import (
     initialize_adk_observability,
     get_adk_observability,
 )
-from app.routers import health, sessions, auth, static, audio_poc
+from app.routers import health, sessions, auth, static, audio_poc, user
 
 settings = get_settings()
 
@@ -91,11 +91,12 @@ logger.info("OAuth session authentication and performance middleware registered"
 
 app.include_router(health.router)
 app.include_router(auth.router)
+app.include_router(user.router)
 app.include_router(sessions.router)
 app.include_router(static.router)
 app.include_router(audio_poc.router)
 
-logger.info("All routers registered (including audio PoC)")
+logger.info("All routers registered (including user and audio PoC)")
 
 
 @app.exception_handler(Exception)
