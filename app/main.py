@@ -36,7 +36,7 @@ from app.services.adk_observability import (
     initialize_adk_observability,
     get_adk_observability,
 )
-from app.routers import health, sessions, auth, static
+from app.routers import health, sessions, auth, static, audio_poc
 
 settings = get_settings()
 
@@ -93,8 +93,9 @@ app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(sessions.router)
 app.include_router(static.router)
+app.include_router(audio_poc.router)
 
-logger.info("All routers registered")
+logger.info("All routers registered (including audio PoC)")
 
 
 @app.exception_handler(Exception)
