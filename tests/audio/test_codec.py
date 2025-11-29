@@ -1,9 +1,6 @@
 """Tests for audio codec utilities (stub for PoC phase)"""
 
-import pytest
 from app.audio.codec import (
-    encode_pcm16_to_base64,
-    decode_base64_to_pcm16,
     SAMPLE_RATE,
     CHANNELS,
     BIT_DEPTH,

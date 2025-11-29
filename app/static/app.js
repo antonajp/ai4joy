@@ -31,12 +31,14 @@ const AppState = {
     pollingInterval: null,
     isProcessing: false,
     lastMessageId: null,
-    // MC Welcome Phase state
     mcWelcomeComplete: false,
-    mcPhase: null,  // 'welcome', 'game_selection', 'awaiting_suggestion', 'suggestion_received', 'scene_start'
+    mcPhase: null,
     availableGames: [],
     selectedGame: null,
-    audienceSuggestion: null
+    audienceSuggestion: null,
+    audioManager: null,
+    audioUI: null,
+    isVoiceMode: false
 };
 
 // ============================================
@@ -391,60 +393,50 @@ function handleCancelSession() {
 // Chat Interface Functions
 // ============================================
 
-/**
- * Initialize chat interface
- */
-async function initializeChatInterface() {
-    // Check authentication first
-    await initializeAuth();
+async function initializeAudioFeatures() {
+    if (typeof AudioStreamManager === 'undefined' || typeof AudioUIController === 'undefined') {
+        console.warn('[App] Audio modules not loaded');
+        return;
+    }
+    const isPremium = AppState.currentUser?.tier === 'premium';
+    AppState.audioManager = new AudioStreamManager();
+    AppState.audioUI = new AudioUIController(AppState.audioManager);
+    await AppState.audioUI.initialize(isPremium);
+    console.log('[App] Audio features initialized', { isPremium });
+}
 
+async function initializeChatInterface() {
+    await initializeAuth();
     if (!AppState.isAuthenticated) {
         window.location.href = '/';
         return;
     }
-
-    // Get session ID from URL or storage
     const urlParams = new URLSearchParams(window.location.search);
     const sessionId = urlParams.get('session') || getStoredSessionId();
-
     if (!sessionId) {
         showToast('No active session found', 'error');
         setTimeout(() => window.location.href = '/', 2000);
         return;
     }
-
     try {
         showLoading('Loading your scene...');
-
-        // Load session info
         const session = await getSessionInfo(sessionId);
         AppState.currentSession = session;
         AppState.currentTurn = session.turn_count;
-
-        // Update UI
         updateSessionInfo(session);
-
-        // Enable input
         enableChatInput();
-
+        await initializeAudioFeatures();
         hideLoading();
-
-        // Check if MC welcome phase needs to be completed
-        // Session status will be 'initialized', 'mc_welcome', 'game_select', or 'suggestion_phase'
-        // during the MC welcome flow
         const mcWelcomeStatuses = ['initialized', 'mc_welcome', 'game_select', 'suggestion_phase'];
         if (mcWelcomeStatuses.includes(session.status)) {
             AppState.mcWelcomeComplete = false;
             await startMCWelcomePhase(sessionId);
         } else {
-            // MC welcome already complete, session is active
             AppState.mcWelcomeComplete = true;
-            // If this is the first turn after MC welcome, start scene work
             if (session.turn_count === 0) {
                 displaySystemMessage('Scene work is ready to begin! Enter your first line to start the improv scene.');
             }
         }
-
     } catch (error) {
         hideLoading();
         showErrorModal(error.message, () => {

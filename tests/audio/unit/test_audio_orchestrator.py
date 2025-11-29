@@ -13,8 +13,7 @@ Test Cases per IQS-58 Acceptance Criteria:
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from typing import AsyncGenerator
+from unittest.mock import AsyncMock, MagicMock
 
 
 class TestAudioStreamOrchestrator:
@@ -143,7 +142,6 @@ class TestAudioStreamOrchestrator:
 
         # Get session and mock its queue
         session = await orchestrator.get_session(session_id)
-        original_queue = session.queue
         session.queue = MagicMock()
         session.queue.close = MagicMock()
 
