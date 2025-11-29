@@ -12,8 +12,7 @@ Test Cases per IQS-58 Acceptance Criteria:
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from fastapi import HTTPException
+from unittest.mock import MagicMock, patch
 
 
 class TestPremiumTierGating:

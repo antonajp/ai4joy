@@ -1,7 +1,5 @@
 """Tests for WebSocket audio endpoint (stub for PoC phase)"""
 
-import pytest
-from fastapi.testclient import TestClient
 
 
 def test_websocket_connection():

@@ -202,10 +202,10 @@ class TestMCAgentAudioConfiguration:
         orchestrator = AudioStreamOrchestrator()
         run_config = orchestrator.get_run_config()
 
-        # Should have audio transcription enabled
+        # Should have speech config and audio modalities
         assert run_config is not None
-        assert run_config.data.get("input_audio_transcription") is not None
-        assert run_config.data.get("output_audio_transcription") is not None
+        assert run_config.speech_config is not None
+        assert "AUDIO" in run_config.response_modalities
 
     def test_speech_config_for_aoede(self):
         """Test speech config uses Aoede voice."""
@@ -216,7 +216,9 @@ class TestMCAgentAudioConfiguration:
 
         assert speech_config is not None
         assert speech_config.voice_config is not None
-        assert speech_config.voice_config.prebuilt_voice_config.get("voice_name") == "Aoede"
+        # PrebuiltVoiceConfig is a Pydantic model with voice_name attribute
+        prebuilt = speech_config.voice_config.prebuilt_voice_config
+        assert prebuilt.voice_name == "Aoede"
 
 
 class TestMCAgentToolsWithAudio:

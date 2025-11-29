@@ -1,6 +1,5 @@
 """Integration tests for audio PoC WebSocket endpoint."""
 
-import json
 import pytest
 from fastapi.testclient import TestClient
 from app.main import app

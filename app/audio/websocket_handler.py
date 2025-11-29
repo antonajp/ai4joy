@@ -4,6 +4,8 @@ This module provides the AudioWebSocketHandler for managing WebSocket
 connections for real-time audio conversations with the MC Agent.
 """
 
+import asyncio
+import base64
 import json
 from typing import Dict, Any, Optional
 
@@ -403,6 +405,78 @@ class AudioWebSocketHandler:
 audio_handler = AudioWebSocketHandler()
 
 
+async def _stream_responses_to_client(
+    websocket: WebSocket,
+    session_id: str,
+    orchestrator: AudioStreamOrchestrator,
+) -> None:
+    """Background task to stream ADK responses back to the client.
+
+    Args:
+        websocket: WebSocket connection
+        session_id: Session identifier
+        orchestrator: Audio orchestrator instance
+    """
+    try:
+        async for response in orchestrator.stream_responses(session_id):
+            response_type = response.get("type")
+
+            if response_type == "audio":
+                # Encode audio bytes to base64 for transmission
+                audio_data = response.get("data")
+                if audio_data:
+                    if isinstance(audio_data, bytes):
+                        encoded_audio = base64.b64encode(audio_data).decode("utf-8")
+                    else:
+                        encoded_audio = audio_data
+
+                    await websocket.send_json({
+                        "type": "audio",
+                        "data": encoded_audio,
+                        "sample_rate": 24000,
+                    })
+
+            elif response_type == "transcription":
+                await websocket.send_json({
+                    "type": "transcription",
+                    "text": response.get("text", ""),
+                    "role": response.get("role", "agent"),
+                    "is_final": response.get("is_final", True),
+                })
+
+            elif response_type == "error":
+                await websocket.send_json({
+                    "type": "error",
+                    "code": "STREAM_ERROR",
+                    "message": response.get("message", "Unknown error"),
+                })
+
+            elif response_type == "tool_call":
+                logger.debug(
+                    "Tool call in response stream",
+                    session_id=session_id,
+                    tool_name=response.get("name"),
+                )
+
+            elif response_type == "tool_result":
+                logger.debug(
+                    "Tool result in response stream",
+                    session_id=session_id,
+                )
+
+    except asyncio.CancelledError:
+        logger.debug("Response streaming cancelled", session_id=session_id)
+        raise
+
+    except Exception as e:
+        logger.error(
+            "Error streaming responses to client",
+            session_id=session_id,
+            error=str(e),
+            error_type=type(e).__name__,
+        )
+
+
 async def audio_websocket_endpoint(
     websocket: WebSocket,
     session_id: str,
@@ -426,8 +500,17 @@ async def audio_websocket_endpoint(
     if not connected:
         return
 
+    # Start background task to stream responses from ADK to client
+    response_task = asyncio.create_task(
+        _stream_responses_to_client(
+            websocket,
+            session_id,
+            audio_handler.orchestrator,
+        )
+    )
+
     try:
-        # Main message loop
+        # Main message loop - receives audio from client
         while True:
             data = await websocket.receive_text()
             message = json.loads(data)
@@ -446,4 +529,11 @@ async def audio_websocket_endpoint(
         await audio_handler.handle_connection_error(session_id, str(e))
 
     finally:
+        # Cancel the response streaming task
+        response_task.cancel()
+        try:
+            await response_task
+        except asyncio.CancelledError:
+            pass
+
         await audio_handler.disconnect(session_id)
