@@ -200,3 +200,43 @@ async def on_successful_auth(email: str) -> None:
         await update_last_login(email)
     except Exception as e:
         logger.warning("Failed to update last login", email=email, error=str(e))
+
+
+def validate_session_token(token: str) -> Optional[dict]:
+    """Validate a session token and return user data.
+
+    This is used for WebSocket authentication where we can't use cookies.
+
+    Args:
+        token: Session token (from query parameter or header)
+
+    Returns:
+        Session data dict if valid, None otherwise
+
+    Security:
+        - Requires SESSION_SECRET_KEY to be configured
+        - Returns None if secret is missing (fail-secure)
+        - Token expires after 24 hours
+    """
+    # SECURITY: Fail securely if secret key not configured
+    if not settings.session_secret_key:
+        logger.error(
+            "SESSION_SECRET_KEY not configured - token validation disabled for security"
+        )
+        return None
+
+    serializer = URLSafeTimedSerializer(settings.session_secret_key)
+    max_age = 86400  # 24 hours
+
+    try:
+        session_data = serializer.loads(token, max_age=max_age)
+        return session_data
+    except SignatureExpired:
+        logger.info("Session token expired")
+        return None
+    except BadSignature:
+        logger.warning("Invalid session token signature")
+        return None
+    except Exception as e:
+        logger.error("Session token validation error", error=str(e))
+        return None
