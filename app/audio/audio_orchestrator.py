@@ -1121,6 +1121,22 @@ class AudioStreamOrchestrator:
                                 "scene_premise": func_args.get("scene_premise"),
                             })
 
+                        elif func_name == "_resume_scene":
+                            # MC is resuming scene with Partner Agent (after interjection)
+                            session.pending_agent_switch = "partner"
+                            # Don't overwrite scene_context - preserve existing context
+                            logger.info(
+                                "MC called _resume_scene - pending switch to Partner",
+                                session_id=session.session_id,
+                                message=func_args.get("message"),
+                            )
+                            responses.append({
+                                "type": "agent_switch_pending",
+                                "from_agent": "mc",
+                                "to_agent": "partner",
+                                "reason": "scene_resume",
+                            })
+
                         elif func_name == "_end_scene":
                             # Partner is handing back to MC
                             session.pending_agent_switch = "mc"

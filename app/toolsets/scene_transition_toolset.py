@@ -49,6 +49,7 @@ class SceneTransitionToolset(BaseToolset):
         if self._tools is None:
             self._tools = [
                 FunctionTool(self._start_scene),
+                FunctionTool(self._resume_scene),
                 FunctionTool(self._end_scene),
             ]
             logger.debug("Scene transition tools created", tool_count=len(self._tools))
@@ -101,6 +102,37 @@ class SceneTransitionToolset(BaseToolset):
                 f"Great! Starting '{game_name}' scene. "
                 "Handing off to your scene partner now. Have fun!"
             ),
+        }
+
+    async def _resume_scene(
+        self,
+        message: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Resume scene work with the Partner Agent after an MC interjection.
+
+        Call this tool when:
+        - You've announced a game milestone (like status shift)
+        - You've provided a brief coaching note mid-scene
+        - The scene was briefly paused and should now continue
+
+        The system will transition back to the Partner Agent to continue
+        the scene from where it left off.
+
+        Args:
+            message: Optional message to pass to Partner (e.g., "Continue the scene!")
+
+        Returns:
+            Dict with transition status
+        """
+        logger.info(
+            "MC signaled scene resume",
+            message=message,
+        )
+
+        return {
+            "status": "scene_resuming",
+            "action": "transfer_to_partner",
+            "message": message or "Let's continue the scene!",
         }
 
     async def _end_scene(
