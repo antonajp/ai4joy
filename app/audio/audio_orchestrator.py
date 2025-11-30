@@ -14,7 +14,10 @@ from google.genai import types
 
 from app.agents.mc_agent import create_mc_agent_for_audio
 from app.agents.partner_agent import create_partner_agent_for_audio
+from app.agents.room_agent import create_room_agent_for_audio
 from app.agents.stage_manager import determine_partner_phase
+from app.audio.ambient_audio import AmbientAudioTrigger, SentimentLevel
+from app.audio.audio_mixer import AudioMixer
 from app.audio.premium_middleware import check_audio_access, track_audio_usage
 from app.audio.turn_manager import AgentTurnManager
 from app.audio.voice_config import get_voice_config
@@ -67,13 +70,16 @@ class AudioSession:
         active: Whether session is active
         usage_seconds: Accumulated audio usage
         turn_count: Number of completed turns in this session
-        current_agent: Current active agent type ("mc" or "partner")
+        current_agent: Current active agent type ("mc", "partner", or "room")
         turn_manager: Turn manager for agent coordination
         mc_agent: MC Agent instance for this session
         partner_agent: Partner Agent instance for this session
+        room_agent: Room Agent instance for ambient commentary
         partner_phase: Current phase for Partner Agent
         pending_agent_switch: Agent to switch to after current turn (None if no switch pending)
         scene_context: Context from MC's _start_scene call for Partner
+        audio_mixer: AudioMixer for combining multiple agent streams
+        ambient_trigger: AmbientAudioTrigger for sentiment-based Room activation
     """
 
     session_id: str
@@ -88,9 +94,12 @@ class AudioSession:
     turn_manager: Optional[Any] = None  # AgentTurnManager
     mc_agent: Any = None  # MC Agent instance
     partner_agent: Any = None  # Partner Agent instance
+    room_agent: Any = None  # Room Agent instance for ambient commentary
     partner_phase: int = 1  # Current phase for Partner Agent
     pending_agent_switch: Optional[str] = None  # "partner" or "mc" if switch pending
     scene_context: Optional[Dict[str, Any]] = None  # Context from _start_scene
+    audio_mixer: Any = None  # AudioMixer for multi-stream mixing
+    ambient_trigger: Any = None  # AmbientAudioTrigger for Room activation
 
 
 class AudioStreamOrchestrator:
@@ -136,10 +145,20 @@ class AudioStreamOrchestrator:
         """
         from google.adk.runners import Runner
 
-        # Use the current agent for this session (MC or Partner)
-        current_agent = (
-            session.mc_agent if session.current_agent == "mc" else session.partner_agent
-        )
+        # Use the current agent for this session (MC, Partner, or Room)
+        if session.current_agent == "mc":
+            current_agent = session.mc_agent
+        elif session.current_agent == "partner":
+            current_agent = session.partner_agent
+        elif session.current_agent == "room":
+            current_agent = session.room_agent
+        else:
+            logger.warning(
+                "Unknown agent type, defaulting to MC",
+                session_id=session.session_id,
+                agent_type=session.current_agent,
+            )
+            current_agent = session.mc_agent
 
         runner = Runner(
             agent=current_agent,
@@ -386,6 +405,13 @@ class AudioStreamOrchestrator:
         # Create per-session agents to ensure isolation between concurrent sessions
         mc_agent = create_mc_agent_for_audio()
         partner_agent = create_partner_agent_for_audio(phase=1)
+        room_agent = create_room_agent_for_audio()
+
+        # Create audio mixer for multi-stream mixing (Room at 30% volume)
+        audio_mixer = AudioMixer()
+
+        # Create ambient audio trigger for sentiment-based Room activation
+        ambient_trigger = AmbientAudioTrigger(cooldown_seconds=15.0)
 
         self._sessions[session_id] = AudioSession(
             session_id=session_id,
@@ -399,7 +425,10 @@ class AudioStreamOrchestrator:
             turn_manager=turn_manager,
             mc_agent=mc_agent,
             partner_agent=partner_agent,
+            room_agent=room_agent,
             partner_phase=1,
+            audio_mixer=audio_mixer,
+            ambient_trigger=ambient_trigger,
         )
 
         # Send initial greeting prompt to trigger MC to speak first
@@ -416,6 +445,8 @@ class AudioStreamOrchestrator:
             current_agent="mc",
             mc_agent_name=mc_agent.name,
             partner_agent_name=partner_agent.name,
+            room_agent_name=room_agent.name,
+            room_volume=audio_mixer.get_volume("room"),
         )
 
     def _send_initial_greeting(self, queue: Any, game_name: Optional[str] = None) -> None:
@@ -1310,3 +1341,167 @@ class AudioStreamOrchestrator:
             24000 Hz (ADK Live API output format)
         """
         return 24000
+
+    # Room Agent Methods (Phase 3)
+
+    def get_room_volume(self, session_id: str) -> float:
+        """Get Room Agent volume level for a session.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            Volume level (0.0-1.0), defaults to 0.3 for Room
+        """
+        session = self._sessions.get(session_id)
+        if not session or not session.audio_mixer:
+            return 0.3  # Default Room volume
+        return session.audio_mixer.get_volume("room")
+
+    def set_room_volume(self, session_id: str, volume: float) -> Dict[str, Any]:
+        """Set Room Agent volume level for a session.
+
+        Args:
+            session_id: Session identifier
+            volume: Volume level (0.0-1.0)
+
+        Returns:
+            Status dict with result
+        """
+        session = self._sessions.get(session_id)
+        if not session:
+            return {"error": True, "message": "Session not found"}
+
+        if not session.audio_mixer:
+            return {"error": True, "message": "Audio mixer not initialized"}
+
+        session.audio_mixer.set_volume("room", volume)
+        logger.info(
+            "Room Agent volume updated",
+            session_id=session_id,
+            volume=volume,
+        )
+        return {"status": "ok", "volume": session.audio_mixer.get_volume("room")}
+
+    def should_trigger_ambient(
+        self,
+        session_id: str,
+        sentiment: str,
+        energy_level: float,
+    ) -> bool:
+        """Check if Room Agent ambient commentary should be triggered.
+
+        Uses the session's AmbientAudioTrigger to determine if the current
+        sentiment and energy level warrant ambient commentary.
+
+        Args:
+            session_id: Session identifier
+            sentiment: Sentiment level ("very_positive", "positive", etc.)
+            energy_level: Energy level from 0.0 to 1.0
+
+        Returns:
+            True if ambient commentary should be triggered
+        """
+        session = self._sessions.get(session_id)
+        if not session or not session.ambient_trigger:
+            return False
+
+        # Convert string sentiment to SentimentLevel enum
+        sentiment_map = {
+            "very_positive": SentimentLevel.VERY_POSITIVE,
+            "positive": SentimentLevel.POSITIVE,
+            "neutral": SentimentLevel.NEUTRAL,
+            "negative": SentimentLevel.NEGATIVE,
+            "very_negative": SentimentLevel.VERY_NEGATIVE,
+        }
+        sentiment_level = sentiment_map.get(sentiment.lower(), SentimentLevel.NEUTRAL)
+
+        return session.ambient_trigger.should_trigger(
+            sentiment=sentiment_level,
+            energy_level=energy_level,
+        )
+
+    def get_ambient_prompt(
+        self,
+        session_id: str,
+        sentiment: str,
+        energy_level: float,
+        context: Optional[str] = None,
+    ) -> str:
+        """Get commentary prompt for Room Agent ambient audio.
+
+        Args:
+            session_id: Session identifier
+            sentiment: Sentiment level ("very_positive", "positive", etc.)
+            energy_level: Energy level from 0.0 to 1.0
+            context: Optional context about what's happening
+
+        Returns:
+            Prompt string for Room Agent
+        """
+        session = self._sessions.get(session_id)
+        if not session or not session.ambient_trigger:
+            return ""
+
+        # Convert string sentiment to SentimentLevel enum
+        sentiment_map = {
+            "very_positive": SentimentLevel.VERY_POSITIVE,
+            "positive": SentimentLevel.POSITIVE,
+            "neutral": SentimentLevel.NEUTRAL,
+            "negative": SentimentLevel.NEGATIVE,
+            "very_negative": SentimentLevel.VERY_NEGATIVE,
+        }
+        sentiment_level = sentiment_map.get(sentiment.lower(), SentimentLevel.NEUTRAL)
+
+        return session.ambient_trigger.get_commentary_prompt(
+            sentiment=sentiment_level,
+            energy_level=energy_level,
+            context=context,
+        )
+
+    def mix_audio_streams(
+        self,
+        session_id: str,
+        streams: Dict[str, bytes],
+    ) -> bytes:
+        """Mix multiple audio streams using the session's AudioMixer.
+
+        Args:
+            session_id: Session identifier
+            streams: Dictionary mapping agent type to audio bytes
+
+        Returns:
+            Mixed audio bytes
+        """
+        session = self._sessions.get(session_id)
+        if not session or not session.audio_mixer:
+            # Return first non-empty stream if no mixer
+            for audio in streams.values():
+                if audio:
+                    return audio
+            return b""
+
+        return session.audio_mixer.mix_streams(streams)
+
+    def reset_ambient_trigger(self, session_id: str) -> Dict[str, Any]:
+        """Reset the ambient audio trigger cooldown for a session.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            Status dict with result
+        """
+        session = self._sessions.get(session_id)
+        if not session:
+            return {"error": True, "message": "Session not found"}
+
+        if not session.ambient_trigger:
+            return {"error": True, "message": "Ambient trigger not initialized"}
+
+        session.ambient_trigger.reset()
+        logger.info(
+            "Ambient audio trigger reset",
+            session_id=session_id,
+        )
+        return {"status": "ok"}
