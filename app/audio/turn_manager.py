@@ -13,7 +13,7 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 # Type alias for agent types
-AgentType = Literal["mc", "partner"]
+AgentType = Literal["mc", "partner", "room"]
 
 
 @dataclass
@@ -133,6 +133,32 @@ class AgentTurnManager:
             "switched": previous_speaker != "partner",
         }
 
+    def start_room_turn(self) -> dict:
+        """Activate Room Agent for ambient commentary.
+
+        Room turns are brief, non-blocking background reactions that
+        provide ambient atmosphere without disrupting the main flow.
+
+        Returns:
+            Status dict with transition info
+        """
+        previous_speaker = self._state.current_speaker
+        self._state.current_speaker = "room"
+
+        logger.info(
+            "Room Agent activated for ambient commentary",
+            previous_speaker=previous_speaker,
+            turn_count=self._state.turn_count,
+        )
+
+        return {
+            "status": "ok",
+            "current_speaker": "room",
+            "turn_count": self._state.turn_count,
+            "phase": self._state.phase,
+            "switched": previous_speaker != "room",
+        }
+
     def on_turn_complete(self) -> dict:
         """Handle turn completion and check for phase transitions.
 
@@ -178,21 +204,23 @@ class AgentTurnManager:
         """Switch to specified agent type.
 
         Args:
-            agent_type: Agent to switch to ("mc" or "partner")
+            agent_type: Agent to switch to ("mc", "partner", or "room")
 
         Returns:
             Status dict with transition info
 
         Raises:
-            ValueError: If agent_type is not "mc" or "partner"
+            ValueError: If agent_type is not valid
         """
-        if agent_type not in ["mc", "partner"]:
+        if agent_type not in ["mc", "partner", "room"]:
             raise ValueError(f"Invalid agent_type: {agent_type}")
 
         if agent_type == "mc":
             return self.start_mc_turn()
-        else:
+        elif agent_type == "partner":
             return self.start_partner_turn()
+        else:  # room
+            return self.start_room_turn()
 
     def get_state(self) -> dict:
         """Get current turn manager state.

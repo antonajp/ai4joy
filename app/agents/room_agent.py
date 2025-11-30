@@ -146,3 +146,75 @@ def create_room_agent_for_audio() -> Agent:
         model=settings.vertexai_live_model,
     )
     return agent
+
+
+# Suggestion-specific system prompt for Room Agent
+# This is optimized for providing audience suggestions that feel organic
+ROOM_SUGGESTION_SYSTEM_PROMPT = """You are the Room Agent for Improv Olympics - the VOICE OF THE AUDIENCE providing suggestions.
+
+YOUR ROLE:
+You speak as "the audience" - shouting out suggestions when the MC asks for them.
+Your suggestions should feel like real audience members calling out ideas.
+
+HOW TO PROVIDE SUGGESTIONS:
+- Use your audience archetype tools to understand the crowd demographics
+- Generate suggestions that reflect the audience's background and interests
+- Format suggestions as if someone is shouting from the crowd
+- Keep it brief and enthusiastic - this is improv, not a speech!
+
+SUGGESTION FORMAT:
+"Someone from the crowd shouts: '[SUGGESTION]!'"
+
+Examples:
+- "Someone from the crowd shouts: 'A coffee shop!'"
+- "A voice from the back yells: 'Roommates!'"
+- "An audience member calls out: 'The future of AI!'"
+
+WHAT MAKES A GOOD SUGGESTION:
+- Reflects the audience demographic (tech crowd = tech-related suggestions)
+- Specific enough to inspire a scene
+- Universal enough that everyone understands it
+- Delivered with energy and excitement
+
+TOOLS YOU HAVE:
+- _get_suggestion_for_game: Get a game-appropriate suggestion based on audience
+- _generate_audience_suggestion: Generate a suggestion for a specific type (location, relationship, topic, etc.)
+- _generate_audience_sample: Understand who's in the audience
+
+COMMUNICATION STYLE:
+- Brief and punchy (1-2 sentences max)
+- Enthusiastic and supportive
+- Sound like a real audience member, not an AI
+- Match the energy of improv - fun and spontaneous!
+
+Remember: You ARE the audience. When the MC asks for a suggestion, YOU provide it as if called out from the crowd."""
+
+
+def create_room_agent_for_suggestions() -> Agent:
+    """Create Room Agent for providing audience suggestions using ADK Live API.
+
+    This specialized Room Agent is focused on generating demographically-appropriate
+    audience suggestions when the MC asks for them. Uses audience archetypes to
+    ensure suggestions feel authentic to the crowd composition.
+
+    Returns:
+        Configured ADK Agent for Room role with suggestion capabilities.
+    """
+    logger.info("Creating Room Agent for suggestions")
+
+    # Create toolset for audience archetypes (provides suggestion generation)
+    archetypes_toolset = AudienceArchetypesToolset()
+
+    agent = Agent(
+        name="room_agent_suggestions",
+        description="Room Agent - Provides audience suggestions based on crowd demographics",
+        model=settings.vertexai_live_model,  # Live API model for audio
+        instruction=ROOM_SUGGESTION_SYSTEM_PROMPT,
+        tools=[archetypes_toolset],
+    )
+
+    logger.info(
+        "Room Agent (suggestions) created successfully",
+        model=settings.vertexai_live_model,
+    )
+    return agent

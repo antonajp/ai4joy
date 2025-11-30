@@ -150,9 +150,10 @@ If they mentioned:
 - Wanting a challenge: suggest an intermediate or advanced game
 - A specific game name: acknowledge their choice and get excited about it
 
-After suggesting, ask them for an audience suggestion appropriate for that game.
-For example: "Give me a location!" or "Give me a relationship!" or "Give me an occupation!"
+After suggesting, turn to THE AUDIENCE and ask for a suggestion appropriate for that game.
+For example: "Audience, give me a location!" or "Who's got a relationship for us?" or "Shout out an occupation!"
 
+Remember: You're asking THE AUDIENCE (the crowd), not the player directly.
 Be brief but enthusiastic! 2-3 sentences max."""
         else:
             prompt = """The user hasn't specified what they want.
@@ -160,9 +161,10 @@ Be brief but enthusiastic! 2-3 sentences max."""
 Suggest a fun beginner-friendly game to get them started!
 Pick something like Freeze Tag or 185 that's high energy and easy to learn.
 
-After suggesting, ask them for an audience suggestion appropriate for that game.
-For example: "Give me a location!" or "Give me a relationship!"
+After suggesting, turn to THE AUDIENCE and ask for a suggestion appropriate for that game.
+For example: "Audience, give me a location!" or "Who's got a relationship for us?"
 
+Remember: You're asking THE AUDIENCE (the crowd), not the player directly.
 Be brief but enthusiastic! 2-3 sentences max."""
 
         mc_response = await self._run_mc_agent(
@@ -199,9 +201,19 @@ Be brief but enthusiastic! 2-3 sentences max."""
     async def _handle_audience_suggestion(
         self, session: Session, user_input: Optional[str]
     ) -> Dict[str, Any]:
-        """Handle audience suggestion collection."""
+        """Handle audience suggestion collection.
+
+        Note: user_input here is actually the audience's suggestion coming from the Room Agent.
+        """
         game_name = session.selected_game_name or "the game"
         game_id = session.selected_game_id
+
+        logger.info(
+            "Handling audience suggestion",
+            session_id=session.session_id,
+            game_name=game_name,
+            has_suggestion=bool(user_input),
+        )
 
         # Fetch actual game rules from database
         game_rules = []
@@ -216,14 +228,22 @@ Be brief but enthusiastic! 2-3 sentences max."""
             rules_text = f"\n\nHere are the rules to explain:\n{rules_text}"
 
         if user_input:
-            prompt = f"""The user gave an audience suggestion: "{user_input}"
+            prompt = f"""The AUDIENCE shouted out a suggestion: "{user_input}"
 
-Accept their suggestion with enthusiasm!
+Accept the audience's suggestion with enthusiasm!
+Repeat what you heard: "I heard '{user_input}' from the audience - great choice!"
+
 Then explain the rules of {game_name} clearly.{rules_text}
 
 End by building excitement for the scene that's about to start.
 
 Keep it high-energy but concise! About 3-4 sentences."""
+
+            logger.info(
+                "Accepting audience suggestion",
+                session_id=session.session_id,
+                suggestion=user_input,
+            )
 
             # Save the audience suggestion
             await self.session_manager.update_session_suggestion(
@@ -231,12 +251,19 @@ Keep it high-energy but concise! About 3-4 sentences."""
                 audience_suggestion=user_input,
             )
         else:
-            prompt = f"""The user didn't provide a suggestion yet.
+            prompt = f"""The audience hasn't given a suggestion yet.
 
-Ask them again for an audience suggestion for {game_name}!
-Be playful about it - "Come on, don't be shy! Give me a [location/relationship/etc]!"
+Turn to THE AUDIENCE and ask for a suggestion for {game_name}!
+Be playful about it - "Come on audience, don't be shy! Who's got a [location/relationship/etc] for us?"
 
+Remember: You're asking THE AUDIENCE (the crowd), not the player.
 Keep it brief and fun."""
+
+            logger.info(
+                "Awaiting audience suggestion",
+                session_id=session.session_id,
+                game_name=game_name,
+            )
 
             # Don't advance status if no suggestion
             return {
