@@ -908,19 +908,28 @@ class AudioStreamOrchestrator:
 
         game_name = session.scene_context.get("game_name", "improv scene")
         scene_premise = session.scene_context.get("scene_premise", "")
+        game_rules = session.scene_context.get("game_rules", "")
 
-        # Construct the opening prompt for Partner
+        # Construct the opening prompt for Partner with game rules
+        rules_section = ""
+        if game_rules:
+            rules_section = f"GAME RULES: {game_rules}\n\n"
+
         if scene_premise:
             opening_text = (
-                f"[Scene starting! You are the scene partner for '{game_name}'. "
-                f"The premise is: {scene_premise}. "
+                f"[Scene starting! You are the scene partner for '{game_name}'.\n\n"
+                f"{rules_section}"
+                f"The premise is: {scene_premise}.\n\n"
+                f"IMPORTANT: Follow the game rules throughout the scene! "
                 f"Start the scene by making the first offer - set the location, "
                 f"relationship, or situation. Be specific and give your partner "
                 f"something interesting to respond to. Go!]"
             )
         else:
             opening_text = (
-                f"[Scene starting! You are the scene partner for '{game_name}'. "
+                f"[Scene starting! You are the scene partner for '{game_name}'.\n\n"
+                f"{rules_section}"
+                f"IMPORTANT: Follow the game rules throughout the scene! "
                 f"Start the scene by making the first offer - set the location, "
                 f"relationship, or situation. Be specific and give your partner "
                 f"something interesting to respond to. Go!]"
@@ -937,6 +946,7 @@ class AudioStreamOrchestrator:
             session_id=session.session_id,
             game_name=game_name,
             has_premise=bool(scene_premise),
+            has_rules=bool(game_rules),
         )
 
     async def _process_event(self, event: Any, session: AudioSession) -> list[Dict[str, Any]]:

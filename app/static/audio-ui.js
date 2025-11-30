@@ -542,31 +542,50 @@ class AudioUIController {
     }
 
     handleTranscription(data) {
-        const { text, role, isFinal } = data;
+        const { text, role, isFinal, agent } = data;
         if (!text) return;
-        const validRoles = ['user', 'mc', 'assistant'];
-        const safeRole = validRoles.includes(role) ? role : 'mc';
+        const validRoles = ['user', 'mc', 'partner', 'assistant'];
+        const safeRole = validRoles.includes(role) ? role : 'agent';
         if (isFinal) {
-            this.displayTranscriptionMessage(text, safeRole);
+            this.displayTranscriptionMessage(text, safeRole, agent);
         } else {
             this.updateLiveTranscription(text, safeRole);
         }
     }
 
-    displayTranscriptionMessage(text, role) {
+    displayTranscriptionMessage(text, role, agent) {
         const container = document.getElementById('messages-container');
         if (!container) return;
         const messageDiv = document.createElement('div');
         const isUser = role === 'user';
-        messageDiv.className = `message ${isUser ? 'message-user' : 'message-mc'} message-transcribed`;
-        const roleLabel = isUser ? 'You (voice)' : '🎤 MC';
+
+        // Determine agent type for styling and labeling
+        // agent param comes from backend: 'mc' or 'partner'
+        const agentType = agent || 'mc';  // Default to 'mc' if not specified
+        const isPartner = agentType === 'partner';
+
+        // Use specific class for MC vs Partner styling
+        const agentClass = isPartner ? 'message-partner' : 'message-mc';
+        messageDiv.className = `message ${isUser ? 'message-user' : agentClass} message-transcribed`;
+
+        // Show specific agent name: MC or Puck (the scene partner)
+        let roleLabel;
+        if (isUser) {
+            roleLabel = 'You (voice)';
+        } else if (isPartner) {
+            roleLabel = '🎭 Puck (Scene Partner)';
+        } else {
+            roleLabel = '🎤 MC';
+        }
+
+        const bubbleClass = isUser ? '' : (isPartner ? 'message-bubble-partner' : 'message-bubble-mc');
         messageDiv.innerHTML = `
             <div class="message-header">
                 <span class="message-role">${this.escapeHtml(roleLabel)}</span>
                 <span class="message-time">${this.escapeHtml(this.formatTime(new Date()))}</span>
                 <span class="transcription-badge" title="Transcribed from audio" aria-label="Voice transcription">🎙️</span>
             </div>
-            <div class="message-bubble ${isUser ? '' : 'message-bubble-mc'}">
+            <div class="message-bubble ${bubbleClass}">
                 <p class="message-text">${this.escapeHtml(text)}</p>
             </div>
         `;

@@ -59,6 +59,7 @@ class SceneTransitionToolset(BaseToolset):
         self,
         game_name: str,
         scene_premise: Optional[str] = None,
+        game_rules: Optional[str] = None,
         warm_up_complete: bool = True,
     ) -> Dict[str, Any]:
         """Signal that scene work should begin with the Partner Agent.
@@ -74,6 +75,7 @@ class SceneTransitionToolset(BaseToolset):
         Args:
             game_name: Name of the selected improv game
             scene_premise: Optional starting premise or suggestion for the scene
+            game_rules: The specific rules of the game (IMPORTANT - pass these so Partner knows how to play!)
             warm_up_complete: Whether warm-up/preparation is complete (default True)
 
         Returns:
@@ -83,6 +85,7 @@ class SceneTransitionToolset(BaseToolset):
             "MC signaled scene start",
             game_name=game_name,
             scene_premise=scene_premise,
+            game_rules=game_rules[:100] if game_rules else None,
             warm_up_complete=warm_up_complete,
         )
 
@@ -93,6 +96,7 @@ class SceneTransitionToolset(BaseToolset):
             "action": "transfer_to_partner",
             "game_name": game_name,
             "scene_premise": scene_premise,
+            "game_rules": game_rules,
             "message": (
                 f"Great! Starting '{game_name}' scene. "
                 "Handing off to your scene partner now. Have fun!"
