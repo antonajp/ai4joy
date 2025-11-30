@@ -17,6 +17,7 @@ class AudioStreamManager {
         this.onError = null;
         this.onAudioLevel = null;
         this.onTurnComplete = null;
+        this.onAgentSwitch = null;
         this.state = 'idle';
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 3;
@@ -232,6 +233,9 @@ class AudioStreamManager {
                 case 'turn_complete':
                     this.handleTurnComplete(message);
                     break;
+                case 'agent_switch':
+                    this.handleAgentSwitch(message);
+                    break;
                 default:
                     this.logger.warn('Unknown message type:', message.type);
             }
@@ -258,10 +262,10 @@ class AudioStreamManager {
     }
 
     handleTranscription(message) {
-        const { text, role, is_final } = message;
-        this.logger.debug('Transcription:', { text, role, is_final });
+        const { text, role, is_final, agent } = message;
+        this.logger.debug('Transcription:', { text, role, is_final, agent });
         if (this.onTranscription) {
-            this.onTranscription({ text, role, isFinal: is_final });
+            this.onTranscription({ text, role, isFinal: is_final, agent: agent });
         }
     }
 
@@ -284,10 +288,23 @@ class AudioStreamManager {
     }
 
     handleTurnComplete(message) {
-        const { turn_count } = message;
-        this.logger.info('Turn complete:', turn_count);
+        const { turn_count, phase, phase_changed, agent } = message;
+        this.logger.info('Turn complete:', turn_count, 'Phase:', phase, 'Agent:', agent);
         if (this.onTurnComplete) {
-            this.onTurnComplete({ turnCount: turn_count });
+            this.onTurnComplete({
+                turnCount: turn_count,
+                phase: phase,
+                phaseChanged: phase_changed,
+                agent: agent
+            });
+        }
+    }
+
+    handleAgentSwitch(message) {
+        const { agent, phase } = message;
+        this.logger.info('Agent switch:', agent, 'Phase:', phase);
+        if (this.onAgentSwitch) {
+            this.onAgentSwitch({ agentType: agent, phase: phase });
         }
     }
 

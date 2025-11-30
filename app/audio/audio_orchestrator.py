@@ -13,7 +13,11 @@ from google.adk.agents.run_config import StreamingMode
 from google.genai import types
 
 from app.agents.mc_agent import create_mc_agent_for_audio
+from app.agents.partner_agent import create_partner_agent_for_audio
+from app.agents.stage_manager import determine_partner_phase
 from app.audio.premium_middleware import check_audio_access, track_audio_usage
+from app.audio.turn_manager import AgentTurnManager
+from app.audio.voice_config import get_voice_config
 from app.config import get_settings
 from app.services.adk_session_service import get_adk_session_service
 from app.utils.logger import get_logger
@@ -63,6 +67,11 @@ class AudioSession:
         active: Whether session is active
         usage_seconds: Accumulated audio usage
         turn_count: Number of completed turns in this session
+        current_agent: Current active agent type ("mc" or "partner")
+        turn_manager: Turn manager for agent coordination
+        mc_agent: MC Agent instance for this session
+        partner_agent: Partner Agent instance for this session
+        partner_phase: Current phase for Partner Agent
     """
 
     session_id: str
@@ -73,55 +82,73 @@ class AudioSession:
     active: bool = True
     usage_seconds: int = 0
     turn_count: int = 0
+    current_agent: str = "mc"  # Start with MC
+    turn_manager: Optional[Any] = None  # AgentTurnManager
+    mc_agent: Any = None  # MC Agent instance
+    partner_agent: Any = None  # Partner Agent instance
+    partner_phase: int = 1  # Current phase for Partner Agent
 
 
 class AudioStreamOrchestrator:
     """Orchestrates real-time audio streaming with ADK Live API.
 
     This service manages:
-    - MC Agent configuration for audio
+    - MC Agent and Partner Agent configuration for audio
+    - Multi-agent turn-taking coordination
     - LiveRequestQueue creation and management
     - Audio chunk forwarding to ADK
     - Response streaming back to clients
     - Session lifecycle
     - Usage tracking
+    - Phase transitions (Phase 1: Supportive, Phase 2: Fallible)
+
+    Note: Agents are now per-session to avoid cross-session interference.
+    Each session gets its own MC and Partner agent instances.
     """
 
     def __init__(self):
-        """Initialize the orchestrator with MC Agent for audio."""
-        self.agent = create_mc_agent_for_audio()
-        self._sessions: Dict[str, AudioSession] = {}
-        self._runner = None  # Initialized lazily
-        self._session_service = get_adk_session_service()
-        self.voice_name = "Aoede"
+        """Initialize the orchestrator.
 
-        logger.info(
-            "AudioStreamOrchestrator initialized",
-            agent_name=self.agent.name,
-            agent_model=self.agent.model,
-            voice=self.voice_name,
+        Note: Agents are created per-session in start_session() to ensure
+        session isolation. The orchestrator only manages session storage
+        and shared services.
+        """
+        self._sessions: Dict[str, AudioSession] = {}
+        self._session_service = get_adk_session_service()
+
+        logger.info("AudioStreamOrchestrator initialized with per-session agents")
+
+    def _create_runner_for_session(self, session: AudioSession) -> Any:
+        """Create a Runner for a specific session with its current agent.
+
+        Creates a new Runner instance for each session to ensure proper
+        agent isolation. The runner is tied to the session's current agent.
+
+        Args:
+            session: AudioSession with the agent to use
+
+        Returns:
+            Runner instance configured for this session
+        """
+        from google.adk.runners import Runner
+
+        # Use the current agent for this session (MC or Partner)
+        current_agent = (
+            session.mc_agent if session.current_agent == "mc" else session.partner_agent
         )
 
-    def _get_runner(self):
-        """Get or create Runner with session service for live streaming.
-
-        Uses the base Runner class (not InMemoryRunner) to support:
-        - Custom session service (DatabaseSessionService for Firestore)
-        - Persistent sessions across connections
-        """
-        if self._runner is None:
-            from google.adk.runners import Runner
-
-            self._runner = Runner(
-                agent=self.agent,
-                session_service=self._session_service,
-                app_name=settings.app_name,
-            )
-            logger.info(
-                "Runner created for audio streaming",
-                app_name=settings.app_name,
-            )
-        return self._runner
+        runner = Runner(
+            agent=current_agent,
+            session_service=self._session_service,
+            app_name=settings.app_name,
+        )
+        logger.info(
+            "Runner created for session",
+            session_id=session.session_id,
+            agent_type=session.current_agent,
+            app_name=settings.app_name,
+        )
+        return runner
 
     def create_session_queue(self, session_id: str) -> Any:
         """Create a LiveRequestQueue for a session.
@@ -138,11 +165,14 @@ class AudioStreamOrchestrator:
         logger.debug("LiveRequestQueue created", session_id=session_id)
         return queue
 
-    def get_run_config(self) -> RunConfig:
+    def get_run_config(self, session_id: Optional[str] = None) -> RunConfig:
         """Get RunConfig for audio streaming with transcription.
 
         For push-to-talk, we disable automatic VAD and use manual activity
         signals (send_activity_start/end) to control when the user is speaking.
+
+        Args:
+            session_id: Optional session ID to get agent-specific voice config
 
         Returns:
             RunConfig with BIDI streaming mode and disabled VAD
@@ -152,7 +182,7 @@ class AudioStreamOrchestrator:
         # Disable VAD for push-to-talk - we use manual activity signals instead
         return RunConfig(
             streaming_mode=StreamingMode.BIDI,
-            speech_config=self.get_speech_config(),
+            speech_config=self.get_speech_config(session_id),
             response_modalities=["AUDIO"],
             realtime_input_config=types.RealtimeInputConfig(
                 automatic_activity_detection=types.AutomaticActivityDetection(
@@ -161,23 +191,149 @@ class AudioStreamOrchestrator:
             ),
         )
 
-    def get_voice_config(self) -> VoiceConfig:
+    def get_current_agent_type(self, session_id: str) -> str:
+        """Get current active agent type for a session.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            "mc" or "partner"
+        """
+        session = self._sessions.get(session_id)
+        if not session or not session.turn_manager:
+            return "mc"  # Default to MC
+
+        return session.turn_manager.get_current_agent_type()
+
+    def switch_to_mc(self, session_id: str) -> Dict[str, Any]:
+        """Switch to MC Agent for hosting.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            Status dict with transition info
+        """
+        session = self._sessions.get(session_id)
+        if not session:
+            return {"error": True, "message": "Session not found"}
+
+        if not session.turn_manager:
+            return {"error": True, "message": "Turn manager not initialized"}
+
+        # Switch agent in turn manager
+        result = session.turn_manager.start_mc_turn()
+
+        # Update session state - agent is now per-session
+        session.current_agent = "mc"
+
+        logger.info(
+            "Switched to MC Agent",
+            session_id=session_id,
+            turn_count=session.turn_manager.turn_count,
+        )
+
+        return result
+
+    def switch_to_partner(self, session_id: str) -> Dict[str, Any]:
+        """Switch to Partner Agent for scene work.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            Status dict with transition info
+        """
+        session = self._sessions.get(session_id)
+        if not session:
+            return {"error": True, "message": "Session not found"}
+
+        if not session.turn_manager:
+            return {"error": True, "message": "Turn manager not initialized"}
+
+        # Check if we need to update Partner Agent for phase transition
+        # Use turn_count + 1 since we're starting a new turn
+        new_phase = determine_partner_phase(session.turn_manager.turn_count)
+
+        if new_phase != session.partner_phase:
+            # Recreate Partner Agent with new phase (per-session)
+            session.partner_agent = create_partner_agent_for_audio(phase=new_phase)
+            session.partner_phase = new_phase
+            logger.info(
+                "Partner Agent recreated for phase transition",
+                session_id=session_id,
+                old_phase=session.partner_phase,
+                new_phase=new_phase,
+            )
+
+        # Switch agent in turn manager
+        result = session.turn_manager.start_partner_turn()
+
+        # Update session state - agent is now per-session
+        session.current_agent = "partner"
+
+        logger.info(
+            "Switched to Partner Agent",
+            session_id=session_id,
+            turn_count=session.turn_manager.turn_count,
+            phase=new_phase,
+        )
+
+        return result
+
+    def start_scene_with_partner(self, session_id: str) -> Dict[str, Any]:
+        """Transition from MC to Partner after game selection.
+
+        This is called after the MC has helped select a game and the user
+        is ready to start scene work.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            Status dict with transition info
+        """
+        result = self.switch_to_partner(session_id)
+
+        if not result.get("error"):
+            logger.info(
+                "Started scene with Partner Agent",
+                session_id=session_id,
+            )
+
+        return result
+
+    def get_voice_config(self, session_id: Optional[str] = None) -> VoiceConfig:
         """Get voice configuration for synthesis.
 
-        Returns:
-            VoiceConfig with Aoede voice
-        """
-        return VoiceConfig(voice_name=self.voice_name)
+        Args:
+            session_id: Optional session ID to get agent-specific voice
 
-    def get_speech_config(self) -> types.SpeechConfig:
+        Returns:
+            VoiceConfig with appropriate voice for current agent
+        """
+        if session_id:
+            agent_type = self.get_current_agent_type(session_id)
+            return get_voice_config(agent_type)
+
+        # Default to MC voice
+        return get_voice_config("mc")
+
+    def get_speech_config(self, session_id: Optional[str] = None) -> types.SpeechConfig:
         """Get speech configuration for Live API.
 
+        Args:
+            session_id: Optional session ID to get agent-specific voice
+
         Returns:
-            SpeechConfig with Aoede voice
+            SpeechConfig with appropriate voice for current agent
         """
+        voice_config = self.get_voice_config(session_id)
+
         return types.SpeechConfig(
             voice_config=types.VoiceConfig(
-                prebuilt_voice_config={"voice_name": self.voice_name}
+                prebuilt_voice_config={"voice_name": voice_config.voice_name}
             )
         )
 
@@ -198,6 +354,7 @@ class AudioStreamOrchestrator:
         user_id: str,
         user_email: str,
         game_name: Optional[str] = None,
+        starting_turn_count: int = 0,
     ) -> None:
         """Start a new audio session.
 
@@ -212,11 +369,19 @@ class AudioStreamOrchestrator:
             user_id: ADK user identifier (for run_live)
             user_email: User's email for tracking
             game_name: Selected game name for scene context
+            starting_turn_count: Starting turn count (for resuming sessions)
         """
         # Ensure ADK session exists (create if not found)
         await self._ensure_adk_session(session_id, user_id, user_email)
 
         queue = self.create_session_queue(session_id)
+
+        # Initialize turn manager for multi-agent coordination
+        turn_manager = AgentTurnManager(starting_turn_count=starting_turn_count)
+
+        # Create per-session agents to ensure isolation between concurrent sessions
+        mc_agent = create_mc_agent_for_audio()
+        partner_agent = create_partner_agent_for_audio(phase=1)
 
         self._sessions[session_id] = AudioSession(
             session_id=session_id,
@@ -225,6 +390,12 @@ class AudioStreamOrchestrator:
             game_name=game_name,
             queue=queue,
             active=True,
+            turn_count=starting_turn_count,
+            current_agent="mc",  # Always start with MC
+            turn_manager=turn_manager,
+            mc_agent=mc_agent,
+            partner_agent=partner_agent,
+            partner_phase=1,
         )
 
         # Send initial greeting prompt to trigger MC to speak first
@@ -232,11 +403,15 @@ class AudioStreamOrchestrator:
         self._send_initial_greeting(queue, game_name)
 
         logger.info(
-            "Audio session started with greeting trigger",
+            "Audio session started with per-session agents",
             session_id=session_id,
             user_id=user_id,
             user_email=user_email,
             game=game_name,
+            starting_turn_count=starting_turn_count,
+            current_agent="mc",
+            mc_agent_name=mc_agent.name,
+            partner_agent_name=partner_agent.name,
         )
 
     def _send_initial_greeting(self, queue: Any, game_name: Optional[str] = None) -> None:
@@ -540,13 +715,15 @@ class AudioStreamOrchestrator:
             yield {"type": "error", "message": "Session not found"}
             return
 
-        runner = self._get_runner()
-        run_config = self.get_run_config()
+        # Create per-session runner with the session's current agent
+        runner = self._create_runner_for_session(session)
+        run_config = self.get_run_config(session_id)
 
         logger.info(
             "Starting run_live stream",
             session_id=session_id,
             user_id=session.user_id,
+            current_agent=session.current_agent,
             response_modalities=run_config.response_modalities,
         )
 
@@ -579,21 +756,45 @@ class AudioStreamOrchestrator:
                     server_content=str(getattr(event, "server_content", None))[:100] if getattr(event, "server_content", None) else None,
                 )
 
-                responses = await self._process_event(event)
+                responses = await self._process_event(event, session)
 
                 # Check for turn completion to track turns
                 if hasattr(event, "turn_complete") and event.turn_complete:
-                    session.turn_count += 1
-                    logger.info(
-                        "Turn completed, incrementing counter",
-                        session_id=session_id,
-                        turn_count=session.turn_count,
-                    )
-                    # Emit turn_complete event with updated count
-                    responses.append({
-                        "type": "turn_complete",
-                        "turn_count": session.turn_count,
-                    })
+                    # Use turn manager to handle completion
+                    if session.turn_manager:
+                        turn_result = session.turn_manager.on_turn_complete()
+                        session.turn_count = turn_result["turn_count"]
+
+                        logger.info(
+                            "Turn completed via turn manager",
+                            session_id=session_id,
+                            turn_count=session.turn_count,
+                            phase=turn_result["phase"],
+                            phase_changed=turn_result.get("phase_changed", False),
+                            current_agent=session.current_agent,
+                        )
+
+                        # Emit turn_complete event with phase info
+                        responses.append({
+                            "type": "turn_complete",
+                            "turn_count": session.turn_count,
+                            "phase": turn_result["phase"],
+                            "phase_changed": turn_result.get("phase_changed", False),
+                            "agent": session.current_agent,
+                        })
+                    else:
+                        # Fallback for sessions without turn manager
+                        session.turn_count += 1
+                        logger.info(
+                            "Turn completed (no turn manager)",
+                            session_id=session_id,
+                            turn_count=session.turn_count,
+                        )
+                        responses.append({
+                            "type": "turn_complete",
+                            "turn_count": session.turn_count,
+                        })
+
                     # Update turn count in Firestore for persistence
                     await self._update_session_turn_count(session_id, session.turn_count)
 
@@ -624,7 +825,7 @@ class AudioStreamOrchestrator:
             )
             yield {"type": "error", "message": str(e)}
 
-    async def _process_event(self, event: Any) -> list[Dict[str, Any]]:
+    async def _process_event(self, event: Any, session: AudioSession) -> list[Dict[str, Any]]:
         """Process an event from the agent.
 
         ADK run_live events have these key attributes:
@@ -637,11 +838,15 @@ class AudioStreamOrchestrator:
 
         Args:
             event: Event from run_live
+            session: Audio session for agent type tracking
 
         Returns:
             List of response dicts
         """
         responses = []
+
+        # Get current agent type for labeling responses
+        agent_type = session.current_agent if session else "mc"
 
         # Log event for debugging (safely convert to strings)
         logger.debug(
@@ -701,6 +906,7 @@ class AudioStreamOrchestrator:
             if text:
                 logger.info(
                     "Agent transcription received",
+                    agent_type=agent_type,
                     text=text[:100] if len(text) > 100 else text,
                     is_final=is_final,
                 )
@@ -708,6 +914,7 @@ class AudioStreamOrchestrator:
                     "type": "transcription",
                     "text": text,
                     "role": "agent",
+                    "agent": agent_type,  # Include which agent is speaking
                     "is_final": is_final,
                 })
 
@@ -747,6 +954,7 @@ class AudioStreamOrchestrator:
                         )
                         logger.debug(
                             "Text content received",
+                            agent_type=agent_type,
                             text_length=text_len,
                             partial=is_partial,
                         )
@@ -754,6 +962,7 @@ class AudioStreamOrchestrator:
                             "type": "transcription",
                             "text": part.text,
                             "role": "agent",
+                            "agent": agent_type,  # Include which agent is speaking
                             "is_final": not is_partial,
                         })
 

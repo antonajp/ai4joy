@@ -192,7 +192,7 @@ Your goal is to make them a better improviser by requiring real collaboration sk
 
 
 def create_partner_agent(phase: int = 1) -> Agent:
-    """Create Partner Agent with phase-specific instruction.
+    """Create Partner Agent with phase-specific instruction for text mode.
 
     Args:
         phase: Partner behavior phase (1 = Supportive, 2 = Fallible)
@@ -218,7 +218,7 @@ def create_partner_agent(phase: int = 1) -> Agent:
         instruction = PHASE_2_SYSTEM_PROMPT
         phase_name = "Realistic Challenge Mode"
 
-    logger.info("Creating Partner Agent", phase=phase, mode=phase_name)
+    logger.info("Creating Partner Agent (text)", phase=phase, mode=phase_name)
 
     # Create partner agent with phase-specific instruction
     partner = Agent(
@@ -229,5 +229,55 @@ def create_partner_agent(phase: int = 1) -> Agent:
         tools=[],  # Partner doesn't need external tools
     )
 
-    logger.info("Partner Agent created successfully", phase=phase)
+    logger.info("Partner Agent (text) created successfully", phase=phase)
+    return partner
+
+
+def create_partner_agent_for_audio(phase: int = 1) -> Agent:
+    """Create Partner Agent for real-time audio using ADK Live API.
+
+    Uses the Live API model which supports bidirectional audio streaming
+    for premium voice interactions. The Partner Agent provides scene work
+    with phase-appropriate behavior.
+
+    Args:
+        phase: Partner behavior phase (1 = Supportive, 2 = Fallible)
+
+    Returns:
+        Configured ADK Agent for Partner role with audio support.
+
+    Raises:
+        ValueError: If phase is not 1 or 2
+        TypeError: If phase is not an integer
+    """
+    # Validate phase parameter
+    if not isinstance(phase, int):
+        raise TypeError(f"phase must be an integer, got {type(phase).__name__}")
+
+    if phase not in [1, 2]:
+        raise ValueError(f"phase must be 1 or 2, got {phase}")
+
+    if phase == 1:
+        instruction = PHASE_1_SYSTEM_PROMPT
+        phase_name = "Supportive Training Mode"
+    else:
+        instruction = PHASE_2_SYSTEM_PROMPT
+        phase_name = "Realistic Challenge Mode"
+
+    logger.info("Creating Partner Agent for audio", phase=phase, mode=phase_name)
+
+    # Create partner agent with phase-specific instruction and Live API model
+    partner = Agent(
+        name="partner_agent_audio",
+        description=f"Adaptive improv scene partner ({phase_name}) - Phase {phase} - Audio Mode",
+        model=settings.vertexai_live_model,  # Live API model for audio
+        instruction=instruction,
+        tools=[],  # Partner doesn't need external tools
+    )
+
+    logger.info(
+        "Partner Agent (audio) created successfully",
+        phase=phase,
+        model=settings.vertexai_live_model,
+    )
     return partner

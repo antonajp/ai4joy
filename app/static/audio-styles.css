@@ -223,3 +223,98 @@
         transition: none;
     }
 }
+
+/* Multi-Agent Styling */
+.agent-indicator {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--gray-100);
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    font-weight: 500;
+    min-height: 32px;
+    transition: all var(--transition-fast);
+}
+
+.agent-indicator.agent-mc {
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.agent-indicator.agent-partner {
+    background: rgba(139, 92, 246, 0.1);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+.agent-icon {
+    font-size: 1rem;
+}
+
+.agent-name {
+    color: var(--text-primary);
+}
+
+.setup-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: linear-gradient(135deg, #8b5cf6, #6366f1);
+    color: white;
+    font-size: 0.5rem;
+    font-weight: 700;
+    padding: 2px 4px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    pointer-events: none;
+}
+
+/* Message styling by agent type */
+.message-mc .message-bubble {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(99, 102, 241, 0.02));
+    border-left: 3px solid var(--primary, #6366f1);
+}
+
+.message-partner .message-bubble {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(139, 92, 246, 0.02));
+    border-left: 3px solid #8b5cf6;
+}
+
+.message-partner .message-role {
+    color: #8b5cf6;
+}
+
+/* Agent switch animation */
+.agent-switch-marker {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    margin: var(--space-md) 0;
+    color: var(--text-light);
+    font-size: 0.75rem;
+}
+
+.agent-switch-marker hr {
+    flex: 1;
+    border: none;
+    border-top: 1px dashed var(--gray-300);
+}
+
+.agent-switch-marker span {
+    white-space: nowrap;
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--gray-100);
+    border-radius: var(--radius-sm);
+}
+
+/* Agent transition animation */
+@keyframes agent-switch {
+    0% { opacity: 0.5; transform: scale(0.95); }
+    100% { opacity: 1; transform: scale(1); }
+}
+
+.agent-indicator.switching {
+    animation: agent-switch var(--transition-fast) ease-out;
+}

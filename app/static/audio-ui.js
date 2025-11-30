@@ -5,6 +5,8 @@ class AudioUIController {
         this.isVoiceMode = false;
         this.isPushToTalkActive = false;
         this.isPttTransitioning = false;
+        this.currentAgent = 'mc';  // Track current agent (mc or partner)
+        this.currentPhase = 1;     // Track current phase (1 or 2)
         this.elements = {};
         this.logger = this.createLogger();
         this.boundKeyDownHandler = this.handleKeyDown.bind(this);
@@ -38,19 +40,72 @@ class AudioUIController {
         this.audioManager.onTurnComplete = (data) => {
             this.handleTurnComplete(data);
         };
+        this.audioManager.onAgentSwitch = (data) => {
+            this.handleAgentSwitch(data);
+        };
     }
 
     handleTurnComplete(data) {
-        const { turnCount } = data;
-        this.logger.info('Turn complete:', turnCount);
-        // Update the turn counter in the UI
+        const { turnCount, phase, phaseChanged, agent } = data;
+        this.logger.info('Turn complete:', turnCount, 'Phase:', phase, 'Agent:', agent);
         if (typeof updateTurnCounter === 'function') {
             updateTurnCounter(turnCount);
         }
-        // Also update AppState if available
         if (typeof AppState !== 'undefined') {
             AppState.currentTurn = turnCount;
         }
+        if (phase !== undefined) {
+            this.currentPhase = phase;
+        }
+        if (agent !== undefined) {
+            this.currentAgent = agent;
+            this.updateAgentIndicator();
+        }
+        if (phaseChanged) {
+            this.announceToScreenReader(`Phase changed to ${phase}`);
+        }
+    }
+
+    handleAgentSwitch(data) {
+        const { agentType, phase } = data;
+        this.logger.info('Agent switch:', agentType, 'Phase:', phase);
+        this.currentAgent = agentType;
+        if (phase !== undefined) {
+            this.currentPhase = phase;
+        }
+        this.updateAgentIndicator();
+        this.addAgentSwitchMarker(agentType);
+        this.announceToScreenReader(`Switched to ${agentType === 'mc' ? 'MC' : 'Partner'} agent`);
+    }
+
+    updateAgentIndicator() {
+        if (!this.elements.agentIndicator) return;
+        const isMC = this.currentAgent === 'mc';
+        const icon = isMC ? '🎤' : '🎭';
+        const name = isMC ? 'MC' : 'Partner';
+        this.elements.agentIndicator.innerHTML = `
+            <span class="agent-icon" aria-hidden="true">${icon}</span>
+            <span class="agent-name">${name}</span>
+        `;
+        this.elements.agentIndicator.classList.remove('agent-mc', 'agent-partner');
+        this.elements.agentIndicator.classList.add(`agent-${this.currentAgent}`);
+        this.elements.agentIndicator.classList.add('switching');
+        setTimeout(() => {
+            this.elements.agentIndicator.classList.remove('switching');
+        }, 200);
+        this.elements.agentIndicator.setAttribute('aria-label', `Currently speaking: ${name}`);
+    }
+
+    addAgentSwitchMarker(agentType) {
+        const container = document.getElementById('messages-container');
+        if (!container) return;
+        const marker = document.createElement('div');
+        marker.className = 'agent-switch-marker';
+        const agentName = agentType === 'mc' ? 'MC' : 'Partner';
+        const time = this.formatTime(new Date());
+        marker.innerHTML = `<hr><span>Switched to ${agentName} - ${time}</span><hr>`;
+        container.appendChild(marker);
+        container.scrollTop = container.scrollHeight;
     }
 
     async initialize(isPremium) {
@@ -137,6 +192,10 @@ class AudioUIController {
         pttContainer.className = 'ptt-container';
         pttContainer.style.display = 'none';
         pttContainer.innerHTML = `
+            <div id="agent-indicator" class="agent-indicator agent-mc" role="status" aria-live="polite" aria-label="Currently speaking: MC">
+                <span class="agent-icon" aria-hidden="true">🎤</span>
+                <span class="agent-name">MC</span>
+            </div>
             <button id="ptt-button" class="ptt-button" aria-label="Push to talk (hold Space or click)">
                 <span class="ptt-icon" aria-hidden="true">🎤</span>
                 <span class="ptt-status">Hold to speak</span>
@@ -157,6 +216,7 @@ class AudioUIController {
         this.elements.pttStatus = this.elements.pttButton.querySelector('.ptt-status');
         this.elements.audioLevelBar = pttContainer.querySelector('.audio-level-bar');
         this.elements.voiceStatus = document.getElementById('voice-status');
+        this.elements.agentIndicator = document.getElementById('agent-indicator');
         this.elements.pttButton.addEventListener('mousedown', () => this.startPushToTalk());
         this.elements.pttButton.addEventListener('mouseup', () => this.stopPushToTalk());
         this.elements.pttButton.addEventListener('mouseleave', () => {
@@ -459,8 +519,9 @@ class AudioUIController {
                 break;
             case 'playing':
                 this.elements.pttButton?.classList.add('ptt-playing');
-                this.elements.pttStatus.textContent = 'MC speaking...';
-                this.setVoiceStatus('MC is responding...');
+                const agentName = this.currentAgent === 'partner' ? 'Partner' : 'MC';
+                this.elements.pttStatus.textContent = `${agentName} speaking...`;
+                this.setVoiceStatus(`${agentName} is responding...`);
                 break;
             case 'connected':
                 this.elements.pttStatus.textContent = 'Hold to speak';

@@ -382,11 +382,15 @@ class AudioWebSocketHandler:
         session_id: str,
         message: Dict[str, Any],
     ) -> None:
-        """Handle control message (start/stop listening).
+        """Handle control message (start/stop listening, agent switching).
 
         For push-to-talk, we send activity signals to the ADK Live API:
         - start_listening -> send_activity_start (user started speaking)
         - stop_listening -> send_activity_end (user finished speaking)
+
+        For multi-agent coordination:
+        - switch_to_partner -> transition from MC to Partner for scene work
+        - switch_to_mc -> transition from Partner back to MC for hosting
 
         Args:
             websocket: WebSocket connection
@@ -413,6 +417,47 @@ class AudioWebSocketHandler:
                 "type": "control",
                 "action": "listening_stopped",
             })
+
+        elif action == "switch_to_partner":
+            logger.info("Switching to Partner Agent", session_id=session_id)
+            result = await self.orchestrator.start_scene_with_partner(session_id)
+
+            if result.get("error"):
+                await websocket.send_json({
+                    "type": "error",
+                    "code": "AGENT_SWITCH_FAILED",
+                    "message": result.get("message", "Failed to switch to Partner"),
+                })
+            else:
+                # Notify frontend of agent switch
+                await websocket.send_json({
+                    "type": "agent_switch",
+                    "agent": "partner",
+                    "phase": result.get("phase", 1),
+                })
+                logger.info(
+                    "Agent switched to Partner",
+                    session_id=session_id,
+                    phase=result.get("phase"),
+                )
+
+        elif action == "switch_to_mc":
+            logger.info("Switching to MC Agent", session_id=session_id)
+            result = await self.orchestrator.switch_to_mc(session_id)
+
+            if result.get("error"):
+                await websocket.send_json({
+                    "type": "error",
+                    "code": "AGENT_SWITCH_FAILED",
+                    "message": result.get("message", "Failed to switch to MC"),
+                })
+            else:
+                # Notify frontend of agent switch
+                await websocket.send_json({
+                    "type": "agent_switch",
+                    "agent": "mc",
+                })
+                logger.info("Agent switched to MC", session_id=session_id)
 
         else:
             await websocket.send_json({
@@ -462,6 +507,7 @@ async def _stream_responses_to_client(
                     "type": "transcription",
                     "text": response.get("text", ""),
                     "role": response.get("role", "agent"),
+                    "agent": response.get("agent", "mc"),  # Include agent type
                     "is_final": response.get("is_final", True),
                 })
 
@@ -487,14 +533,26 @@ async def _stream_responses_to_client(
 
             elif response_type == "turn_complete":
                 # Forward turn completion to client for UI updates
-                await websocket.send_json({
+                turn_data = {
                     "type": "turn_complete",
                     "turn_count": response.get("turn_count", 0),
-                })
+                    "phase": response.get("phase", 1),
+                    "agent": response.get("agent", "mc"),
+                }
+
+                # Include phase change notification if applicable
+                if response.get("phase_changed"):
+                    turn_data["phase_changed"] = True
+
+                await websocket.send_json(turn_data)
+
                 logger.info(
                     "Turn complete sent to client",
                     session_id=session_id,
                     turn_count=response.get("turn_count"),
+                    phase=response.get("phase"),
+                    phase_changed=response.get("phase_changed", False),
+                    agent=response.get("agent"),
                 )
 
     except asyncio.CancelledError:
