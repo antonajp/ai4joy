@@ -12,13 +12,14 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 # Agent type literals for type safety
-AgentType = Literal["mc", "partner"]
+AgentType = Literal["mc", "partner", "room"]
 
 # Voice names for each agent type
 # See: https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/gemini-live#voices
 VOICE_NAMES = {
     "mc": "Aoede",      # Warm, welcoming host voice
     "partner": "Puck",  # Playful, energetic scene partner voice
+    "room": "Charon",   # Deep, ambient voice for audience commentary
 }
 
 
