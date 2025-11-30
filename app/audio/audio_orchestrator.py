@@ -80,6 +80,8 @@ class AudioSession:
         scene_context: Context from MC's _start_scene call for Partner
         audio_mixer: AudioMixer for combining multiple agent streams
         ambient_trigger: AmbientAudioTrigger for sentiment-based Room activation
+        last_user_input: Most recent user transcription for ambient context
+        last_agent_response: Most recent agent transcription for ambient context
     """
 
     session_id: str
@@ -100,6 +102,8 @@ class AudioSession:
     scene_context: Optional[Dict[str, Any]] = None  # Context from _start_scene
     audio_mixer: Any = None  # AudioMixer for multi-stream mixing
     ambient_trigger: Any = None  # AmbientAudioTrigger for Room activation
+    last_user_input: Optional[str] = None  # Recent user transcription
+    last_agent_response: Optional[str] = None  # Recent agent transcription
 
 
 class AudioStreamOrchestrator:
@@ -848,6 +852,31 @@ class AudioStreamOrchestrator:
                         # Update turn count in Firestore for persistence
                         await self._update_session_turn_count(session_id, session.turn_count)
 
+                        # Trigger audience reaction after Partner turns
+                        # This adds ambient commentary based on sentiment/energy
+                        if session.current_agent == "partner":
+                            logger.info(
+                                "Triggering audience reaction after Partner turn",
+                                session_id=session_id,
+                                has_user_input=bool(session.last_user_input),
+                                has_agent_response=bool(session.last_agent_response),
+                            )
+                            # Fire and forget - don't block the main stream
+                            import asyncio
+                            asyncio.create_task(
+                                self.trigger_audience_reaction(
+                                    session=session,
+                                    user_input=session.last_user_input,
+                                    partner_response=session.last_agent_response,
+                                )
+                            )
+                            # Emit event to frontend so UI knows audience is reacting
+                            responses.append({
+                                "type": "audience_reaction_triggered",
+                                "session_id": session_id,
+                                "turn_count": session.turn_count,
+                            })
+
                         # Check if agent switch is pending after turn completion
                         if session.pending_agent_switch:
                             agent_switch_needed = True
@@ -1039,6 +1068,9 @@ class AudioStreamOrchestrator:
             text = getattr(transcription, "text", None) or str(transcription)
             is_final = getattr(transcription, "finished", True)
             if text:
+                # Track user input for ambient context
+                if is_final and session:
+                    session.last_user_input = text
                 logger.info(
                     "User transcription received",
                     text=text[:100] if len(text) > 100 else text,
@@ -1059,6 +1091,9 @@ class AudioStreamOrchestrator:
             text = getattr(transcription, "text", None) or str(transcription)
             is_final = getattr(transcription, "finished", True)
             if text:
+                # Track agent response for ambient context (Partner only, not MC)
+                if is_final and session and agent_type == "partner":
+                    session.last_agent_response = text
                 logger.info(
                     "Agent transcription received",
                     agent_type=agent_type,
@@ -1505,3 +1540,139 @@ class AudioStreamOrchestrator:
             session_id=session_id,
         )
         return {"status": "ok"}
+
+    async def trigger_audience_reaction(
+        self,
+        session: AudioSession,
+        user_input: Optional[str] = None,
+        partner_response: Optional[str] = None,
+    ) -> None:
+        """Trigger Room Agent ambient reaction after a turn completes.
+
+        Checks if audience should react based on sentiment/energy, and if so,
+        sends a prompt to the Room Agent to generate brief ambient commentary.
+        The audio is mixed at 30% volume with ongoing audio.
+
+        This is called asynchronously after Partner/User turns to add ambient
+        atmosphere without blocking the main conversation flow.
+
+        Args:
+            session: Audio session with Room Agent and ambient trigger
+            user_input: Optional transcription of what the user said
+            partner_response: Optional transcription of Partner's response
+        """
+        if not session.ambient_trigger or not session.room_agent:
+            logger.debug(
+                "Ambient trigger or Room Agent not available",
+                session_id=session.session_id,
+            )
+            return
+
+        # Build context from recent conversation
+        context_parts = []
+        if user_input:
+            context_parts.append(f"User: {user_input[:100]}")
+        if partner_response:
+            context_parts.append(f"Partner: {partner_response[:100]}")
+        context = " | ".join(context_parts) if context_parts else None
+
+        # Analyze sentiment and energy from the conversation
+        # For now, use simple heuristics (could be enhanced with sentiment analysis)
+        sentiment = "neutral"
+        energy_level = 0.5
+
+        # Simple energy detection based on text length and exclamation marks
+        if context:
+            energy_level = min(1.0, len(context) / 200.0)  # Longer = higher energy
+            if "!" in context or "?" in context:
+                energy_level = min(1.0, energy_level + 0.2)
+
+        # Simple sentiment detection
+        positive_words = ["great", "awesome", "love", "yes", "amazing", "perfect"]
+        negative_words = ["no", "stop", "bad", "wrong", "difficult"]
+        if context:
+            context_lower = context.lower()
+            if any(word in context_lower for word in positive_words):
+                sentiment = "positive"
+            elif any(word in context_lower for word in negative_words):
+                sentiment = "negative"
+
+        # Check if we should trigger ambient commentary
+        should_trigger = self.should_trigger_ambient(
+            session_id=session.session_id,
+            sentiment=sentiment,
+            energy_level=energy_level,
+        )
+
+        if not should_trigger:
+            logger.debug(
+                "Ambient trigger conditions not met",
+                session_id=session.session_id,
+                sentiment=sentiment,
+                energy_level=energy_level,
+            )
+            return
+
+        # Send ambient prompt to Room Agent
+        await self._send_audience_prompt(
+            session=session,
+            sentiment=sentiment,
+            energy_level=energy_level,
+            context=context,
+        )
+
+    async def _send_audience_prompt(
+        self,
+        session: AudioSession,
+        sentiment: str,
+        energy_level: float,
+        context: Optional[str] = None,
+    ) -> None:
+        """Send prompt to Room Agent for ambient commentary.
+
+        Generates an appropriate prompt based on sentiment/energy and sends
+        it to the Room Agent's queue to trigger audio generation.
+
+        Args:
+            session: Audio session with Room Agent
+            sentiment: Sentiment level ("positive", "neutral", "negative")
+            energy_level: Energy level from 0.0 to 1.0
+            context: Optional context about what's happening
+        """
+        # Get commentary prompt from ambient trigger
+        prompt_text = self.get_ambient_prompt(
+            session_id=session.session_id,
+            sentiment=sentiment,
+            energy_level=energy_level,
+            context=context,
+        )
+
+        if not prompt_text:
+            logger.warning(
+                "Failed to generate ambient prompt",
+                session_id=session.session_id,
+            )
+            return
+
+        # Send to Room Agent queue
+        # Note: Room Agent needs its own queue or we need to manage queue switching
+        # For now, we'll log this as a TODO - the Room Agent audio integration
+        # will need its own streaming mechanism
+        logger.info(
+            "Room Agent ambient prompt generated",
+            session_id=session.session_id,
+            sentiment=sentiment,
+            energy_level=energy_level,
+            has_context=bool(context),
+            prompt_length=len(prompt_text),
+        )
+
+        # TODO: Implement Room Agent audio streaming
+        # This will require either:
+        # 1. A separate run_live session for Room Agent, or
+        # 2. Dynamic agent switching with queue management, or
+        # 3. Pre-generated audio clips triggered by sentiment
+        logger.debug(
+            "Room Agent audio streaming not yet implemented - prompt logged only",
+            session_id=session.session_id,
+        )
