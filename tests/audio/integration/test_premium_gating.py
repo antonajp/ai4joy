@@ -169,6 +169,7 @@ class TestPremiumGatingIntegration:
             # Start session
             await orchestrator.start_session(
                 session_id,
+                user_id=mock_premium_profile.user_id,
                 user_email=mock_premium_profile.email
             )
 
@@ -237,7 +238,9 @@ class TestPremiumGatingEdgeCases:
             tier=UserTier.PREMIUM,
         )
 
-        await orchestrator.start_session(session_id, user_email=premium_user.email)
+        await orchestrator.start_session(
+            session_id, user_id=premium_user.user_id, user_email=premium_user.email
+        )
 
         # Simulate tier downgrade (in Firestore)
         with patch("app.services.user_service.get_user_by_email") as mock_get:

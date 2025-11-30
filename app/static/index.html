@@ -123,28 +123,45 @@
             </div>
         </section>
 
-        <!-- Session Setup Modal -->
+        <!-- Session Setup Modal with Game Selection -->
         <div id="setup-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" style="display: none;">
             <div class="modal-overlay"></div>
-            <div class="modal-content">
+            <div class="modal-content modal-content-wide">
                 <button id="close-modal" class="modal-close" aria-label="Close dialog">
                     &times;
                 </button>
-                <h2 id="modal-title" class="modal-title">Start Your Scene</h2>
-                <form id="session-form" class="session-form">
-                    <p class="modal-description">
-                        Ready to practice? The MC will guide you through game selection
-                        and help you get started with your scene.
-                    </p>
-                    <div class="form-actions">
-                        <button type="button" id="cancel-session" class="btn btn-secondary">
-                            Cancel
-                        </button>
-                        <button type="submit" class="btn btn-primary" id="create-session-btn">
-                            Start Scene
-                        </button>
+                <h2 id="modal-title" class="modal-title">Choose Your Game</h2>
+                <p class="modal-description">
+                    Select an improv game to get started. Each game has different rules and challenges.
+                </p>
+
+                <!-- Game Selection Grid -->
+                <div id="game-selection-grid" class="game-selection-grid" role="listbox" aria-label="Available improv games">
+                    <div class="games-loading">Loading games...</div>
+                </div>
+
+                <!-- Selected Game Info -->
+                <div id="selected-game-info" class="selected-game-info" style="display: none;">
+                    <div class="selected-game-header">
+                        <span class="selected-label">Selected:</span>
+                        <span id="selected-game-name" class="selected-game-name"></span>
                     </div>
-                </form>
+                    <p id="selected-game-description" class="selected-game-description"></p>
+                </div>
+
+                <!-- Screen reader instruction (live region) -->
+                <p id="game-selection-instruction" class="modal-instruction" aria-live="polite">
+                    Select a game to continue
+                </p>
+
+                <div class="form-actions">
+                    <button type="button" id="cancel-session" class="btn btn-secondary">
+                        Cancel
+                    </button>
+                    <button type="button" id="create-session-btn" class="btn btn-primary" disabled aria-describedby="game-selection-instruction">
+                        Start Scene
+                    </button>
+                </div>
             </div>
         </div>
     </main>

@@ -35,15 +35,56 @@ class AudioUIController {
         this.audioManager.onAudioLevel = (level) => {
             this.handleAudioLevel(level);
         };
+        this.audioManager.onTurnComplete = (data) => {
+            this.handleTurnComplete(data);
+        };
+    }
+
+    handleTurnComplete(data) {
+        const { turnCount } = data;
+        this.logger.info('Turn complete:', turnCount);
+        // Update the turn counter in the UI
+        if (typeof updateTurnCounter === 'function') {
+            updateTurnCounter(turnCount);
+        }
+        // Also update AppState if available
+        if (typeof AppState !== 'undefined') {
+            AppState.currentTurn = turnCount;
+        }
     }
 
     async initialize(isPremium) {
         this.isPremium = isPremium;
+        this.isGameSelected = false;  // Voice mode disabled until game is selected
+        this.selectedGame = null;
         this.createModeSelector();
         this.createPushToTalkButton();
         this.createMicrophoneModal();
         this.setupKeyboardShortcuts();
-        this.logger.info('AudioUI initialized', { isPremium });
+        this.logger.info('AudioUI initialized', { isPremium, voiceEnabled: false });
+    }
+
+    /**
+     * Enable voice mode after game selection is complete.
+     * Called by app.js when MC welcome phase completes.
+     */
+    enableVoiceModeButton(selectedGame) {
+        this.isGameSelected = true;
+        this.selectedGame = selectedGame;
+
+        if (this.elements.voiceModeBtn && this.isPremium) {
+            this.elements.voiceModeBtn.disabled = false;
+            this.elements.voiceModeBtn.classList.remove('mode-btn-disabled');
+            this.elements.voiceModeBtn.setAttribute('aria-label', 'Voice mode - Ready to start scene');
+            this.logger.info('Voice mode button enabled', { game: selectedGame?.name });
+        }
+    }
+
+    /**
+     * Get the selected game for the audio session.
+     */
+    getSelectedGame() {
+        return this.selectedGame;
     }
 
     createModeSelector() {
@@ -54,19 +95,26 @@ class AudioUIController {
         }
         const container = document.createElement('div');
         container.className = 'mode-selector-container';
+        // Voice mode starts disabled - enabled after game selection
+        // Premium users see "Select game first", non-premium see "PRO" badge
+        const voiceDisabledReason = this.isPremium ? 'Select a game first' : 'Premium required';
+        const voiceBadge = this.isPremium
+            ? '<span class="setup-badge" title="Complete setup first">Setup</span>'
+            : '<span class="premium-badge" title="Upgrade to Premium">PRO</span>';
+
         container.innerHTML = `
             <div class="mode-selector" role="group" aria-label="Communication mode">
                 <button id="text-mode-btn" class="mode-btn mode-btn-active" aria-pressed="true" aria-label="Text mode (active)">
                     <span class="mode-icon">💬</span>
                     <span class="mode-label">Text</span>
                 </button>
-                <button id="voice-mode-btn" class="mode-btn ${this.isPremium ? '' : 'mode-btn-disabled'}"
+                <button id="voice-mode-btn" class="mode-btn mode-btn-disabled"
                         aria-pressed="false"
-                        aria-label="Voice mode${this.isPremium ? '' : ' (Premium required)'}"
-                        ${this.isPremium ? '' : 'disabled'}>
+                        aria-label="Voice mode (${voiceDisabledReason})"
+                        disabled>
                     <span class="mode-icon">🎤</span>
                     <span class="mode-label">Voice</span>
-                    ${this.isPremium ? '' : '<span class="premium-badge" title="Upgrade to Premium">PRO</span>'}
+                    ${voiceBadge}
                 </button>
             </div>
         `;
@@ -219,6 +267,10 @@ class AudioUIController {
             this.showUpgradePrompt();
             return;
         }
+        if (!this.isGameSelected) {
+            this.showGameSelectionPrompt();
+            return;
+        }
         const permissionState = await this.audioManager.checkMicrophonePermission();
         if (permissionState === 'granted') {
             await this.connectVoiceMode();
@@ -257,7 +309,7 @@ class AudioUIController {
             this.logger.error('No session ID available');
             return;
         }
-        const authToken = this.getAuthToken();
+        const authToken = await this.getAuthToken();
         if (!authToken) {
             this.handleError({
                 code: 'AUTH_MISSING',
@@ -267,7 +319,8 @@ class AudioUIController {
         }
         this.setVoiceStatus('Connecting...');
         try {
-            const connected = await this.audioManager.connect(sessionId, authToken);
+            // Pass selected game to audio manager for context-aware greeting
+            const connected = await this.audioManager.connect(sessionId, authToken, this.selectedGame);
             if (connected) {
                 this.isVoiceMode = true;
                 this.updateModeButtons();
@@ -283,15 +336,23 @@ class AudioUIController {
         }
     }
 
-    getAuthToken() {
-        const cookies = document.cookie.split(';');
-        for (const cookie of cookies) {
-            const [name, value] = cookie.trim().split('=');
-            if (name === 'session_token') {
-                return value;
+    async getAuthToken() {
+        // Fetch a WebSocket auth token from the backend
+        // The session cookie is httponly, so we need a dedicated endpoint
+        try {
+            const response = await fetch('/auth/ws-token', {
+                credentials: 'include'
+            });
+            if (response.ok) {
+                const data = await response.json();
+                return data.token;
             }
+            this.logger.warn('Failed to get WS token:', response.status);
+            return null;
+        } catch (error) {
+            this.logger.error('Error fetching WS token:', error);
+            return null;
         }
-        return null;
     }
 
     setTextMode() {
@@ -505,6 +566,12 @@ class AudioUIController {
     showUpgradePrompt() {
         if (typeof showToast === 'function') {
             showToast('Voice mode is a Premium feature. Upgrade to access real-time audio conversations!', 'info');
+        }
+    }
+
+    showGameSelectionPrompt() {
+        if (typeof showToast === 'function') {
+            showToast('Please select a game first before enabling voice mode.', 'info');
         }
     }
 

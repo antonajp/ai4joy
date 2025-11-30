@@ -16,6 +16,7 @@ class AudioStreamManager {
         this.onStateChange = null;
         this.onError = null;
         this.onAudioLevel = null;
+        this.onTurnComplete = null;
         this.state = 'idle';
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 3;
@@ -110,9 +111,10 @@ class AudioStreamManager {
         return this.playbackContext;
     }
 
-    async connect(sessionId, authToken) {
+    async connect(sessionId, authToken, selectedGame = null) {
         this.sessionId = sessionId;
         this.authToken = authToken;
+        this.selectedGame = selectedGame;
         this.setState('connecting');
         const hasPermission = await this.requestMicrophoneAccess();
         if (!hasPermission) {
@@ -126,10 +128,17 @@ class AudioStreamManager {
         return new Promise((resolve, reject) => {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const encodedToken = encodeURIComponent(this.authToken);
-            const wsUrl = `${protocol}//${window.location.host}/ws/audio/${this.sessionId}?token=${encodedToken}`;
-            const safeUrl = this.authToken
-                ? wsUrl.replace(encodedToken, '[REDACTED]')
-                : wsUrl.replace(/token=[^&]*/, 'token=[REDACTED]');
+            let wsUrl = `${protocol}//${window.location.host}/ws/audio/${this.sessionId}?token=${encodedToken}`;
+
+            // Include selected game info for the MC to know what scene to run
+            if (this.selectedGame) {
+                const encodedGame = encodeURIComponent(this.selectedGame.name || this.selectedGame);
+                wsUrl += `&game=${encodedGame}`;
+            }
+
+            const safeUrl = wsUrl
+                .replace(encodedToken, '[REDACTED]')
+                .replace(/game=[^&]*/, 'game=[GAME]');
             this.logger.info('Connecting to WebSocket:', safeUrl);
             this.websocket = new WebSocket(wsUrl);
             this.websocket.onopen = () => {
@@ -220,6 +229,9 @@ class AudioStreamManager {
                 case 'error':
                     this.handleErrorMessage(message);
                     break;
+                case 'turn_complete':
+                    this.handleTurnComplete(message);
+                    break;
                 default:
                     this.logger.warn('Unknown message type:', message.type);
             }
@@ -268,6 +280,14 @@ class AudioStreamManager {
         this.logger.error('Server error:', code, errorMsg);
         if (this.onError) {
             this.onError({ code, message: errorMsg });
+        }
+    }
+
+    handleTurnComplete(message) {
+        const { turn_count } = message;
+        this.logger.info('Turn complete:', turn_count);
+        if (this.onTurnComplete) {
+            this.onTurnComplete({ turnCount: turn_count });
         }
     }
 

@@ -117,10 +117,11 @@ class TestMCAgentAudioIntegration:
 
         orchestrator = AudioStreamOrchestrator()
         session_id = "persistent-session-123"
+        user_id = "test-user-123"
         user_email = "test@example.com"
 
         # Start session
-        await orchestrator.start_session(session_id, user_email=user_email)
+        await orchestrator.start_session(session_id, user_id=user_id, user_email=user_email)
 
         # Store some session state
         with patch.object(orchestrator, "_session_service") as mock_svc:
@@ -132,7 +133,7 @@ class TestMCAgentAudioIntegration:
             await orchestrator.handle_disconnect(session_id)
 
             # Reconnect with same session_id
-            await orchestrator.start_session(session_id, user_email=user_email)
+            await orchestrator.start_session(session_id, user_id=user_id, user_email=user_email)
 
             # Session should be restored
             session = await orchestrator.get_session(session_id)

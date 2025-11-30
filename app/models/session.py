@@ -25,6 +25,8 @@ class SessionCreate(BaseModel):
     """Request model for creating new session"""
 
     user_name: Optional[str] = Field(None, description="Optional display name")
+    selected_game_id: Optional[str] = Field(None, description="Pre-selected game ID")
+    selected_game_name: Optional[str] = Field(None, description="Pre-selected game name")
 
 
 class Session(BaseModel):

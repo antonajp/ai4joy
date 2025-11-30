@@ -74,6 +74,7 @@ async def websocket_audio(
     websocket: WebSocket,
     session_id: str,
     token: Optional[str] = Query(None, description="OAuth session token"),
+    game: Optional[str] = Query(None, description="Selected game name"),
 ):
     """WebSocket endpoint for real-time audio streaming.
 
@@ -81,6 +82,7 @@ async def websocket_audio(
 
     Query Parameters:
         token: OAuth session token for authentication
+        game: Selected game name for scene context
 
     Message Protocol:
 
@@ -136,9 +138,10 @@ async def websocket_audio(
         "WebSocket audio connection initiated",
         session_id=session_id,
         has_token=token is not None,
+        game=game,
     )
 
-    await audio_websocket_endpoint(websocket, session_id, token)
+    await audio_websocket_endpoint(websocket, session_id, token, game)
 
 
 # Health check endpoint for audio service

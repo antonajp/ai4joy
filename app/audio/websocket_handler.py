@@ -47,6 +47,7 @@ class AudioWebSocketHandler:
         websocket: WebSocket,
         session_id: str,
         auth_token: Optional[str] = None,
+        game_name: Optional[str] = None,
     ) -> bool:
         """Accept and register a WebSocket connection.
 
@@ -57,6 +58,7 @@ class AudioWebSocketHandler:
             websocket: WebSocket connection
             session_id: Unique session identifier
             auth_token: OAuth session token for authentication
+            game_name: Selected game name for scene context
 
         Returns:
             True if connection accepted, False if rejected
@@ -95,13 +97,17 @@ class AudioWebSocketHandler:
         # Register connection
         self.active_connections[session_id] = websocket
 
-        # Start audio session
-        await self.orchestrator.start_session(session_id, user_profile.email)
+        # Start audio session with user_id for ADK run_live
+        await self.orchestrator.start_session(
+            session_id, user_profile.user_id, user_profile.email, game_name
+        )
 
         logger.info(
             "WebSocket connection established",
             session_id=session_id,
+            user_id=user_profile.user_id,
             email=user_profile.email,
+            game=game_name,
             active_connections=len(self.active_connections),
         )
 
@@ -297,6 +303,12 @@ class AudioWebSocketHandler:
             message: Audio message with base64 data
         """
         encoded_audio = message.get("audio")
+        logger.info(
+            "Received audio message from client",
+            session_id=session_id,
+            has_audio=bool(encoded_audio),
+            audio_length=len(encoded_audio) if encoded_audio else 0,
+        )
         if not encoded_audio:
             await websocket.send_json({
                 "type": "error",
@@ -372,6 +384,10 @@ class AudioWebSocketHandler:
     ) -> None:
         """Handle control message (start/stop listening).
 
+        For push-to-talk, we send activity signals to the ADK Live API:
+        - start_listening -> send_activity_start (user started speaking)
+        - stop_listening -> send_activity_end (user finished speaking)
+
         Args:
             websocket: WebSocket connection
             session_id: Session identifier
@@ -380,14 +396,19 @@ class AudioWebSocketHandler:
         action = message.get("action")
 
         if action == "start_listening":
-            logger.debug("Start listening", session_id=session_id)
+            logger.info("Start listening - sending activity_start", session_id=session_id)
+            # Signal to ADK that user is starting to speak
+            await self.orchestrator.send_activity_start(session_id)
             await websocket.send_json({
                 "type": "control",
                 "action": "listening_started",
             })
 
         elif action == "stop_listening":
-            logger.debug("Stop listening", session_id=session_id)
+            logger.info("Stop listening - sending activity_end", session_id=session_id)
+            # Signal to ADK that user has finished speaking
+            # This triggers the agent to process the audio and respond
+            await self.orchestrator.send_activity_end(session_id)
             await websocket.send_json({
                 "type": "control",
                 "action": "listening_stopped",
@@ -464,6 +485,18 @@ async def _stream_responses_to_client(
                     session_id=session_id,
                 )
 
+            elif response_type == "turn_complete":
+                # Forward turn completion to client for UI updates
+                await websocket.send_json({
+                    "type": "turn_complete",
+                    "turn_count": response.get("turn_count", 0),
+                })
+                logger.info(
+                    "Turn complete sent to client",
+                    session_id=session_id,
+                    turn_count=response.get("turn_count"),
+                )
+
     except asyncio.CancelledError:
         logger.debug("Response streaming cancelled", session_id=session_id)
         raise
@@ -481,6 +514,7 @@ async def audio_websocket_endpoint(
     websocket: WebSocket,
     session_id: str,
     auth_token: Optional[str] = None,
+    game_name: Optional[str] = None,
 ) -> None:
     """WebSocket endpoint for real-time audio streaming.
 
@@ -494,9 +528,10 @@ async def audio_websocket_endpoint(
         websocket: WebSocket connection
         session_id: Unique session identifier
         auth_token: OAuth session token
+        game_name: Selected game name for scene context
     """
     # Connect with authentication
-    connected = await audio_handler.connect(websocket, session_id, auth_token)
+    connected = await audio_handler.connect(websocket, session_id, auth_token, game_name)
     if not connected:
         return
 

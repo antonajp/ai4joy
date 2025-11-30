@@ -9,11 +9,13 @@ from dataclasses import dataclass
 from typing import Optional, Dict, Any, AsyncGenerator
 
 from google.adk.runners import RunConfig
+from google.adk.agents.run_config import StreamingMode
 from google.genai import types
 
-from app.agents.mc_agent import create_mc_agent
+from app.agents.mc_agent import create_mc_agent_for_audio
 from app.audio.premium_middleware import check_audio_access, track_audio_usage
 from app.config import get_settings
+from app.services.adk_session_service import get_adk_session_service
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -54,17 +56,23 @@ class AudioSession:
 
     Attributes:
         session_id: Unique session identifier
+        user_id: ADK user identifier (for run_live)
         user_email: User's email address
+        game_name: Selected game name for scene context
         queue: LiveRequestQueue for this session
         active: Whether session is active
         usage_seconds: Accumulated audio usage
+        turn_count: Number of completed turns in this session
     """
 
     session_id: str
+    user_id: str
     user_email: str
+    game_name: Optional[str] = None
     queue: Any = None  # LiveRequestQueue
     active: bool = True
     usage_seconds: int = 0
+    turn_count: int = 0
 
 
 class AudioStreamOrchestrator:
@@ -80,26 +88,39 @@ class AudioStreamOrchestrator:
     """
 
     def __init__(self):
-        """Initialize the orchestrator with MC Agent."""
-        self.agent = create_mc_agent()
+        """Initialize the orchestrator with MC Agent for audio."""
+        self.agent = create_mc_agent_for_audio()
         self._sessions: Dict[str, AudioSession] = {}
         self._runner = None  # Initialized lazily
-        self._session_service = None  # Initialized lazily
+        self._session_service = get_adk_session_service()
         self.voice_name = "Aoede"
 
         logger.info(
             "AudioStreamOrchestrator initialized",
             agent_name=self.agent.name,
+            agent_model=self.agent.model,
             voice=self.voice_name,
         )
 
     def _get_runner(self):
-        """Get or create InMemoryRunner."""
-        if self._runner is None:
-            from google.adk import InMemoryRunner
+        """Get or create Runner with session service for live streaming.
 
-            self._runner = InMemoryRunner(agent=self.agent)
-            logger.info("InMemoryRunner created for audio streaming")
+        Uses the base Runner class (not InMemoryRunner) to support:
+        - Custom session service (DatabaseSessionService for Firestore)
+        - Persistent sessions across connections
+        """
+        if self._runner is None:
+            from google.adk.runners import Runner
+
+            self._runner = Runner(
+                agent=self.agent,
+                session_service=self._session_service,
+                app_name=settings.app_name,
+            )
+            logger.info(
+                "Runner created for audio streaming",
+                app_name=settings.app_name,
+            )
         return self._runner
 
     def create_session_queue(self, session_id: str) -> Any:
@@ -120,13 +141,24 @@ class AudioStreamOrchestrator:
     def get_run_config(self) -> RunConfig:
         """Get RunConfig for audio streaming with transcription.
 
+        For push-to-talk, we disable automatic VAD and use manual activity
+        signals (send_activity_start/end) to control when the user is speaking.
+
         Returns:
-            RunConfig with audio transcription enabled
+            RunConfig with BIDI streaming mode and disabled VAD
         """
-        # RunConfig for Live API - transcription is enabled via speech_config
+        # RunConfig for Live API with BIDI mode for bidirectional streaming
+        # BIDI mode keeps the run_live generator active for multi-turn conversations
+        # Disable VAD for push-to-talk - we use manual activity signals instead
         return RunConfig(
+            streaming_mode=StreamingMode.BIDI,
             speech_config=self.get_speech_config(),
             response_modalities=["AUDIO"],
+            realtime_input_config=types.RealtimeInputConfig(
+                automatic_activity_detection=types.AutomaticActivityDetection(
+                    disabled=True
+                )
+            ),
         )
 
     def get_voice_config(self) -> VoiceConfig:
@@ -163,27 +195,129 @@ class AudioStreamOrchestrator:
     async def start_session(
         self,
         session_id: str,
+        user_id: str,
         user_email: str,
+        game_name: Optional[str] = None,
     ) -> None:
         """Start a new audio session.
 
+        Ensures the ADK session exists in the DatabaseSessionService before
+        audio streaming begins. This is required because run_live() expects
+        the session to exist.
+
+        After setup, sends an initial greeting prompt to trigger the MC to speak.
+
         Args:
             session_id: Unique session identifier
+            user_id: ADK user identifier (for run_live)
             user_email: User's email for tracking
+            game_name: Selected game name for scene context
         """
+        # Ensure ADK session exists (create if not found)
+        await self._ensure_adk_session(session_id, user_id, user_email)
+
         queue = self.create_session_queue(session_id)
 
         self._sessions[session_id] = AudioSession(
             session_id=session_id,
+            user_id=user_id,
             user_email=user_email,
+            game_name=game_name,
             queue=queue,
             active=True,
         )
 
+        # Send initial greeting prompt to trigger MC to speak first
+        # The Live API requires us to send something to get a response
+        self._send_initial_greeting(queue, game_name)
+
         logger.info(
-            "Audio session started",
+            "Audio session started with greeting trigger",
             session_id=session_id,
+            user_id=user_id,
             user_email=user_email,
+            game=game_name,
+        )
+
+    def _send_initial_greeting(self, queue: Any, game_name: Optional[str] = None) -> None:
+        """Send initial greeting prompt to trigger MC to speak.
+
+        Uses send_content() to send a turn-based message that triggers
+        the MC agent to generate a welcome greeting with game context.
+
+        Args:
+            queue: LiveRequestQueue for the session
+            game_name: Selected game name for scene context
+        """
+        # Create a prompt that triggers the MC to introduce themselves
+        # Include game context if a game was selected
+        if game_name:
+            greeting_text = (
+                f"[Voice mode activated. The player has selected '{game_name}' as their improv game. "
+                f"Please greet them as the MC, acknowledge their game choice, and get them ready to play. "
+                f"Ask how they're feeling and help them warm up for the scene.]"
+            )
+        else:
+            greeting_text = (
+                "[Voice mode activated. Please greet me as the MC and ask how I'm feeling today.]"
+            )
+
+        greeting_prompt = types.Content(
+            role="user",
+            parts=[types.Part.from_text(text=greeting_text)]
+        )
+        queue.send_content(greeting_prompt)
+        logger.debug(
+            "Sent initial greeting prompt to trigger MC response",
+            game=game_name,
+        )
+
+    async def _ensure_adk_session(
+        self,
+        session_id: str,
+        user_id: str,
+        user_email: str,
+    ) -> None:
+        """Ensure ADK session exists in DatabaseSessionService.
+
+        Creates the session if it doesn't exist, which is required for
+        run_live() to function properly.
+
+        Args:
+            session_id: Session identifier
+            user_id: User identifier
+            user_email: User's email for state
+        """
+        # Check if session already exists
+        existing = await self._session_service.get_session(
+            app_name=settings.app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+
+        if existing:
+            logger.debug(
+                "ADK session already exists for audio",
+                session_id=session_id,
+                user_id=user_id,
+            )
+            return
+
+        # Create new ADK session for audio streaming
+        await self._session_service.create_session(
+            app_name=settings.app_name,
+            user_id=user_id,
+            session_id=session_id,
+            state={
+                "user_email": user_email,
+                "audio_mode": True,
+            },
+        )
+
+        logger.info(
+            "ADK session created for audio streaming",
+            session_id=session_id,
+            user_id=user_id,
         )
 
     async def stop_session(self, session_id: str) -> None:
@@ -253,6 +387,76 @@ class AudioStreamOrchestrator:
         """
         return self._sessions.get(session_id)
 
+    async def send_activity_start(self, session_id: str) -> Dict[str, Any]:
+        """Signal that the user has started speaking (push-to-talk).
+
+        This tells the Live API to start listening for user input.
+        Must be called before sending audio chunks.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            Status dict with result
+        """
+        session = self._sessions.get(session_id)
+        if not session:
+            logger.warning(
+                "send_activity_start: Session not found",
+                session_id=session_id,
+            )
+            return {"error": True, "message": "Session not found"}
+
+        try:
+            session.queue.send_activity_start()
+            logger.info(
+                "Activity start signal sent",
+                session_id=session_id,
+            )
+            return {"status": "ok"}
+        except Exception as e:
+            logger.error(
+                "Error sending activity start",
+                session_id=session_id,
+                error=str(e),
+            )
+            return {"error": True, "message": str(e)}
+
+    async def send_activity_end(self, session_id: str) -> Dict[str, Any]:
+        """Signal that the user has stopped speaking (push-to-talk).
+
+        This tells the Live API that the user has finished their turn,
+        and it should now process the audio and generate a response.
+
+        Args:
+            session_id: Session identifier
+
+        Returns:
+            Status dict with result
+        """
+        session = self._sessions.get(session_id)
+        if not session:
+            logger.warning(
+                "send_activity_end: Session not found",
+                session_id=session_id,
+            )
+            return {"error": True, "message": "Session not found"}
+
+        try:
+            session.queue.send_activity_end()
+            logger.info(
+                "Activity end signal sent",
+                session_id=session_id,
+            )
+            return {"status": "ok"}
+        except Exception as e:
+            logger.error(
+                "Error sending activity end",
+                session_id=session_id,
+                error=str(e),
+            )
+            return {"error": True, "message": str(e)}
+
     async def send_audio_chunk(
         self,
         session_id: str,
@@ -270,6 +474,10 @@ class AudioStreamOrchestrator:
         session = self._sessions.get(session_id)
 
         if not session:
+            logger.warning(
+                "send_audio_chunk: Session not found",
+                session_id=session_id,
+            )
             return {"error": True, "message": "Session not found"}
 
         if not audio_bytes:
@@ -282,12 +490,26 @@ class AudioStreamOrchestrator:
                 data=audio_bytes,
             )
 
-            # Send to queue
-            await session.queue.send_realtime(audio_blob)
+            # Send to queue (send_realtime is synchronous)
+            logger.info(
+                "Sending audio chunk to ADK queue",
+                session_id=session_id,
+                audio_bytes_length=len(audio_bytes),
+                mime_type="audio/pcm;rate=16000",
+            )
+            session.queue.send_realtime(audio_blob)
 
             # Track usage (assuming chunk is about 100ms)
             chunk_duration_seconds = len(audio_bytes) / (16000 * 2)  # 16kHz, 16-bit
             session.usage_seconds += int(chunk_duration_seconds)
+
+            logger.info(
+                "Audio chunk sent to queue successfully",
+                session_id=session_id,
+                bytes_sent=len(audio_bytes),
+                duration_seconds=chunk_duration_seconds,
+                total_usage_seconds=session.usage_seconds,
+            )
 
             return {"status": "ok", "bytes_sent": len(audio_bytes)}
 
@@ -296,6 +518,7 @@ class AudioStreamOrchestrator:
                 "Error sending audio chunk",
                 session_id=session_id,
                 error=str(e),
+                error_type=type(e).__name__,
             )
             return {"error": True, "message": str(e)}
 
@@ -313,32 +536,104 @@ class AudioStreamOrchestrator:
         """
         session = self._sessions.get(session_id)
         if not session:
+            logger.error("stream_responses: Session not found", session_id=session_id)
             yield {"type": "error", "message": "Session not found"}
             return
 
         runner = self._get_runner()
         run_config = self.get_run_config()
 
+        logger.info(
+            "Starting run_live stream",
+            session_id=session_id,
+            user_id=session.user_id,
+            response_modalities=run_config.response_modalities,
+        )
+
         try:
+            event_count = 0
+            logger.info(
+                "Entering run_live event loop",
+                session_id=session_id,
+                user_id=session.user_id,
+                streaming_mode="BIDI",
+            )
+            # ADK run_live requires both user_id and session_id
             async for event in runner.run_live(
+                user_id=session.user_id,
                 session_id=session_id,
                 live_request_queue=session.queue,
                 run_config=run_config,
             ):
+                event_count += 1
+                logger.info(
+                    "run_live yielded event",
+                    session_id=session_id,
+                    event_number=event_count,
+                    event_type=type(event).__name__,
+                    has_turn_complete=bool(getattr(event, "turn_complete", False)),
+                    has_input_transcription=bool(getattr(event, "input_transcription", None)),
+                    has_output_transcription=bool(getattr(event, "output_transcription", None)),
+                    has_content=bool(getattr(event, "content", None)),
+                    is_partial=bool(getattr(event, "partial", False)),
+                    server_content=str(getattr(event, "server_content", None))[:100] if getattr(event, "server_content", None) else None,
+                )
+
                 responses = await self._process_event(event)
+
+                # Check for turn completion to track turns
+                if hasattr(event, "turn_complete") and event.turn_complete:
+                    session.turn_count += 1
+                    logger.info(
+                        "Turn completed, incrementing counter",
+                        session_id=session_id,
+                        turn_count=session.turn_count,
+                    )
+                    # Emit turn_complete event with updated count
+                    responses.append({
+                        "type": "turn_complete",
+                        "turn_count": session.turn_count,
+                    })
+                    # Update turn count in Firestore for persistence
+                    await self._update_session_turn_count(session_id, session.turn_count)
+
+                if responses:
+                    logger.debug(
+                        "Sending responses to client",
+                        session_id=session_id,
+                        response_count=len(responses),
+                        response_types=[r.get("type") for r in responses],
+                    )
+
                 for response in responses:
                     yield response
+
+            # If we get here, the generator completed normally
+            logger.info(
+                "run_live event loop completed",
+                session_id=session_id,
+                total_events=event_count,
+            )
 
         except Exception as e:
             logger.error(
                 "Error streaming responses",
                 session_id=session_id,
                 error=str(e),
+                error_type=type(e).__name__,
             )
             yield {"type": "error", "message": str(e)}
 
     async def _process_event(self, event: Any) -> list[Dict[str, Any]]:
         """Process an event from the agent.
+
+        ADK run_live events have these key attributes:
+        - event.content.parts: Contains text/audio/function_call parts
+        - event.input_transcription: User's transcribed speech
+        - event.output_transcription: Agent's transcribed speech
+        - event.partial: Whether this is a streaming chunk
+        - event.turn_complete: Whether agent finished responding
+        - event.error_code/error_message: Error information
 
         Args:
             event: Event from run_live
@@ -348,12 +643,93 @@ class AudioStreamOrchestrator:
         """
         responses = []
 
-        # Handle server content (audio/text responses)
-        if hasattr(event, "server_content") and event.server_content:
-            if hasattr(event.server_content, "model_turn"):
-                for part in event.server_content.model_turn.parts:
+        # Log event for debugging (safely convert to strings)
+        logger.debug(
+            "Processing run_live event",
+            event_type=str(type(event).__name__),
+            has_content=bool(hasattr(event, "content") and event.content is not None),
+            has_input_transcription=bool(
+                hasattr(event, "input_transcription") and event.input_transcription
+            ),
+            has_output_transcription=bool(
+                hasattr(event, "output_transcription") and event.output_transcription
+            ),
+            has_error=bool(hasattr(event, "error_code") and event.error_code),
+        )
+
+        # Check for errors first
+        if hasattr(event, "error_code") and event.error_code:
+            logger.error(
+                "ADK event error",
+                error_code=event.error_code,
+                error_message=getattr(event, "error_message", "Unknown error"),
+            )
+            responses.append({
+                "type": "error",
+                "code": event.error_code,
+                "message": getattr(event, "error_message", "Unknown error"),
+            })
+            return responses
+
+        # Handle user transcription (what the user said)
+        # ADK returns Transcription objects with .text and .finished properties
+        if hasattr(event, "input_transcription") and event.input_transcription:
+            transcription = event.input_transcription
+            # Extract text from Transcription object or use as string
+            text = getattr(transcription, "text", None) or str(transcription)
+            is_final = getattr(transcription, "finished", True)
+            if text:
+                logger.info(
+                    "User transcription received",
+                    text=text[:100] if len(text) > 100 else text,
+                    is_final=is_final,
+                )
+                responses.append({
+                    "type": "transcription",
+                    "text": text,
+                    "role": "user",
+                    "is_final": is_final,
+                })
+
+        # Handle agent transcription (what the agent said)
+        # ADK returns Transcription objects with .text and .finished properties
+        if hasattr(event, "output_transcription") and event.output_transcription:
+            transcription = event.output_transcription
+            # Extract text from Transcription object or use as string
+            text = getattr(transcription, "text", None) or str(transcription)
+            is_final = getattr(transcription, "finished", True)
+            if text:
+                logger.info(
+                    "Agent transcription received",
+                    text=text[:100] if len(text) > 100 else text,
+                    is_final=is_final,
+                )
+                responses.append({
+                    "type": "transcription",
+                    "text": text,
+                    "role": "agent",
+                    "is_final": is_final,
+                })
+
+        # Handle content (audio/text responses)
+        if hasattr(event, "content") and event.content:
+            if hasattr(event.content, "parts") and event.content.parts:
+                for part in event.content.parts:
+                    # Check for inline audio data
                     if hasattr(part, "inline_data") and part.inline_data:
-                        # Audio response
+                        audio_data = getattr(part.inline_data, "data", None)
+                        data_len = (
+                            len(audio_data)
+                            if audio_data and isinstance(audio_data, (bytes, bytearray))
+                            else 0
+                        )
+                        logger.debug(
+                            "Audio data received",
+                            mime_type=str(
+                                getattr(part.inline_data, "mime_type", "unknown")
+                            ),
+                            data_length=data_len,
+                        )
                         responses.append({
                             "type": "audio",
                             "data": part.inline_data.data,
@@ -362,16 +738,38 @@ class AudioStreamOrchestrator:
                             ),
                         })
 
+                    # Check for text content
                     if hasattr(part, "text") and part.text:
-                        # Transcription
+                        is_partial = bool(getattr(event, "partial", False))
+                        text_val = part.text
+                        text_len = (
+                            len(text_val) if isinstance(text_val, str) else 0
+                        )
+                        logger.debug(
+                            "Text content received",
+                            text_length=text_len,
+                            partial=is_partial,
+                        )
                         responses.append({
                             "type": "transcription",
                             "text": part.text,
                             "role": "agent",
-                            "is_final": True,
+                            "is_final": not is_partial,
                         })
 
-        # Handle tool calls
+                    # Check for function calls
+                    if hasattr(part, "function_call") and part.function_call:
+                        logger.info(
+                            "Function call in event",
+                            function_name=part.function_call.name,
+                        )
+                        responses.append({
+                            "type": "tool_call",
+                            "name": part.function_call.name,
+                            "args": getattr(part.function_call, "args", {}),
+                        })
+
+        # Handle function responses (legacy format)
         if hasattr(event, "tool_call") and event.tool_call:
             responses.append({
                 "type": "tool_call",
@@ -379,13 +777,19 @@ class AudioStreamOrchestrator:
                 "args": event.tool_call.args,
             })
 
-        # Handle tool results
         if hasattr(event, "tool_result") and event.tool_result:
             responses.append({
                 "type": "tool_result",
                 "result": event.tool_result.result,
-                "speak": True,  # Agent should speak after tool result
+                "speak": True,
             })
+
+        # Log turn completion for debugging
+        if hasattr(event, "turn_complete") and event.turn_complete:
+            logger.info("Agent turn completed")
+
+        if hasattr(event, "interrupted") and event.interrupted:
+            logger.info("Agent was interrupted by user")
 
         return responses
 
@@ -430,7 +834,7 @@ class AudioStreamOrchestrator:
 
         Args:
             session_id: Session identifier
-            user_profile: User's profile
+            user_profile: User's profile (must have user_id and email)
 
         Returns:
             SessionResult with success/failure
@@ -444,7 +848,7 @@ class AudioStreamOrchestrator:
                 error=access.error,
             )
 
-        await self.start_session(session_id, user_profile.email)
+        await self.start_session(session_id, user_profile.user_id, user_profile.email)
 
         return SessionResult(
             success=True,
@@ -481,6 +885,34 @@ class AudioStreamOrchestrator:
         session = self._sessions.get(session_id)
         if session:
             await track_audio_usage(session.user_email, duration_seconds)
+
+    async def _update_session_turn_count(self, session_id: str, turn_count: int) -> None:
+        """Update session turn count in Firestore.
+
+        Args:
+            session_id: Session identifier
+            turn_count: New turn count value
+        """
+        try:
+            from app.services.session_manager import get_session_manager
+
+            session_manager = get_session_manager()
+            await session_manager.update_session_turn_count(
+                session_id=session_id,
+                turn_count=turn_count,
+            )
+            logger.debug(
+                "Session turn count updated in Firestore",
+                session_id=session_id,
+                turn_count=turn_count,
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to update session turn count",
+                session_id=session_id,
+                turn_count=turn_count,
+                error=str(e),
+            )
 
     def get_output_sample_rate(self) -> int:
         """Get output audio sample rate.

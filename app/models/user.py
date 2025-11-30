@@ -95,7 +95,8 @@ class UserProfile:
         """
         tier_value = doc.get("tier", "free")
         if isinstance(tier_value, str):
-            tier = UserTier(tier_value)
+            # Handle case-insensitive tier values from Firestore
+            tier = UserTier(tier_value.lower())
         else:
             tier = tier_value
 

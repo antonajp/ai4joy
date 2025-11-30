@@ -25,8 +25,18 @@ class Settings(BaseSettings):
     firestore_archetypes_collection: str = "audience_archetypes"
     firestore_sentiment_keywords_collection: str = "sentiment_keywords"
 
-    # Model names without version suffixes use auto-updated aliases
+    # Model configuration
     # See: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions
+    #
+    # Live API model supports both text AND audio interactions, so we use it
+    # as the primary model for all agents. This avoids dual maintenance.
+    # Options: gemini-live-2.5-flash-preview-native-audio-09-2025 (public preview)
+    #          gemini-live-2.5-flash (private GA, requires access request)
+    vertexai_live_model: str = os.getenv(
+        "VERTEXAI_LIVE_MODEL", "gemini-live-2.5-flash-preview-native-audio-09-2025"
+    )
+
+    # Legacy model settings (for agents that don't need audio support)
     vertexai_flash_model: str = "gemini-2.0-flash"
     vertexai_pro_model: str = "gemini-2.0-flash"  # gemini-1.5-pro deprecated April 2025
 
@@ -73,6 +83,7 @@ class Settings(BaseSettings):
         "/auth/callback",
         "/auth/logout",
         "/auth/user",
+        "/auth/ws-token",
         "/",
         "/static/index.html",
         "/static/chat.html",
