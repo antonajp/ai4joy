@@ -555,6 +555,41 @@ async def _stream_responses_to_client(
                     agent=response.get("agent"),
                 )
 
+            elif response_type == "agent_switch":
+                # Agent has switched (MC -> Partner or Partner -> MC)
+                await websocket.send_json({
+                    "type": "agent_switch",
+                    "from_agent": response.get("from_agent"),
+                    "to_agent": response.get("to_agent"),
+                    "phase": response.get("phase", 1),
+                })
+
+                logger.info(
+                    "Agent switch sent to client",
+                    session_id=session_id,
+                    from_agent=response.get("from_agent"),
+                    to_agent=response.get("to_agent"),
+                    phase=response.get("phase"),
+                )
+
+            elif response_type == "agent_switch_pending":
+                # Agent switch is pending (tool call detected)
+                await websocket.send_json({
+                    "type": "agent_switch_pending",
+                    "from_agent": response.get("from_agent"),
+                    "to_agent": response.get("to_agent"),
+                    "game_name": response.get("game_name"),
+                    "scene_premise": response.get("scene_premise"),
+                    "reason": response.get("reason"),
+                })
+
+                logger.info(
+                    "Agent switch pending sent to client",
+                    session_id=session_id,
+                    from_agent=response.get("from_agent"),
+                    to_agent=response.get("to_agent"),
+                )
+
     except asyncio.CancelledError:
         logger.debug("Response streaming cancelled", session_id=session_id)
         raise
