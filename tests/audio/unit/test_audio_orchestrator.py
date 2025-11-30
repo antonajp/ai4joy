@@ -34,15 +34,27 @@ class TestAudioStreamOrchestrator:
         runner.run_live = AsyncMock()
         return runner
 
-    def test_tc_orch_01_orchestrator_initializes_with_mc_agent(self):
-        """TC-ORCH-01: AudioStreamOrchestrator initializes with MC agent for audio."""
+    @pytest.mark.asyncio
+    async def test_tc_orch_01_orchestrator_initializes_with_per_session_agents(self):
+        """TC-ORCH-01: AudioStreamOrchestrator creates per-session agents."""
         from app.audio.audio_orchestrator import AudioStreamOrchestrator
 
         orchestrator = AudioStreamOrchestrator()
+        session_id = "test-session-init"
 
-        # Should have MC agent reference (audio version)
-        assert orchestrator.agent is not None
-        assert orchestrator.agent.name == "mc_agent_audio"
+        # Start session to create per-session agents
+        await orchestrator.start_session(
+            session_id, user_id="test-user-123", user_email="test@example.com"
+        )
+
+        # Session should have both MC and Partner agents
+        session = await orchestrator.get_session(session_id)
+        assert session is not None
+        assert session.mc_agent is not None
+        assert session.mc_agent.name == "mc_agent_audio"
+        assert session.partner_agent is not None
+        assert session.partner_agent.name == "partner_agent_audio"
+        assert session.current_agent == "mc"  # Start with MC
 
     def test_tc_orch_02_orchestrator_creates_live_request_queue(self):
         """TC-ORCH-02: Orchestrator creates LiveRequestQueue for session."""
@@ -90,7 +102,6 @@ class TestAudioStreamOrchestrator:
     async def test_tc_orch_04_agent_responses_streamed_back(self, mock_runner):
         """TC-ORCH-04: Agent responses are streamed back to caller."""
         from app.audio.audio_orchestrator import AudioStreamOrchestrator
-        from unittest.mock import PropertyMock
 
         # Mock event stream from agent using correct ADK event structure
         mock_event = MagicMock()
@@ -118,9 +129,16 @@ class TestAudioStreamOrchestrator:
         mock_event.content.parts = [mock_part]
 
         orchestrator = AudioStreamOrchestrator()
+        session_id = "test-session-responses"
+
+        # Start session to create the mock session
+        await orchestrator.start_session(
+            session_id, user_id="test-user-123", user_email="test@example.com"
+        )
+        session = await orchestrator.get_session(session_id)
 
         # Test the _process_event method directly since run_live is complex to mock
-        responses = await orchestrator._process_event(mock_event)
+        responses = await orchestrator._process_event(mock_event, session)
 
         assert len(responses) >= 1
         assert responses[0].get("type") == "audio"
@@ -197,7 +215,9 @@ class TestAudioStreamOrchestratorVoiceConfig:
 
         orchestrator = AudioStreamOrchestrator()
 
-        assert orchestrator.voice_name == "Aoede"
+        # Voice is retrieved via get_voice_config(), default is MC voice (Aoede)
+        voice_config = orchestrator.get_voice_config()
+        assert voice_config.voice_name == "Aoede"
 
     def test_voice_config_applied_to_run_config(self):
         """Test that voice config is applied in get_speech_config."""
@@ -255,8 +275,15 @@ class TestAudioStreamOrchestratorTranscription:
         mock_event.content.parts = [audio_part, text_part]
 
         orchestrator = AudioStreamOrchestrator()
+        session_id = "test-session-transcription"
 
-        responses = await orchestrator._process_event(mock_event)
+        # Start session to create the mock session
+        await orchestrator.start_session(
+            session_id, user_id="test-user-123", user_email="test@example.com"
+        )
+        session = await orchestrator.get_session(session_id)
+
+        responses = await orchestrator._process_event(mock_event, session)
 
         # Should have both audio and transcription
         has_audio = any(r.get("type") == "audio" for r in responses)

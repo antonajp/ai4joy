@@ -18,6 +18,7 @@ class AudioStreamManager {
         this.onAudioLevel = null;
         this.onTurnComplete = null;
         this.onAgentSwitch = null;
+        this.onAgentSwitchPending = null;
         this.state = 'idle';
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 3;
@@ -236,6 +237,9 @@ class AudioStreamManager {
                 case 'agent_switch':
                     this.handleAgentSwitch(message);
                     break;
+                case 'agent_switch_pending':
+                    this.handleAgentSwitchPending(message);
+                    break;
                 default:
                     this.logger.warn('Unknown message type:', message.type);
             }
@@ -301,10 +305,35 @@ class AudioStreamManager {
     }
 
     handleAgentSwitch(message) {
-        const { agent, phase } = message;
-        this.logger.info('Agent switch:', agent, 'Phase:', phase);
+        const { from_agent, to_agent, phase, agent } = message;
+        // Support both old format (agent) and new format (from_agent, to_agent)
+        const agentType = to_agent || agent;
+        this.logger.info('Agent switch:', from_agent, '->', agentType, 'Phase:', phase);
         if (this.onAgentSwitch) {
-            this.onAgentSwitch({ agentType: agent, phase: phase });
+            this.onAgentSwitch({
+                agentType: agentType,
+                fromAgent: from_agent,
+                toAgent: to_agent,
+                phase: phase
+            });
+        }
+    }
+
+    handleAgentSwitchPending(message) {
+        const { from_agent, to_agent, game_name, scene_premise, reason } = message;
+        this.logger.info('Agent switch pending:', from_agent, '->', to_agent,
+            game_name ? `Game: ${game_name}` : '',
+            reason ? `Reason: ${reason}` : '');
+
+        // Notify listeners that a switch is coming
+        if (this.onAgentSwitchPending) {
+            this.onAgentSwitchPending({
+                fromAgent: from_agent,
+                toAgent: to_agent,
+                gameName: game_name,
+                scenePremise: scene_premise,
+                reason: reason
+            });
         }
     }
 

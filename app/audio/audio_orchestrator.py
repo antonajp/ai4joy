@@ -72,6 +72,8 @@ class AudioSession:
         mc_agent: MC Agent instance for this session
         partner_agent: Partner Agent instance for this session
         partner_phase: Current phase for Partner Agent
+        pending_agent_switch: Agent to switch to after current turn (None if no switch pending)
+        scene_context: Context from MC's _start_scene call for Partner
     """
 
     session_id: str
@@ -87,6 +89,8 @@ class AudioSession:
     mc_agent: Any = None  # MC Agent instance
     partner_agent: Any = None  # Partner Agent instance
     partner_phase: int = 1  # Current phase for Partner Agent
+    pending_agent_switch: Optional[str] = None  # "partner" or "mc" if switch pending
+    scene_context: Optional[Dict[str, Any]] = None  # Context from _start_scene
 
 
 class AudioStreamOrchestrator:
@@ -701,13 +705,16 @@ class AudioStreamOrchestrator:
         self,
         session_id: str,
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        """Stream responses from the agent.
+        """Stream responses from the agent with automatic agent switching.
+
+        Supports MC -> Partner handoff when MC calls _start_scene tool.
+        When a switch is detected, the stream restarts with the new agent.
 
         Args:
             session_id: Session identifier
 
         Yields:
-            Response dicts with audio or transcription
+            Response dicts with audio, transcription, or agent switch notifications
         """
         session = self._sessions.get(session_id)
         if not session:
@@ -715,115 +722,232 @@ class AudioStreamOrchestrator:
             yield {"type": "error", "message": "Session not found"}
             return
 
-        # Create per-session runner with the session's current agent
-        runner = self._create_runner_for_session(session)
-        run_config = self.get_run_config(session_id)
+        # Outer loop handles agent switching
+        while session.active:
+            # Create per-session runner with the session's current agent
+            runner = self._create_runner_for_session(session)
+            run_config = self.get_run_config(session_id)
 
-        logger.info(
-            "Starting run_live stream",
-            session_id=session_id,
-            user_id=session.user_id,
-            current_agent=session.current_agent,
-            response_modalities=run_config.response_modalities,
-        )
-
-        try:
-            event_count = 0
             logger.info(
-                "Entering run_live event loop",
+                "Starting run_live stream",
                 session_id=session_id,
                 user_id=session.user_id,
-                streaming_mode="BIDI",
+                current_agent=session.current_agent,
+                response_modalities=run_config.response_modalities,
             )
-            # ADK run_live requires both user_id and session_id
-            async for event in runner.run_live(
-                user_id=session.user_id,
-                session_id=session_id,
-                live_request_queue=session.queue,
-                run_config=run_config,
-            ):
-                event_count += 1
+
+            # Reset pending switch flag
+            session.pending_agent_switch = None
+            agent_switch_needed = False
+
+            try:
+                event_count = 0
                 logger.info(
-                    "run_live yielded event",
+                    "Entering run_live event loop",
                     session_id=session_id,
-                    event_number=event_count,
-                    event_type=type(event).__name__,
-                    has_turn_complete=bool(getattr(event, "turn_complete", False)),
-                    has_input_transcription=bool(getattr(event, "input_transcription", None)),
-                    has_output_transcription=bool(getattr(event, "output_transcription", None)),
-                    has_content=bool(getattr(event, "content", None)),
-                    is_partial=bool(getattr(event, "partial", False)),
-                    server_content=str(getattr(event, "server_content", None))[:100] if getattr(event, "server_content", None) else None,
+                    user_id=session.user_id,
+                    streaming_mode="BIDI",
+                    current_agent=session.current_agent,
                 )
 
-                responses = await self._process_event(event, session)
+                # If switching to Partner, send initial scene context
+                if session.current_agent == "partner" and session.scene_context:
+                    await self._send_partner_scene_start(session)
 
-                # Check for turn completion to track turns
-                if hasattr(event, "turn_complete") and event.turn_complete:
-                    # Use turn manager to handle completion
-                    if session.turn_manager:
-                        turn_result = session.turn_manager.on_turn_complete()
-                        session.turn_count = turn_result["turn_count"]
-
-                        logger.info(
-                            "Turn completed via turn manager",
-                            session_id=session_id,
-                            turn_count=session.turn_count,
-                            phase=turn_result["phase"],
-                            phase_changed=turn_result.get("phase_changed", False),
-                            current_agent=session.current_agent,
-                        )
-
-                        # Emit turn_complete event with phase info
-                        responses.append({
-                            "type": "turn_complete",
-                            "turn_count": session.turn_count,
-                            "phase": turn_result["phase"],
-                            "phase_changed": turn_result.get("phase_changed", False),
-                            "agent": session.current_agent,
-                        })
-                    else:
-                        # Fallback for sessions without turn manager
-                        session.turn_count += 1
-                        logger.info(
-                            "Turn completed (no turn manager)",
-                            session_id=session_id,
-                            turn_count=session.turn_count,
-                        )
-                        responses.append({
-                            "type": "turn_complete",
-                            "turn_count": session.turn_count,
-                        })
-
-                    # Update turn count in Firestore for persistence
-                    await self._update_session_turn_count(session_id, session.turn_count)
-
-                if responses:
-                    logger.debug(
-                        "Sending responses to client",
+                # ADK run_live requires both user_id and session_id
+                async for event in runner.run_live(
+                    user_id=session.user_id,
+                    session_id=session_id,
+                    live_request_queue=session.queue,
+                    run_config=run_config,
+                ):
+                    event_count += 1
+                    logger.info(
+                        "run_live yielded event",
                         session_id=session_id,
-                        response_count=len(responses),
-                        response_types=[r.get("type") for r in responses],
+                        event_number=event_count,
+                        event_type=type(event).__name__,
+                        has_turn_complete=bool(getattr(event, "turn_complete", False)),
+                        has_input_transcription=bool(getattr(event, "input_transcription", None)),
+                        has_output_transcription=bool(getattr(event, "output_transcription", None)),
+                        has_content=bool(getattr(event, "content", None)),
+                        is_partial=bool(getattr(event, "partial", False)),
+                        server_content=str(getattr(event, "server_content", None))[:100] if getattr(event, "server_content", None) else None,
                     )
 
-                for response in responses:
-                    yield response
+                    responses = await self._process_event(event, session)
 
-            # If we get here, the generator completed normally
-            logger.info(
-                "run_live event loop completed",
-                session_id=session_id,
-                total_events=event_count,
+                    # Check for turn completion to track turns
+                    if hasattr(event, "turn_complete") and event.turn_complete:
+                        # Use turn manager to handle completion
+                        if session.turn_manager:
+                            turn_result = session.turn_manager.on_turn_complete()
+                            session.turn_count = turn_result["turn_count"]
+
+                            logger.info(
+                                "Turn completed via turn manager",
+                                session_id=session_id,
+                                turn_count=session.turn_count,
+                                phase=turn_result["phase"],
+                                phase_changed=turn_result.get("phase_changed", False),
+                                current_agent=session.current_agent,
+                            )
+
+                            # Emit turn_complete event with phase info
+                            responses.append({
+                                "type": "turn_complete",
+                                "turn_count": session.turn_count,
+                                "phase": turn_result["phase"],
+                                "phase_changed": turn_result.get("phase_changed", False),
+                                "agent": session.current_agent,
+                            })
+                        else:
+                            # Fallback for sessions without turn manager
+                            session.turn_count += 1
+                            logger.info(
+                                "Turn completed (no turn manager)",
+                                session_id=session_id,
+                                turn_count=session.turn_count,
+                            )
+                            responses.append({
+                                "type": "turn_complete",
+                                "turn_count": session.turn_count,
+                            })
+
+                        # Update turn count in Firestore for persistence
+                        await self._update_session_turn_count(session_id, session.turn_count)
+
+                        # Check if agent switch is pending after turn completion
+                        if session.pending_agent_switch:
+                            agent_switch_needed = True
+                            logger.info(
+                                "Agent switch triggered after turn completion",
+                                session_id=session_id,
+                                from_agent=session.current_agent,
+                                to_agent=session.pending_agent_switch,
+                            )
+
+                    if responses:
+                        logger.debug(
+                            "Sending responses to client",
+                            session_id=session_id,
+                            response_count=len(responses),
+                            response_types=[r.get("type") for r in responses],
+                        )
+
+                    for response in responses:
+                        yield response
+
+                    # If agent switch is needed, break out of the inner loop
+                    if agent_switch_needed:
+                        break
+
+                # If we get here without agent switch, the generator completed normally
+                if not agent_switch_needed:
+                    logger.info(
+                        "run_live event loop completed",
+                        session_id=session_id,
+                        total_events=event_count,
+                    )
+                    return  # Exit the outer loop too
+
+            except Exception as e:
+                logger.error(
+                    "Error streaming responses",
+                    session_id=session_id,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                )
+                yield {"type": "error", "message": str(e)}
+                return  # Exit on error
+
+            # Handle agent switch if needed
+            if agent_switch_needed and session.pending_agent_switch:
+                new_agent = session.pending_agent_switch
+                old_agent = session.current_agent
+
+                # Perform the actual switch
+                if new_agent == "partner":
+                    self.switch_to_partner(session_id)
+                else:
+                    self.switch_to_mc(session_id)
+
+                # Notify frontend of the switch
+                yield {
+                    "type": "agent_switch",
+                    "from_agent": old_agent,
+                    "to_agent": new_agent,
+                    "phase": session.partner_phase if new_agent == "partner" else 1,
+                }
+
+                logger.info(
+                    "Agent switch completed, restarting stream",
+                    session_id=session_id,
+                    from_agent=old_agent,
+                    to_agent=new_agent,
+                )
+
+                # Create new queue for the new agent
+                # The old queue is tied to the old run_live session
+                session.queue = self.create_session_queue(session_id)
+
+                # Continue the outer loop with the new agent
+                continue
+
+            # No agent switch needed and stream completed normally
+            break
+
+    async def _send_partner_scene_start(self, session: AudioSession) -> None:
+        """Send initial scene context to Partner Agent when starting scene.
+
+        Args:
+            session: Audio session with scene context from MC
+        """
+        if not session.scene_context:
+            return
+
+        game_name = session.scene_context.get("game_name", "improv scene")
+        scene_premise = session.scene_context.get("scene_premise", "")
+        game_rules = session.scene_context.get("game_rules", "")
+
+        # Construct the opening prompt for Partner with game rules
+        rules_section = ""
+        if game_rules:
+            rules_section = f"GAME RULES: {game_rules}\n\n"
+
+        if scene_premise:
+            opening_text = (
+                f"[Scene starting! You are the scene partner for '{game_name}'.\n\n"
+                f"{rules_section}"
+                f"The premise is: {scene_premise}.\n\n"
+                f"IMPORTANT: Follow the game rules throughout the scene! "
+                f"Start the scene by making the first offer - set the location, "
+                f"relationship, or situation. Be specific and give your partner "
+                f"something interesting to respond to. Go!]"
+            )
+        else:
+            opening_text = (
+                f"[Scene starting! You are the scene partner for '{game_name}'.\n\n"
+                f"{rules_section}"
+                f"IMPORTANT: Follow the game rules throughout the scene! "
+                f"Start the scene by making the first offer - set the location, "
+                f"relationship, or situation. Be specific and give your partner "
+                f"something interesting to respond to. Go!]"
             )
 
-        except Exception as e:
-            logger.error(
-                "Error streaming responses",
-                session_id=session_id,
-                error=str(e),
-                error_type=type(e).__name__,
-            )
-            yield {"type": "error", "message": str(e)}
+        opening_prompt = types.Content(
+            role="user",
+            parts=[types.Part.from_text(text=opening_text)]
+        )
+        session.queue.send_content(opening_prompt)
+
+        logger.info(
+            "Sent scene start prompt to Partner Agent",
+            session_id=session.session_id,
+            game_name=game_name,
+            has_premise=bool(scene_premise),
+            has_rules=bool(game_rules),
+        )
 
     async def _process_event(self, event: Any, session: AudioSession) -> list[Dict[str, Any]]:
         """Process an event from the agent.
@@ -968,14 +1092,70 @@ class AudioStreamOrchestrator:
 
                     # Check for function calls
                     if hasattr(part, "function_call") and part.function_call:
+                        func_name = part.function_call.name
+                        func_args = getattr(part.function_call, "args", {})
+
                         logger.info(
                             "Function call in event",
-                            function_name=part.function_call.name,
+                            function_name=func_name,
+                            function_args=func_args,
                         )
+
+                        # Check for scene transition tool calls
+                        if func_name == "_start_scene":
+                            # MC is handing off to Partner Agent
+                            session.pending_agent_switch = "partner"
+                            session.scene_context = func_args
+                            logger.info(
+                                "MC called _start_scene - pending switch to Partner",
+                                session_id=session.session_id,
+                                game_name=func_args.get("game_name"),
+                                scene_premise=func_args.get("scene_premise"),
+                            )
+                            # Signal frontend that agent switch is coming
+                            responses.append({
+                                "type": "agent_switch_pending",
+                                "from_agent": "mc",
+                                "to_agent": "partner",
+                                "game_name": func_args.get("game_name"),
+                                "scene_premise": func_args.get("scene_premise"),
+                            })
+
+                        elif func_name == "_resume_scene":
+                            # MC is resuming scene with Partner Agent (after interjection)
+                            session.pending_agent_switch = "partner"
+                            # Don't overwrite scene_context - preserve existing context
+                            logger.info(
+                                "MC called _resume_scene - pending switch to Partner",
+                                session_id=session.session_id,
+                                message=func_args.get("message"),
+                            )
+                            responses.append({
+                                "type": "agent_switch_pending",
+                                "from_agent": "mc",
+                                "to_agent": "partner",
+                                "reason": "scene_resume",
+                            })
+
+                        elif func_name == "_end_scene":
+                            # Partner is handing back to MC
+                            session.pending_agent_switch = "mc"
+                            logger.info(
+                                "Partner called _end_scene - pending switch to MC",
+                                session_id=session.session_id,
+                                reason=func_args.get("reason"),
+                            )
+                            responses.append({
+                                "type": "agent_switch_pending",
+                                "from_agent": "partner",
+                                "to_agent": "mc",
+                                "reason": func_args.get("reason"),
+                            })
+
                         responses.append({
                             "type": "tool_call",
-                            "name": part.function_call.name,
-                            "args": getattr(part.function_call, "args", {}),
+                            "name": func_name,
+                            "args": func_args,
                         })
 
         # Handle function responses (legacy format)

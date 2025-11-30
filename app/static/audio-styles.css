@@ -272,18 +272,35 @@
 }
 
 /* Message styling by agent type */
-.message-mc .message-bubble {
+.message-mc .message-bubble,
+.message-bubble-mc {
     background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(99, 102, 241, 0.02));
     border-left: 3px solid var(--primary, #6366f1);
 }
 
-.message-partner .message-bubble {
+.message-mc .message-role {
+    color: var(--primary, #6366f1);
+}
+
+.message-partner .message-bubble,
+.message-bubble-partner {
     background: linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(139, 92, 246, 0.02));
     border-left: 3px solid #8b5cf6;
 }
 
 .message-partner .message-role {
     color: #8b5cf6;
+}
+
+/* Generic agent styling (for simplified UI - both MC and Partner) */
+.message-agent .message-bubble,
+.message-bubble-agent {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(99, 102, 241, 0.02));
+    border-left: 3px solid var(--primary, #6366f1);
+}
+
+.message-agent .message-role {
+    color: var(--primary, #6366f1);
 }
 
 /* Agent switch animation */
