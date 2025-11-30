@@ -28,38 +28,45 @@
 
     <main id="main-content" role="main" class="chat-main">
         <div class="chat-container">
-            <!-- Session Info Panel -->
+            <!-- Session Info Panel - Collapsible on mobile -->
             <aside class="session-info" role="complementary" aria-labelledby="session-info-title">
-                <h2 id="session-info-title" class="info-title">Scene Details</h2>
-                <div class="info-content">
-                    <div class="info-item">
-                        <span class="info-label">Game:</span>
-                        <span id="session-game" class="info-value">Loading...</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Turn:</span>
-                        <span id="turn-counter" class="info-value">0</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Phase:</span>
-                        <span id="current-phase" class="info-value">Starting...</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Status:</span>
-                        <span id="session-status" class="info-value status-active">Active</span>
-                    </div>
-                </div>
+                <details class="session-info-details" id="session-info-details">
+                    <summary class="session-info-summary">
+                        <h2 id="session-info-title" class="info-title">Scene Details</h2>
+                        <span class="session-info-toggle" aria-hidden="true"></span>
+                    </summary>
+                    <div class="session-info-body">
+                        <div class="info-content">
+                            <div class="info-item">
+                                <span class="info-label">Game:</span>
+                                <span id="session-game" class="info-value">Loading...</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Turn:</span>
+                                <span id="turn-counter" class="info-value">0</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Phase:</span>
+                                <span id="current-phase" class="info-value">Starting...</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Status:</span>
+                                <span id="session-status" class="info-value status-active">Active</span>
+                            </div>
+                        </div>
 
-                <!-- Help Section -->
-                <details class="help-section">
-                    <summary class="help-title">Improv Tips</summary>
-                    <ul class="help-list">
-                        <li>Say "Yes, and..." to build on your partner's ideas</li>
-                        <li>Make specific choices and statements</li>
-                        <li>Focus on your scene partner, not yourself</li>
-                        <li>Listen actively and react authentically</li>
-                        <li>Embrace mistakes as opportunities</li>
-                    </ul>
+                        <!-- Help Section -->
+                        <details class="help-section">
+                            <summary class="help-title">Improv Tips</summary>
+                            <ul class="help-list">
+                                <li>Say "Yes, and..." to build on your partner's ideas</li>
+                                <li>Make specific choices and statements</li>
+                                <li>Focus on your scene partner, not yourself</li>
+                                <li>Listen actively and react authentically</li>
+                                <li>Embrace mistakes as opportunities</li>
+                            </ul>
+                        </details>
+                    </div>
                 </details>
             </aside>
 
@@ -166,6 +173,24 @@
     <script src="/static/audio-ui.js"></script>
     <script src="/static/app.js"></script>
     <script>
+        // Handle responsive session info panel
+        function handleSessionInfoResponsive() {
+            const details = document.getElementById('session-info-details');
+            if (!details) return;
+
+            const isDesktop = window.matchMedia('(min-width: 768px)').matches;
+
+            if (isDesktop) {
+                // Always open on desktop
+                details.setAttribute('open', '');
+            }
+            // On mobile, let user control it (default closed to save space)
+        }
+
+        // Run on load and resize
+        window.addEventListener('resize', handleSessionInfoResponsive);
+        document.addEventListener('DOMContentLoaded', handleSessionInfoResponsive);
+
         // Initialize chat interface when DOM is ready
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initializeChatInterface);

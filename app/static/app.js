@@ -94,27 +94,99 @@ function showToast(message, type = 'info') {
 }
 
 /**
- * Show modal
+ * Show modal with proper focus management
  */
 function showModal(modalId) {
     const modal = document.getElementById(modalId);
     if (modal) {
+        // Store the element that triggered the modal for focus restoration
+        modal.dataset.previousFocus = document.activeElement?.id || '';
+
         modal.style.display = 'flex';
-        // Set focus to first focusable element in modal
-        const firstFocusable = modal.querySelector('button, input, textarea, select');
-        if (firstFocusable) {
-            setTimeout(() => firstFocusable.focus(), 100);
+
+        // For game selection modal, focus first game card after content loads
+        // Otherwise focus first focusable element
+        if (modalId === 'setup-modal') {
+            // Focus will be set after games load in displayGameSelectionGrid
+        } else {
+            const firstFocusable = modal.querySelector('button, input, textarea, select');
+            if (firstFocusable) {
+                setTimeout(() => firstFocusable.focus(), 100);
+            }
         }
+
+        // Set up focus trap
+        setupFocusTrap(modal);
     }
 }
 
 /**
- * Hide modal
+ * Hide modal and restore focus to triggering element
  */
 function hideModal(modalId) {
     const modal = document.getElementById(modalId);
     if (modal) {
+        const previousFocusId = modal.dataset.previousFocus;
         modal.style.display = 'none';
+
+        // Return focus to triggering element
+        if (previousFocusId) {
+            const previousElement = document.getElementById(previousFocusId);
+            if (previousElement) {
+                setTimeout(() => previousElement.focus(), 100);
+            }
+        }
+
+        // Remove focus trap
+        removeFocusTrap(modal);
+    }
+}
+
+/**
+ * Set up focus trap within modal for accessibility
+ */
+function setupFocusTrap(modal) {
+    const handleKeydown = (e) => {
+        if (e.key !== 'Tab') return;
+
+        const focusableElements = modal.querySelectorAll(
+            'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+        );
+
+        if (focusableElements.length === 0) return;
+
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (e.shiftKey && document.activeElement === firstElement) {
+            e.preventDefault();
+            lastElement.focus();
+        } else if (!e.shiftKey && document.activeElement === lastElement) {
+            e.preventDefault();
+            firstElement.focus();
+        }
+    };
+
+    // Handle Escape key to close modal
+    const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+            hideModal(modal.id);
+        }
+    };
+
+    modal.addEventListener('keydown', handleKeydown);
+    modal.addEventListener('keydown', handleEscape);
+    modal._focusTrapHandlers = { handleKeydown, handleEscape };
+}
+
+/**
+ * Remove focus trap from modal
+ */
+function removeFocusTrap(modal) {
+    if (modal._focusTrapHandlers) {
+        modal.removeEventListener('keydown', modal._focusTrapHandlers.handleKeydown);
+        modal.removeEventListener('keydown', modal._focusTrapHandlers.handleEscape);
+        delete modal._focusTrapHandlers;
     }
 }
 
@@ -174,16 +246,39 @@ async function checkAuthStatus() {
 }
 
 /**
- * Create a new session
+ * Fetch available games from the API
  */
-async function createSession() {
+async function fetchAvailableGames() {
+    const response = await fetch(`${API_BASE}/games`, {
+        credentials: 'include'
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to fetch games');
+    }
+
+    const data = await response.json();
+    return data.games;
+}
+
+/**
+ * Create a new session with optional pre-selected game
+ */
+async function createSession(selectedGame = null) {
+    const body = {};
+    if (selectedGame) {
+        body.selected_game_id = selectedGame.id;
+        body.selected_game_name = selectedGame.name;
+    }
+
     const response = await fetch(`${API_BASE}/session/start`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
         credentials: 'include',
-        body: JSON.stringify({})
+        body: JSON.stringify(body)
     });
 
     if (!response.ok) {
@@ -347,31 +442,238 @@ function handleLogout() {
 // ============================================
 
 /**
- * Handle start session button click
+ * Handle start session button click - fetch games and show selection
  */
-function handleStartSession() {
+async function handleStartSession() {
     if (!AppState.isAuthenticated) {
         showToast('Please sign in to start a session', 'error');
         return;
     }
+
     showModal('setup-modal');
+
+    // Show loading state with spinner
+    const grid = document.getElementById('game-selection-grid');
+    if (grid) {
+        grid.innerHTML = `
+            <div class="games-loading">
+                <div class="spinner" aria-label="Loading games"></div>
+                <p>Loading available games...</p>
+            </div>
+        `;
+    }
+
+    // Fetch and display available games
+    try {
+        const games = await fetchAvailableGames();
+        AppState.availableGames = games;
+        displayGameSelectionGrid(games);
+    } catch (error) {
+        console.error('Failed to fetch games:', error);
+        // Show error state in the grid itself with retry button
+        if (grid) {
+            grid.innerHTML = `
+                <div class="games-error">
+                    <p>Failed to load games. Please try again.</p>
+                    <button class="btn btn-secondary btn-small" onclick="retryLoadGames()">
+                        Retry
+                    </button>
+                </div>
+            `;
+        }
+        showToast('Failed to load games. Please try again.', 'error');
+    }
 }
 
 /**
- * Handle session form submission (start new session)
+ * Retry loading games after an error
  */
-async function handleSessionFormSubmit(event) {
-    event.preventDefault();
+async function retryLoadGames() {
+    const grid = document.getElementById('game-selection-grid');
+    if (grid) {
+        grid.innerHTML = `
+            <div class="games-loading">
+                <div class="spinner" aria-label="Loading games"></div>
+                <p>Retrying...</p>
+            </div>
+        `;
+    }
+
+    try {
+        const games = await fetchAvailableGames();
+        AppState.availableGames = games;
+        displayGameSelectionGrid(games);
+    } catch (error) {
+        console.error('Failed to fetch games on retry:', error);
+        if (grid) {
+            grid.innerHTML = `
+                <div class="games-error">
+                    <p>Still unable to load games. Please check your connection.</p>
+                    <button class="btn btn-secondary btn-small" onclick="retryLoadGames()">
+                        Try Again
+                    </button>
+                </div>
+            `;
+        }
+    }
+}
+
+/**
+ * Display game selection grid in modal
+ */
+function displayGameSelectionGrid(games) {
+    const grid = document.getElementById('game-selection-grid');
+    if (!grid) return;
+
+    if (!games || games.length === 0) {
+        grid.innerHTML = '<p class="no-games">No games available</p>';
+        return;
+    }
+
+    const gameCards = games.map((game, index) => {
+        const difficultyClass = `difficulty-${game.difficulty || 'beginner'}`;
+        const fullDescription = game.description || '';
+        const truncatedDesc = fullDescription.length > 80 ? fullDescription.substring(0, 80) + '...' : fullDescription;
+
+        return `
+            <button class="game-card ${difficultyClass}"
+                    onclick="handleGameSelection('${escapeHtml(game.id)}', '${escapeHtml(game.name)}', '${escapeHtml(game.difficulty || 'beginner')}')"
+                    onkeydown="handleGameCardKeyboard(event, '${escapeHtml(game.id)}', '${escapeHtml(game.name)}', '${escapeHtml(game.difficulty || 'beginner')}')"
+                    role="option"
+                    aria-selected="false"
+                    data-game-id="${escapeHtml(game.id)}"
+                    data-game-index="${index}"
+                    data-full-description="${escapeHtml(fullDescription)}">
+                <span class="game-card-name">${escapeHtml(game.name)}</span>
+                <span class="game-card-difficulty">${escapeHtml(game.difficulty || 'Beginner')}</span>
+                ${truncatedDesc ? `<span class="game-card-description">${escapeHtml(truncatedDesc)}</span>` : ''}
+            </button>
+        `;
+    }).join('');
+
+    grid.innerHTML = gameCards;
+
+    // Focus the first game card for accessibility
+    setTimeout(() => {
+        const firstCard = grid.querySelector('.game-card');
+        if (firstCard) {
+            firstCard.focus();
+        }
+    }, 100);
+}
+
+/**
+ * Handle keyboard navigation for game cards
+ */
+function handleGameCardKeyboard(event, gameId, gameName, difficulty) {
+    const cards = Array.from(document.querySelectorAll('.game-card'));
+    const currentCard = event.target.closest('.game-card');
+    const currentIndex = cards.indexOf(currentCard);
+
+    switch (event.key) {
+        case 'Enter':
+        case ' ':
+            event.preventDefault();
+            handleGameSelection(gameId, gameName, difficulty);
+            break;
+        case 'ArrowDown':
+        case 'ArrowRight':
+            event.preventDefault();
+            const nextIndex = (currentIndex + 1) % cards.length;
+            cards[nextIndex].focus();
+            break;
+        case 'ArrowUp':
+        case 'ArrowLeft':
+            event.preventDefault();
+            const prevIndex = (currentIndex - 1 + cards.length) % cards.length;
+            cards[prevIndex].focus();
+            break;
+        case 'Home':
+            event.preventDefault();
+            cards[0].focus();
+            break;
+        case 'End':
+            event.preventDefault();
+            cards[cards.length - 1].focus();
+            break;
+    }
+}
+
+/**
+ * Handle game selection from the grid
+ */
+function handleGameSelection(gameId, gameName, difficulty) {
+    // Update selected state in UI
+    const cards = document.querySelectorAll('.game-card');
+    cards.forEach(card => {
+        card.classList.remove('game-card-selected');
+        card.setAttribute('aria-selected', 'false');
+    });
+
+    const selectedCard = document.querySelector(`[data-game-id="${gameId}"]`);
+    let fullDescription = '';
+    if (selectedCard) {
+        selectedCard.classList.add('game-card-selected');
+        selectedCard.setAttribute('aria-selected', 'true');
+        fullDescription = selectedCard.dataset.fullDescription || '';
+    }
+
+    // Store selection in AppState
+    AppState.selectedGame = { id: gameId, name: gameName, difficulty, description: fullDescription };
+
+    // Update selected game info display with full description
+    const infoEl = document.getElementById('selected-game-info');
+    const nameEl = document.getElementById('selected-game-name');
+    const descEl = document.getElementById('selected-game-description');
+    if (infoEl && nameEl) {
+        nameEl.textContent = gameName;
+        if (descEl && fullDescription) {
+            descEl.textContent = fullDescription;
+        }
+        infoEl.style.display = 'block';
+    }
+
+    // Enable the start button
+    const startBtn = document.getElementById('create-session-btn');
+    if (startBtn) {
+        startBtn.disabled = false;
+    }
+
+    // Update instruction for screen readers (live region)
+    const instruction = document.getElementById('game-selection-instruction');
+    if (instruction) {
+        instruction.textContent = `${gameName} selected. Click Start Scene to continue.`;
+    }
+
+    // Hide the button hint if present
+    const hint = document.getElementById('button-hint');
+    if (hint) {
+        hint.classList.add('hidden');
+    }
+}
+
+/**
+ * Handle session creation with pre-selected game
+ */
+async function handleCreateSession() {
+    if (!AppState.selectedGame) {
+        showToast('Please select a game first', 'error');
+        return;
+    }
 
     try {
         showLoading('Creating your session...');
         hideModal('setup-modal');
 
-        const session = await createSession();
+        // Create session with pre-selected game
+        const session = await createSession(AppState.selectedGame);
         AppState.currentSession = session;
         AppState.currentTurn = 0;
 
         storeSessionId(session.session_id);
+
+        // Store selected game in sessionStorage for chat page
+        sessionStorage.setItem('improv_selected_game', JSON.stringify(AppState.selectedGame));
 
         // Redirect to chat interface
         window.location.href = `/static/chat.html?session=${session.session_id}`;
@@ -380,6 +682,14 @@ async function handleSessionFormSubmit(event) {
         showModal('setup-modal');
         showToast(error.message, 'error');
     }
+}
+
+/**
+ * Handle session form submission (start new session) - legacy support
+ */
+async function handleSessionFormSubmit(event) {
+    event.preventDefault();
+    await handleCreateSession();
 }
 
 /**
@@ -418,14 +728,42 @@ async function initializeChatInterface() {
         setTimeout(() => window.location.href = '/', 2000);
         return;
     }
+
+    // Check if we have a pre-selected game from the landing page
+    const storedGame = sessionStorage.getItem('improv_selected_game');
+    if (storedGame) {
+        try {
+            AppState.selectedGame = JSON.parse(storedGame);
+            console.log('[App] Loaded pre-selected game:', AppState.selectedGame);
+        } catch (e) {
+            console.warn('[App] Failed to parse stored game:', e);
+        }
+    }
+
     try {
         showLoading('Loading your scene...');
         const session = await getSessionInfo(sessionId);
         AppState.currentSession = session;
         AppState.currentTurn = session.turn_count;
+
+        // If session has a game but AppState doesn't, sync from session
+        if (session.selected_game_name && !AppState.selectedGame) {
+            AppState.selectedGame = {
+                id: session.selected_game_id,
+                name: session.selected_game_name
+            };
+        }
+
         updateSessionInfo(session);
         enableChatInput();
         await initializeAudioFeatures();
+
+        // If game is pre-selected, enable voice mode button immediately for premium users
+        if (AppState.selectedGame && AppState.audioUI) {
+            AppState.audioUI.enableVoiceModeButton(AppState.selectedGame);
+            updateGameDisplay(AppState.selectedGame.name);
+        }
+
         hideLoading();
         const mcWelcomeStatuses = ['initialized', 'mc_welcome', 'game_select', 'suggestion_phase'];
         if (mcWelcomeStatuses.includes(session.status)) {
@@ -434,7 +772,7 @@ async function initializeChatInterface() {
         } else {
             AppState.mcWelcomeComplete = true;
             if (session.turn_count === 0) {
-                displaySystemMessage('Scene work is ready to begin! Enter your first line to start the improv scene.');
+                displaySystemMessage('Scene work is ready to begin! Enter your first line to start the improv scene, or enable Voice Mode for real-time audio.');
             }
         }
     } catch (error) {
@@ -472,6 +810,12 @@ async function startMCWelcomePhase(sessionId) {
         if (response.selected_game) {
             AppState.selectedGame = response.selected_game;
             updateGameDisplay(response.selected_game.name);
+
+            // Enable voice mode button as soon as game is selected (for premium users)
+            // User can switch to voice mode without completing full MC welcome phase
+            if (AppState.audioUI) {
+                AppState.audioUI.enableVoiceModeButton(response.selected_game);
+            }
         }
 
         if (response.audience_suggestion) {
@@ -484,7 +828,12 @@ async function startMCWelcomePhase(sessionId) {
         // If MC welcome is complete, transition to scene work
         if (response.mc_welcome_complete) {
             AppState.mcWelcomeComplete = true;
-            displaySystemMessage('MC welcome complete! The scene is about to begin. Enter your first line when ready.');
+            displaySystemMessage('MC welcome complete! The scene is about to begin. Enter your first line when ready, or enable Voice Mode.');
+
+            // Enable voice mode button now that game is selected
+            if (AppState.audioUI && AppState.selectedGame) {
+                AppState.audioUI.enableVoiceModeButton(AppState.selectedGame);
+            }
         }
 
     } catch (error) {
@@ -532,6 +881,12 @@ async function handleMCWelcomeInput(userInput) {
             AppState.selectedGame = response.selected_game;
             updateGameDisplay(response.selected_game.name);
             displaySystemMessage(`Game selected: ${response.selected_game.name}`);
+
+            // Enable voice mode button as soon as game is selected (for premium users)
+            // User can switch to voice mode without completing full MC welcome phase
+            if (AppState.audioUI) {
+                AppState.audioUI.enableVoiceModeButton(response.selected_game);
+            }
         }
 
         if (response.audience_suggestion) {
@@ -544,7 +899,12 @@ async function handleMCWelcomeInput(userInput) {
         // Check if MC welcome is complete
         if (response.mc_welcome_complete) {
             AppState.mcWelcomeComplete = true;
-            displaySystemMessage('🎭 The stage is set! Enter your first line to begin the scene.');
+            displaySystemMessage('🎭 The stage is set! Enter your first line to begin the scene, or enable Voice Mode for a real-time audio experience.');
+
+            // Enable voice mode button now that game is selected
+            if (AppState.audioUI && AppState.selectedGame) {
+                AppState.audioUI.enableVoiceModeButton(AppState.selectedGame);
+            }
         }
 
     } catch (error) {
@@ -1084,10 +1444,10 @@ function setupLandingPageListeners() {
         startSessionBtn.addEventListener('click', handleStartSession);
     }
 
-    // Session form
-    const sessionForm = document.getElementById('session-form');
-    if (sessionForm) {
-        sessionForm.addEventListener('submit', handleSessionFormSubmit);
+    // Create session button (in game selection modal)
+    const createSessionBtn = document.getElementById('create-session-btn');
+    if (createSessionBtn) {
+        createSessionBtn.addEventListener('click', handleCreateSession);
     }
 
     // Modal controls

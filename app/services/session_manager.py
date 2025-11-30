@@ -76,18 +76,27 @@ class SessionManager:
 
         session_id = f"sess_{uuid.uuid4().hex[:16]}"
 
+        # Determine initial status based on whether game is pre-selected
+        # If game is pre-selected, skip game selection phases
+        initial_status = SessionStatus.INITIALIZED
+        if session_data.selected_game_id and session_data.selected_game_name:
+            # Game pre-selected: start at suggestion phase (skip MC welcome & game select)
+            initial_status = SessionStatus.GAME_SELECT
+
         session = Session(
             session_id=session_id,
             user_id=user_id,
             user_email=user_email,
             user_name=session_data.user_name,
-            status=SessionStatus.INITIALIZED,
+            status=initial_status,
             created_at=now,
             updated_at=now,
             expires_at=expires_at,
             conversation_history=[],
             metadata={},
             turn_count=0,
+            selected_game_id=session_data.selected_game_id,
+            selected_game_name=session_data.selected_game_name,
         )
 
         try:
@@ -397,6 +406,39 @@ class SessionManager:
         except Exception as e:
             logger.error(
                 "Failed to complete MC welcome", session_id=session_id, error=str(e)
+            )
+            raise
+
+    async def update_session_turn_count(
+        self, session_id: str, turn_count: int
+    ) -> None:
+        """Update session turn count (used by audio mode).
+
+        Args:
+            session_id: Session identifier
+            turn_count: New turn count value
+        """
+        try:
+            doc_ref = self.collection.document(session_id)
+            doc_ref.update(
+                {
+                    "turn_count": turn_count,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+
+            logger.debug(
+                "Session turn count updated",
+                session_id=session_id,
+                turn_count=turn_count,
+            )
+
+        except Exception as e:
+            logger.error(
+                "Failed to update session turn count",
+                session_id=session_id,
+                turn_count=turn_count,
+                error=str(e),
             )
             raise
 

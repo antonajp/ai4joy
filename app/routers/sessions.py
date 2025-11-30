@@ -15,11 +15,27 @@ from app.services.pii_detector import get_pii_detector
 from app.services.prompt_injection_guard import get_prompt_injection_guard
 from app.services.adk_session_service import get_adk_session
 from app.services.adk_memory_service import save_session_to_memory
+from app.services.firestore_tool_data_service import get_all_games
 from app.middleware.iap_auth import get_authenticated_user
 from app.utils.logger import get_logger
 
 router = APIRouter(prefix="/api/v1", tags=["sessions"])
 logger = get_logger(__name__)
+
+
+class GameInfo(BaseModel):
+    """Game information for selection"""
+
+    id: str
+    name: str
+    difficulty: str
+    description: Optional[str] = None
+
+
+class GamesListResponse(BaseModel):
+    """Response containing list of available games"""
+
+    games: list[GameInfo]
 
 
 class MCWelcomeInput(BaseModel):
@@ -90,6 +106,37 @@ class MCWelcomeResponse(BaseModel):
     audience_suggestion: Optional[str] = None
     mc_welcome_complete: bool = False
     timestamp: str
+
+
+@router.get("/games", response_model=GamesListResponse)
+async def list_games(request: Request) -> GamesListResponse:
+    """
+    List all available improv games for selection.
+
+    This endpoint allows users to browse and select a game
+    before starting their session.
+    """
+    # Verify user is authenticated
+    get_authenticated_user(request)
+
+    try:
+        games = await get_all_games()
+        game_list = [
+            GameInfo(
+                id=g["id"],
+                name=g["name"],
+                difficulty=g.get("difficulty", "beginner"),
+                description=g.get("description"),
+            )
+            for g in games
+        ]
+        return GamesListResponse(games=game_list)
+    except Exception as e:
+        logger.error("Failed to fetch games", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load games",
+        )
 
 
 @router.post(

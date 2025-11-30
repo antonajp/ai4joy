@@ -21,10 +21,10 @@ class TestAudioStreamOrchestrator:
 
     @pytest.fixture
     def mock_mc_agent(self):
-        """Mock MC Agent for testing."""
+        """Mock MC Agent for audio testing."""
         agent = MagicMock()
-        agent.name = "mc_agent"
-        agent.model = "gemini-2.0-flash-live-001"
+        agent.name = "mc_agent_audio"
+        agent.model = "gemini-live-2.5-flash-preview-native-audio-09-2025"
         return agent
 
     @pytest.fixture
@@ -35,14 +35,14 @@ class TestAudioStreamOrchestrator:
         return runner
 
     def test_tc_orch_01_orchestrator_initializes_with_mc_agent(self):
-        """TC-ORCH-01: AudioStreamOrchestrator initializes with MC agent."""
+        """TC-ORCH-01: AudioStreamOrchestrator initializes with MC agent for audio."""
         from app.audio.audio_orchestrator import AudioStreamOrchestrator
 
         orchestrator = AudioStreamOrchestrator()
 
-        # Should have MC agent reference
+        # Should have MC agent reference (audio version)
         assert orchestrator.agent is not None
-        assert orchestrator.agent.name == "mc_agent"
+        assert orchestrator.agent.name == "mc_agent_audio"
 
     def test_tc_orch_02_orchestrator_creates_live_request_queue(self):
         """TC-ORCH-02: Orchestrator creates LiveRequestQueue for session."""
@@ -68,7 +68,9 @@ class TestAudioStreamOrchestrator:
         audio_chunk = b"\x00\x01\x02\x03" * 100  # 400 bytes of PCM16
 
         # Start session first to create the queue
-        await orchestrator.start_session(session_id, user_email="test@example.com")
+        await orchestrator.start_session(
+            session_id, user_id="test-user-123", user_email="test@example.com"
+        )
 
         # Get session and mock its queue
         session = await orchestrator.get_session(session_id)
@@ -88,19 +90,32 @@ class TestAudioStreamOrchestrator:
     async def test_tc_orch_04_agent_responses_streamed_back(self, mock_runner):
         """TC-ORCH-04: Agent responses are streamed back to caller."""
         from app.audio.audio_orchestrator import AudioStreamOrchestrator
+        from unittest.mock import PropertyMock
 
-        # Mock event stream from agent
+        # Mock event stream from agent using correct ADK event structure
         mock_event = MagicMock()
-        mock_event.server_content = MagicMock()
-        mock_event.server_content.model_turn = MagicMock()
+        # Set error_code to None explicitly to avoid MagicMock truthy issues
+        mock_event.error_code = None
+        mock_event.error_message = None
+        mock_event.input_transcription = None
+        mock_event.output_transcription = None
+        mock_event.partial = False
+        mock_event.turn_complete = False
+        mock_event.interrupted = False
+        mock_event.tool_call = None
+        mock_event.tool_result = None
+
+        # Create audio part with inline_data (correct ADK structure)
         mock_part = MagicMock()
         mock_part.inline_data = MagicMock()
         mock_part.inline_data.data = b"\x00" * 1000  # Audio response
         mock_part.inline_data.mime_type = "audio/pcm;rate=24000"
         mock_part.text = None
-        mock_event.server_content.model_turn.parts = [mock_part]
-        mock_event.tool_call = None
-        mock_event.tool_result = None
+        mock_part.function_call = None
+
+        # Set up content.parts (correct ADK structure)
+        mock_event.content = MagicMock()
+        mock_event.content.parts = [mock_part]
 
         orchestrator = AudioStreamOrchestrator()
 
@@ -119,7 +134,9 @@ class TestAudioStreamOrchestrator:
         session_id = "test-session-lifecycle"
 
         # Start session
-        await orchestrator.start_session(session_id, user_email="test@example.com")
+        await orchestrator.start_session(
+            session_id, user_id="test-user-123", user_email="test@example.com"
+        )
 
         # Session should be active
         assert orchestrator.is_session_active(session_id)
@@ -138,7 +155,9 @@ class TestAudioStreamOrchestrator:
         orchestrator = AudioStreamOrchestrator()
         session_id = "test-session-shutdown"
 
-        await orchestrator.start_session(session_id, user_email="test@example.com")
+        await orchestrator.start_session(
+            session_id, user_id="test-user-123", user_email="test@example.com"
+        )
 
         # Get session and mock its queue
         session = await orchestrator.get_session(session_id)
@@ -200,21 +219,40 @@ class TestAudioStreamOrchestratorTranscription:
         """Test that transcription is provided alongside audio (AC5)."""
         from app.audio.audio_orchestrator import AudioStreamOrchestrator
 
-        # Mock event with both audio and text
+        # Mock event with both audio and text using correct ADK structure
         mock_event = MagicMock()
-        mock_event.server_content = MagicMock()
-        mock_event.server_content.model_turn = MagicMock()
+        # Set error_code to None explicitly to avoid MagicMock truthy issues
+        mock_event.error_code = None
+        mock_event.error_message = None
+        mock_event.input_transcription = None
+
+        # ADK returns Transcription objects with .text and .finished properties
+        mock_transcription = MagicMock()
+        mock_transcription.text = "Hello, welcome to Improv Olympics!"
+        mock_transcription.finished = True
+        mock_event.output_transcription = mock_transcription
+
+        mock_event.partial = False
+        mock_event.turn_complete = False
+        mock_event.interrupted = False
+        mock_event.tool_call = None
+        mock_event.tool_result = None
 
         audio_part = MagicMock()
         audio_part.inline_data = MagicMock()
         audio_part.inline_data.data = b"\x00" * 1000
+        audio_part.inline_data.mime_type = "audio/pcm;rate=24000"
         audio_part.text = None
+        audio_part.function_call = None
 
         text_part = MagicMock()
         text_part.inline_data = None
         text_part.text = "Hello, welcome to Improv Olympics!"
+        text_part.function_call = None
 
-        mock_event.server_content.model_turn.parts = [audio_part, text_part]
+        # Set up content.parts (correct ADK structure)
+        mock_event.content = MagicMock()
+        mock_event.content.parts = [audio_part, text_part]
 
         orchestrator = AudioStreamOrchestrator()
 

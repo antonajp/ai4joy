@@ -258,7 +258,7 @@ async def get_current_user(request: Request):
     unauthenticated users) and directly checks the session cookie.
 
     Returns:
-        User information including email, name, and user ID, or
+        User information including email, name, user ID, and tier, or
         authenticated=False if no valid session exists.
     """
     # Read session cookie directly since this endpoint bypasses middleware
@@ -271,17 +271,65 @@ async def get_current_user(request: Request):
         session_data = session_middleware.serializer.loads(
             session_cookie, max_age=session_middleware.max_age
         )
+
+        user_email = session_data.get("email")
+        user_tier = "free"  # Default tier
+
+        # Look up user tier from Firestore if enabled
+        if user_email:
+            from app.middleware.oauth_auth import should_use_firestore_auth
+            if should_use_firestore_auth():
+                from app.services.user_service import get_user_by_email
+                try:
+                    user_profile = await get_user_by_email(user_email)
+                    if user_profile:
+                        user_tier = user_profile.tier.value
+                except Exception as tier_err:
+                    logger.warning("Failed to fetch user tier", error=str(tier_err))
+
         return {
             "authenticated": True,
             "user": {
-                "user_email": session_data.get("email"),
+                "user_email": user_email,
                 "user_id": session_data.get("sub"),
                 "user_name": session_data.get("name"),
+                "tier": user_tier,
             },
         }
     except Exception as e:
         logger.warning("Session validation failed", error=str(e))
         return {"authenticated": False, "user": None}
+
+
+@router.get("/ws-token")
+async def get_websocket_token(request: Request):
+    """
+    Get a token for WebSocket authentication.
+
+    Since the session cookie is httponly (for security), JavaScript cannot
+    read it directly. This endpoint returns the session token value that
+    can be used for WebSocket authentication.
+
+    Returns:
+        Token for WebSocket auth, or 401 if not authenticated.
+    """
+    session_cookie = request.cookies.get("session")
+    if not session_cookie:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    try:
+        # Validate the session is still valid
+        session_data = session_middleware.serializer.loads(
+            session_cookie, max_age=session_middleware.max_age
+        )
+        # Return the session cookie value as the token
+        # The WebSocket handler will validate this same token
+        return {"token": session_cookie}
+    except Exception as e:
+        logger.warning("WS token request failed - invalid session", error=str(e))
+        from fastapi import HTTPException
+        raise HTTPException(status_code=401, detail="Session expired")
 
 
 async def check_user_authorization(email: str) -> bool:

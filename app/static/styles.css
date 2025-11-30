@@ -482,6 +482,10 @@ header {
     animation: modalSlideIn var(--transition-base);
 }
 
+.modal-content-wide {
+    max-width: 700px;
+}
+
 @keyframes modalSlideIn {
     from {
         opacity: 0;
@@ -666,7 +670,70 @@ header {
 .session-info {
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--gray-200);
-    padding: var(--space-lg);
+}
+
+/* Collapsible session info for mobile */
+.session-info-details {
+    width: 100%;
+}
+
+.session-info-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-md) var(--space-lg);
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+}
+
+.session-info-summary::-webkit-details-marker {
+    display: none;
+}
+
+.session-info-summary .info-title {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.session-info-toggle {
+    width: 20px;
+    height: 20px;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.session-info-toggle::before,
+.session-info-toggle::after {
+    content: '';
+    position: absolute;
+    background: var(--text-light);
+    transition: transform 0.2s ease;
+}
+
+.session-info-toggle::before {
+    width: 12px;
+    height: 2px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.session-info-toggle::after {
+    width: 2px;
+    height: 12px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.session-info-details[open] .session-info-toggle::after {
+    transform: translate(-50%, -50%) rotate(90deg);
+    opacity: 0;
+}
+
+.session-info-body {
+    padding: 0 var(--space-lg) var(--space-lg);
 }
 
 .info-title {
@@ -1223,6 +1290,36 @@ header {
         width: 300px;
         border-right: 1px solid var(--gray-200);
         border-bottom: none;
+        padding: var(--space-lg);
+    }
+
+    /* On tablet+, keep session info always expanded */
+    .session-info-details {
+        pointer-events: none;
+    }
+
+    .session-info-details[open],
+    .session-info-details:not([open]) {
+        /* Force open state on larger screens */
+    }
+
+    .session-info-summary {
+        padding: 0;
+        cursor: default;
+    }
+
+    .session-info-toggle {
+        display: none;
+    }
+
+    .session-info-body {
+        display: block !important;
+        padding: var(--space-md) 0 0;
+    }
+
+    .session-info-summary .info-title {
+        font-size: 1.25rem;
+        margin-bottom: 0;
     }
 
     .chat-section {
@@ -1279,5 +1376,225 @@ header {
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
         scroll-behavior: auto !important;
+    }
+}
+
+/* ============================================
+   Game Selection Grid (Pre-scene modal)
+   ============================================ */
+
+.modal-description {
+    color: var(--text-secondary);
+    margin-bottom: var(--space-lg);
+    line-height: 1.6;
+}
+
+.game-selection-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: var(--space-md);
+    margin-bottom: var(--space-lg);
+    max-height: 400px;
+    overflow-y: auto;
+    padding: var(--space-sm);
+}
+
+.games-loading {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: var(--space-xl);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-md);
+    color: var(--text-light);
+}
+
+.games-loading .spinner {
+    width: 40px;
+    height: 40px;
+}
+
+.games-error {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: var(--space-xl);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-md);
+    color: var(--text-secondary);
+}
+
+.btn-small {
+    padding: var(--space-sm) var(--space-md);
+    font-size: 0.875rem;
+    min-height: 36px;
+}
+
+.game-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: var(--space-md);
+    background: white;
+    border: 2px solid var(--gray-200);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    text-align: left;
+    min-height: 100px;
+    position: relative;
+}
+
+.game-card:hover {
+    border-color: var(--primary-light);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.game-card:focus {
+    outline: 3px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.game-card-selected {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: white;
+    box-shadow: var(--shadow-md);
+}
+
+.game-card-selected:hover {
+    border-color: var(--primary-dark);
+}
+
+.game-card-name {
+    font-weight: 600;
+    font-size: 1rem;
+    margin-bottom: var(--space-xs);
+    display: block;
+}
+
+.game-card-selected .game-card-name {
+    color: white;
+}
+
+.game-card-difficulty {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    background: var(--gray-100);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-sm);
+}
+
+.game-card-selected .game-card-difficulty {
+    background: rgba(255, 255, 255, 0.3);
+    color: rgba(255, 255, 255, 1);
+    font-weight: 600;
+}
+
+.game-card-description {
+    font-size: 0.8rem;
+    color: var(--text-light);
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.game-card-selected .game-card-description {
+    color: rgba(255, 255, 255, 1);
+}
+
+/* Difficulty-based left border colors */
+.game-card.difficulty-beginner {
+    border-left: 4px solid var(--success);
+}
+
+.game-card.difficulty-intermediate {
+    border-left: 4px solid var(--warning);
+}
+
+.game-card.difficulty-advanced {
+    border-left: 4px solid var(--danger);
+}
+
+.game-card-selected.difficulty-beginner,
+.game-card-selected.difficulty-intermediate,
+.game-card-selected.difficulty-advanced {
+    border-left-color: white;
+}
+
+/* Selected game info bar */
+.selected-game-info {
+    background: var(--bg-tertiary);
+    padding: var(--space-md);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-lg);
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.selected-game-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.selected-label {
+    font-size: 0.875rem;
+    color: var(--text-light);
+}
+
+.selected-game-name {
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.selected-game-description {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin: var(--space-sm) 0 0;
+    line-height: 1.5;
+}
+
+/* Screen reader instruction */
+.modal-instruction {
+    text-align: center;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-md);
+    font-size: 0.875rem;
+}
+
+/* Button hint */
+.button-hint {
+    font-size: 0.875rem;
+    color: var(--text-light);
+    font-style: italic;
+    transition: opacity var(--transition-fast);
+}
+
+.button-hint.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Mobile responsive for game selection */
+@media (max-width: 500px) {
+    .game-selection-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .modal-content-wide {
+        max-width: 100%;
+        margin: var(--space-md);
+        padding: var(--space-lg);
     }
 }
