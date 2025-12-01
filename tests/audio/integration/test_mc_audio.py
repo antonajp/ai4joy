@@ -28,13 +28,6 @@ class TestMCAgentAudioIntegration:
         queue.close = MagicMock()
         return queue
 
-    @pytest.fixture
-    def mock_runner(self):
-        """Mock InMemoryRunner for testing."""
-        runner = MagicMock()
-        runner.run_live = AsyncMock()
-        return runner
-
     def test_tc_mc_01_mc_agent_configured_for_audio(self):
         """TC-MC-01: MC Agent is configured for audio streaming."""
         from app.agents.mc_agent import create_mc_agent
@@ -71,44 +64,48 @@ class TestMCAgentAudioIntegration:
         assert voice_config.voice_name == "Aoede"
 
     @pytest.mark.asyncio
-    async def test_tc_mc_04_tool_execution_during_audio(self, mock_runner):
-        """TC-MC-04: Tool execution works during audio conversation."""
-        from app.audio.audio_orchestrator import AudioStreamOrchestrator
+    async def test_tc_mc_04_tool_execution_during_audio(self):
+        """TC-MC-04: Tool execution works during audio conversation.
+
+        Note: This test now validates that tool events are correctly processed
+        by the _process_event method. Full streaming integration is tested
+        via end-to-end tests that connect to the actual Live API.
+        """
+        from app.audio.audio_orchestrator import AudioStreamOrchestrator, AudioSession
+
+        orchestrator = AudioStreamOrchestrator()
+        session_id = "test-session-tools"
+
+        # Create a mock session for processing
+        mock_session = AudioSession(
+            session_id=session_id,
+            user_id="test-user",
+            user_email="test@example.com",
+        )
 
         # Mock event with tool call
         mock_tool_event = MagicMock()
+        mock_tool_event.error_code = None
+        mock_tool_event.error_message = None
+        mock_tool_event.input_transcription = None
+        mock_tool_event.output_transcription = None
+        mock_tool_event.partial = False
+        mock_tool_event.turn_complete = False
+        mock_tool_event.interrupted = False
         mock_tool_event.tool_call = MagicMock()
         mock_tool_event.tool_call.name = "get_improv_games"
         mock_tool_event.tool_call.args = {"category": "warmup"}
+        mock_tool_event.tool_result = None
+        mock_tool_event.content = None
 
-        mock_tool_result_event = MagicMock()
-        mock_tool_result_event.tool_result = MagicMock()
-        mock_tool_result_event.tool_result.result = "Found 5 warmup games"
+        # Process the tool call event
+        responses = await orchestrator._process_event(mock_tool_event, mock_session)
 
-        mock_audio_event = MagicMock()
-        mock_audio_event.server_content = MagicMock()
-        mock_audio_event.server_content.model_turn = MagicMock()
-        mock_part = MagicMock()
-        mock_part.inline_data = MagicMock()
-        mock_part.inline_data.data = b"\x00" * 1000
-        mock_audio_event.server_content.model_turn.parts = [mock_part]
-
-        async def mock_event_stream():
-            yield mock_tool_event
-            yield mock_tool_result_event
-            yield mock_audio_event
-
-        mock_runner.run_live.return_value = mock_event_stream()
-
-        orchestrator = AudioStreamOrchestrator()
-
-        with patch.object(orchestrator, "_runner", mock_runner):
-            events = []
-            async for event in orchestrator.stream_responses("test-session"):
-                events.append(event)
-
-            # Should have processed tool call and returned audio
-            assert len(events) >= 1
+        # Should have processed tool call
+        assert len(responses) >= 1
+        tool_calls = [r for r in responses if r.get("type") == "tool_call"]
+        assert len(tool_calls) == 1
+        assert tool_calls[0]["name"] == "get_improv_games"
 
     @pytest.mark.asyncio
     async def test_tc_mc_05_session_persistence_audio_reconnection(self):
@@ -140,45 +137,61 @@ class TestMCAgentAudioIntegration:
             assert session is not None
 
     @pytest.mark.asyncio
-    async def test_tc_mc_06_audio_latency_under_2_seconds(self, mock_runner):
-        """TC-MC-06: Audio latency < 2 seconds P95 (AC4)."""
-        from app.audio.audio_orchestrator import AudioStreamOrchestrator
+    async def test_tc_mc_06_audio_latency_under_2_seconds(self):
+        """TC-MC-06: Audio latency < 2 seconds P95 (AC4).
+
+        Note: This test validates that event processing itself is fast.
+        End-to-end latency including network and Live API is measured
+        via separate performance tests.
+        """
+        from app.audio.audio_orchestrator import AudioStreamOrchestrator, AudioSession
 
         orchestrator = AudioStreamOrchestrator()
         session_id = "latency-test-session"
 
-        # Mock fast response
+        # Create a mock session for processing
+        mock_session = AudioSession(
+            session_id=session_id,
+            user_id="test-user",
+            user_email="test@example.com",
+        )
+
+        # Mock audio response event (correct ADK structure)
         mock_event = MagicMock()
-        mock_event.server_content = MagicMock()
-        mock_event.server_content.model_turn = MagicMock()
+        mock_event.error_code = None
+        mock_event.error_message = None
+        mock_event.input_transcription = None
+        mock_event.output_transcription = None
+        mock_event.partial = False
+        mock_event.turn_complete = False
+        mock_event.interrupted = False
+        mock_event.tool_call = None
+        mock_event.tool_result = None
+
+        # Create audio part with inline_data
         mock_part = MagicMock()
         mock_part.inline_data = MagicMock()
         mock_part.inline_data.data = b"\x00" * 1000
-        mock_event.server_content.model_turn.parts = [mock_part]
+        mock_part.inline_data.mime_type = "audio/pcm;rate=24000"
+        mock_part.text = None
+        mock_part.function_call = None
 
-        async def mock_event_stream():
-            yield mock_event
+        mock_event.content = MagicMock()
+        mock_event.content.parts = [mock_part]
 
-        mock_runner.run_live.return_value = mock_event_stream()
+        # Measure event processing latency
+        start_time = time.time()
 
-        with patch.object(orchestrator, "_runner", mock_runner):
-            # Measure latency
-            start_time = time.time()
+        responses = await orchestrator._process_event(mock_event, mock_session)
 
-            audio_chunk = b"\x00\x01" * 160
-            await orchestrator.send_audio_chunk(session_id, audio_chunk)
+        end_time = time.time()
+        latency_ms = (end_time - start_time) * 1000
 
-            responses = []
-            async for response in orchestrator.stream_responses(session_id):
-                responses.append(response)
-                break  # First response
-
-            end_time = time.time()
-            latency_ms = (end_time - start_time) * 1000
-
-            # Should be under 2000ms (2 seconds)
-            # In unit test with mocks, this should be near-instant
-            assert latency_ms < 2000
+        # Event processing should be very fast (< 100ms typically)
+        # The 2 second requirement is for full end-to-end including Live API
+        assert latency_ms < 2000, f"Event processing took {latency_ms}ms"
+        assert len(responses) >= 1
+        assert responses[0].get("type") == "audio"
 
 
 class TestMCAgentAudioConfiguration:
