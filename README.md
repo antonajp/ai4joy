@@ -117,11 +117,11 @@ All agents backed by:
 
 ## Orchestration Modes: Text vs Audio
 
-The application implements **two fundamentally different orchestration architectures** based on user tier:
+The application implements **two different orchestration architectures** based on user tier:
 
 ### Text Mode (Free & Regular Tiers)
 
-**HTTP-based request/response model** with simpler orchestration:
+**HTTP-based request/response model** with multi-agent orchestration:
 
 **Architecture:**
 - **Single Singleton Runner**: One shared `InMemoryRunner` instance across all text sessions
@@ -141,49 +141,35 @@ The application implements **two fundamentally different orchestration architect
 
 ### Audio Mode (Premium Tier)
 
-**WebSocket-based streaming with complex multi-agent coordination:**
+**WebSocket-based streaming with unified MC agent** (simplified in IQS-63):
 
 **Architecture:**
-- **Per-Session Runners**: Each audio session gets its own `Runner` instance for isolation
-- **Per-Session Agents**: Dedicated MC, Partner, and Room agents for each active session
-- **Live API Integration**: Uses ADK's `run_live()` for real-time streaming audio chunks
-- **Dynamic Turn-Taking**: `AgentTurnManager` coordinates which agent speaks when
-- **Multi-Stream Mixing**: `AudioMixer` combines multiple concurrent audio streams
-- **Ambient Audio**: `AmbientAudioTrigger` activates Room agent based on sentiment analysis
-- **Voice Synthesis**: Real-time text-to-speech with per-agent voice configurations
+- **Per-Session Runner**: Each audio session gets its own `Runner` instance for isolation
+- **Single MC Agent**: One unified MC agent handles both hosting AND scene work per session
+- **Live API Integration**: Uses ADK's `run_live()` for real-time bidirectional audio streaming
+- **Push-to-Talk**: Manual activity signals control user speech (no automatic VAD)
+- **Simple Turn Counting**: `AgentTurnManager` tracks turn count and phase transitions
+- **Voice Synthesis**: Real-time text-to-speech with MC voice configuration
 
-**Complexities:**
-1. **Session Isolation**: Each session maintains separate agent instances to prevent cross-talk
-2. **Agent Handoffs**: MC → Partner transitions via `_start_scene` tool with scene context passing
-3. **Concurrent Streams**: Room agent can interject with ambient commentary while Partner speaks
-4. **State Management**:
-   - Current active agent tracking
-   - Pending agent switch management
-   - Scene context preservation across handoffs
-   - Turn count and phase tracking per session
-5. **Audio Coordination**:
-   - PCM16 audio chunk streaming
-   - Voice activity detection
-   - Transcription with timestamps
-   - Multi-stream audio mixing
-6. **Real-time Constraints**: Sub-second latency requirements for natural conversation
-7. **Resource Management**: Per-session memory overhead (agents, queues, mixers, triggers)
+**Key Design Decisions (IQS-63):**
+1. **Unified MC Agent**: MC handles game hosting, scene partner work, and suggestions - no agent switching
+2. **Session Isolation**: Each session gets its own MC agent instance to prevent cross-talk
+3. **Simplified State**: Only track turn count and phase - no agent handoffs or coordination
+4. **Single Audio Stream**: One voice (MC) for consistent user experience
 
 **Characteristics:**
-- 🎤 Real-time voice interaction
-- 🎵 Multi-agent audio mixing with ambient sounds
-- 🎭 Dynamic agent turn-taking and interjections
-- 💰 Higher cost (real-time streaming + voice synthesis)
-- ⚠️  Significantly higher complexity
-- ⚠️  Premium-only feature (tier-gated)
-- ⚠️  Requires careful resource management (one audio session = 3+ agent instances + mixer + trigger)
+- 🎤 Real-time voice interaction with single MC voice
+- ✅ Simple architecture - one agent per session
+- ✅ No agent handoffs or coordination complexity
+- ✅ Lower latency (~1 second response time)
+- ✅ Reduced API costs (~67% reduction from previous multi-agent design)
+- 💰 Premium-only feature (tier-gated)
 
 **Code Locations:**
 - Main: `app/audio/audio_orchestrator.py`
 - WebSocket Handler: `app/audio/websocket_handler.py`
 - Turn Management: `app/audio/turn_manager.py`
-- Audio Mixing: `app/audio/audio_mixer.py`
-- Ambient Triggers: `app/audio/ambient_audio.py`
+- Voice Config: `app/audio/voice_config.py`
 
 ### Comparison Table
 
@@ -191,16 +177,15 @@ The application implements **two fundamentally different orchestration architect
 |--------|-------------------|---------------------|
 | **Transport** | HTTP POST | WebSocket |
 | **Runner** | 1 singleton shared | 1 per session |
-| **Agents** | Shared Stage Manager | 3+ per session (MC, Partner, Room) |
-| **Latency** | 2-4 seconds | < 1 second |
+| **Agents** | Stage Manager + 4 sub-agents | Single MC agent |
+| **Latency** | 2-4 seconds | ~1 second |
 | **Interaction** | Turn-based | Real-time streaming |
-| **Audio** | None | PCM16 streaming + voice synthesis |
-| **Agent Coordination** | Simple (Stage Manager) | Complex (turn manager + mixer) |
-| **Memory Overhead** | Low | High (per-session agents) |
-| **Cost** | ~$0.20/session | ~$2-5/session |
-| **Complexity** | Moderate | Very High |
+| **Audio** | None | PCM16 bidirectional streaming |
+| **Agent Coordination** | Stage Manager orchestrates | None (single agent) |
+| **Memory Overhead** | Low | Moderate (per-session agent) |
+| **Cost** | ~$0.20/session | ~$0.60/session |
+| **Complexity** | Moderate | Low-Moderate |
 | **Phase Transitions** | Yes | Yes (same logic) |
-| **Concurrent Agents** | Sequential | Parallel (ambient) |
 
 ### When to Use Each Mode
 
@@ -212,10 +197,9 @@ The application implements **two fundamentally different orchestration architect
 - All user tiers (free, regular, premium)
 
 **Audio Mode (Premium Feature):**
-- Premium users seeking immersive experience
+- Premium users seeking immersive voice experience
 - Natural conversation practice
-- Real-time feedback scenarios
-- High-value coaching sessions
+- Real-time improv sessions
 - Users with stable internet connections
 
 ## Key Features
