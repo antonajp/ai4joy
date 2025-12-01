@@ -14,6 +14,7 @@ The MC uses the _start_scene tool to hand off to the Partner when ready.
 from google.adk.agents import Agent
 from app.toolsets import ImprovGamesToolset
 from app.toolsets.scene_transition_toolset import SceneTransitionToolset
+from app.toolsets.audience_archetypes_toolset import AudienceArchetypesToolset
 from app.config import get_settings
 from app.utils.logger import get_logger
 
@@ -97,12 +98,20 @@ Example flow:
 - [Call _start_scene with game_name, scene_premise, AND game_rules]
 - Scene partner (Puck) takes over for the actual scene work
 
-AUDIENCE INTERACTION:
-- When you need a suggestion, ask THE AUDIENCE, not the player
-- Use phrases like "Who's got a suggestion? What location should we use?"
-- Accept whatever the audience shouts and run with it
-- Credit the audience: "I heard 'dentist's office' - love it!"
-- The audience suggestion comes from the Room Agent (representing the crowd)
+AUDIENCE INTERACTION (CRITICAL - USE THE TOOL!):
+When you need a suggestion from the audience:
+1. FIRST: Call _get_suggestion_for_game with the game_name to get an audience suggestion
+2. The tool returns a suggestion that the audience "shouts out"
+3. Then excitedly relay what you heard: "I heard '[suggestion]' from the audience - love it!"
+4. Use that suggestion for the scene
+
+Example:
+- You: "Audience, give me a first line for our scene!"
+- [Call _get_suggestion_for_game("first_line_last_line")]
+- Tool returns: "Someone from the crowd shouts: 'I can't believe you ate all the pizza!'"
+- You: "I heard 'I can't believe you ate all the pizza!' - That's perfect! Let's use that!"
+
+IMPORTANT: Do NOT just ask for a suggestion and wait. ALWAYS call _get_suggestion_for_game immediately after asking the audience.
 
 WHAT TO DO:
 - Greet warmly and build energy
@@ -136,6 +145,7 @@ AVAILABLE TOOLS:
 - _get_all_games: List all available improv games
 - _get_game_by_id: Get details for a specific game (USE THIS FOR RULES!)
 - _search_games: Search games by criteria
+- _get_suggestion_for_game: GET AUDIENCE SUGGESTION (call this when you ask the audience!)
 - _start_scene: Hand off to scene partner (include game_rules!)
 - _resume_scene: Hand back to scene partner after an interjection
 
@@ -188,15 +198,17 @@ def create_mc_agent_for_audio() -> Agent:
     # Create toolsets:
     # - ImprovGamesToolset for game info
     # - SceneTransitionToolset for handing off to Partner Agent
+    # - AudienceArchetypesToolset for getting audience suggestions
     games_toolset = ImprovGamesToolset()
     scene_toolset = SceneTransitionToolset()
+    audience_toolset = AudienceArchetypesToolset()
 
     agent = Agent(
         name="mc_agent_audio",
         description="Master of Ceremonies - High-energy game host who sets up scenes and hands off to Partner",
         model=settings.vertexai_live_model,  # Live API model for audio
         instruction=AUDIO_MC_SYSTEM_PROMPT,  # MC-only prompt, no scene partner behavior
-        tools=[games_toolset, scene_toolset],
+        tools=[games_toolset, scene_toolset, audience_toolset],
     )
 
     logger.info(
