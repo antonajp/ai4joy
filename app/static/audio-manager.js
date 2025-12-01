@@ -19,6 +19,7 @@ class AudioStreamManager {
         this.onTurnComplete = null;
         this.onAgentSwitch = null;
         this.onAgentSwitchPending = null;
+        this.onRoomVibe = null;
         this.state = 'idle';
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 3;
@@ -240,6 +241,9 @@ class AudioStreamManager {
                 case 'agent_switch_pending':
                     this.handleAgentSwitchPending(message);
                     break;
+                case 'room_vibe':
+                    this.handleRoomVibe(message);
+                    break;
                 default:
                     this.logger.warn('Unknown message type:', message.type);
             }
@@ -333,6 +337,20 @@ class AudioStreamManager {
                 gameName: game_name,
                 scenePremise: scene_premise,
                 reason: reason
+            });
+        }
+    }
+
+    handleRoomVibe(message) {
+        const { analysis, mood_metrics, timestamp } = message;
+        this.logger.info('Room vibe received:', analysis ? analysis.substring(0, 50) : '');
+
+        // Notify listeners for visual display in the frontend
+        if (this.onRoomVibe) {
+            this.onRoomVibe({
+                analysis: analysis,
+                moodMetrics: mood_metrics,
+                timestamp: timestamp
             });
         }
     }

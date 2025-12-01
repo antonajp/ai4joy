@@ -380,18 +380,19 @@ class AudienceArchetypesToolset(BaseToolset):
         self,
         game_name: str,
         audience_sample: Optional[List[Dict[str, Any]]] = None,
-    ) -> Dict[str, Any]:
+    ) -> str:
         """Generate audience suggestion appropriate for a specific game.
+
+        This tool simulates an audience member shouting out a suggestion.
+        The MC should relay this suggestion to the player.
 
         Args:
             game_name: Name of the improv game
             audience_sample: Optional audience sample. If not provided, generates a new sample.
 
         Returns:
-            Dictionary with:
-                - suggestion: The generated suggestion
-                - suggestion_type: Type of suggestion (location, relationship, etc.)
-                - reasoning: Why the audience chose this suggestion
+            A string describing who shouted the suggestion and what they said.
+            Example: "Someone from the crowd shouts: 'A coffee shop!'"
         """
         logger.info("Generating game-specific suggestion", game_name=game_name)
 
@@ -415,6 +416,10 @@ class AudienceArchetypesToolset(BaseToolset):
             "one_word_story": "topic",
             "character swap": "relationship",
             "character_swap": "relationship",
+            "status shift": "location",
+            "status_shift": "location",
+            "party quirks": "location",
+            "party_quirks": "location",
         }
 
         # Determine suggestion type for this game (default to location)
@@ -430,28 +435,23 @@ class AudienceArchetypesToolset(BaseToolset):
         # Generate the suggestion
         suggestion = await self._generate_audience_suggestion(suggestion_type, audience_sample)
 
-        # Create reasoning based on audience demographics
-        if not audience_sample:
-            audience_sample = await self._generate_audience_sample(size=5)
+        # Create audience shout-out with variety
+        shout_phrases = [
+            f"Someone from the crowd shouts: '{suggestion}!'",
+            f"An audience member yells: '{suggestion}!'",
+            f"From the back row, someone calls out: '{suggestion}!'",
+            f"A voice from the audience suggests: '{suggestion}!'",
+            f"Someone in the front row shouts: '{suggestion}!'",
+        ]
 
-        # Build reasoning
-        sample_member = audience_sample[0] if audience_sample else {}
-        demographics = sample_member.get("demographics", {})
-        occupation = demographics.get("occupation", "audience member")
-
-        reasoning = f"The {occupation.lower()} in the crowd relates to this suggestion"
-
-        result = {
-            "suggestion": suggestion,
-            "suggestion_type": suggestion_type,
-            "reasoning": reasoning,
-        }
+        result = random.choice(shout_phrases)
 
         logger.info(
             "Game suggestion generated",
             game_name=game_name,
             suggestion_type=suggestion_type,
             suggestion=suggestion,
+            result=result,
         )
 
         return result

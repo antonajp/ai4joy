@@ -531,6 +531,21 @@ async def _stream_responses_to_client(
                     session_id=session_id,
                 )
 
+            elif response_type == "room_vibe":
+                # Forward audience reaction to frontend for visual display
+                await websocket.send_json({
+                    "type": "room_vibe",
+                    "analysis": response.get("analysis", ""),
+                    "mood_metrics": response.get("mood_metrics", {}),
+                    "timestamp": response.get("timestamp"),
+                })
+
+                logger.info(
+                    "Room vibe sent to client",
+                    session_id=session_id,
+                    analysis_preview=response.get("analysis", "")[:50],
+                )
+
             elif response_type == "turn_complete":
                 # Forward turn completion to client for UI updates
                 turn_data = {
