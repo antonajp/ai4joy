@@ -115,6 +115,109 @@ All agents backed by:
 - Singleton InMemoryRunner (efficient execution)
 ```
 
+## Orchestration Modes: Text vs Audio
+
+The application implements **two fundamentally different orchestration architectures** based on user tier:
+
+### Text Mode (Free & Regular Tiers)
+
+**HTTP-based request/response model** with simpler orchestration:
+
+**Architecture:**
+- **Single Singleton Runner**: One shared `InMemoryRunner` instance across all text sessions
+- **Stage Manager Orchestration**: Root agent coordinates 4 sub-agents per turn
+- **Synchronous Turn Execution**: HTTP POST to `/session/{id}/turn` triggers full agent workflow
+- **Simple Agent Flow**: MC → Partner → Room → Coach (all on every turn)
+
+**Characteristics:**
+- ✅ Lower complexity - proven HTTP patterns
+- ✅ Easier to debug and monitor
+- ✅ Lower cost per session
+- ✅ All agents participate on every turn
+- ⚠️  Higher latency (2-4 seconds per turn)
+- ⚠️  No real-time interaction
+
+**Code Location:** `app/services/turn_orchestrator.py`
+
+### Audio Mode (Premium Tier)
+
+**WebSocket-based streaming with complex multi-agent coordination:**
+
+**Architecture:**
+- **Per-Session Runners**: Each audio session gets its own `Runner` instance for isolation
+- **Per-Session Agents**: Dedicated MC, Partner, and Room agents for each active session
+- **Live API Integration**: Uses ADK's `run_live()` for real-time streaming audio chunks
+- **Dynamic Turn-Taking**: `AgentTurnManager` coordinates which agent speaks when
+- **Multi-Stream Mixing**: `AudioMixer` combines multiple concurrent audio streams
+- **Ambient Audio**: `AmbientAudioTrigger` activates Room agent based on sentiment analysis
+- **Voice Synthesis**: Real-time text-to-speech with per-agent voice configurations
+
+**Complexities:**
+1. **Session Isolation**: Each session maintains separate agent instances to prevent cross-talk
+2. **Agent Handoffs**: MC → Partner transitions via `_start_scene` tool with scene context passing
+3. **Concurrent Streams**: Room agent can interject with ambient commentary while Partner speaks
+4. **State Management**:
+   - Current active agent tracking
+   - Pending agent switch management
+   - Scene context preservation across handoffs
+   - Turn count and phase tracking per session
+5. **Audio Coordination**:
+   - PCM16 audio chunk streaming
+   - Voice activity detection
+   - Transcription with timestamps
+   - Multi-stream audio mixing
+6. **Real-time Constraints**: Sub-second latency requirements for natural conversation
+7. **Resource Management**: Per-session memory overhead (agents, queues, mixers, triggers)
+
+**Characteristics:**
+- 🎤 Real-time voice interaction
+- 🎵 Multi-agent audio mixing with ambient sounds
+- 🎭 Dynamic agent turn-taking and interjections
+- 💰 Higher cost (real-time streaming + voice synthesis)
+- ⚠️  Significantly higher complexity
+- ⚠️  Premium-only feature (tier-gated)
+- ⚠️  Requires careful resource management (one audio session = 3+ agent instances + mixer + trigger)
+
+**Code Locations:**
+- Main: `app/audio/audio_orchestrator.py`
+- WebSocket Handler: `app/audio/websocket_handler.py`
+- Turn Management: `app/audio/turn_manager.py`
+- Audio Mixing: `app/audio/audio_mixer.py`
+- Ambient Triggers: `app/audio/ambient_audio.py`
+
+### Comparison Table
+
+| Aspect | Text Mode (Regular) | Audio Mode (Premium) |
+|--------|-------------------|---------------------|
+| **Transport** | HTTP POST | WebSocket |
+| **Runner** | 1 singleton shared | 1 per session |
+| **Agents** | Shared Stage Manager | 3+ per session (MC, Partner, Room) |
+| **Latency** | 2-4 seconds | < 1 second |
+| **Interaction** | Turn-based | Real-time streaming |
+| **Audio** | None | PCM16 streaming + voice synthesis |
+| **Agent Coordination** | Simple (Stage Manager) | Complex (turn manager + mixer) |
+| **Memory Overhead** | Low | High (per-session agents) |
+| **Cost** | ~$0.20/session | ~$2-5/session |
+| **Complexity** | Moderate | Very High |
+| **Phase Transitions** | Yes | Yes (same logic) |
+| **Concurrent Agents** | Sequential | Parallel (ambient) |
+
+### When to Use Each Mode
+
+**Text Mode (Default):**
+- Initial user onboarding
+- Cost-sensitive deployments
+- Mobile/low-bandwidth scenarios
+- Testing and development
+- All user tiers (free, regular, premium)
+
+**Audio Mode (Premium Feature):**
+- Premium users seeking immersive experience
+- Natural conversation practice
+- Real-time feedback scenarios
+- High-value coaching sessions
+- Users with stable internet connections
+
 ## Key Features
 
 ### Production-Ready Infrastructure
@@ -292,6 +395,135 @@ ai4joy/
 - **[Testing Summary](tests/TESTING_SUMMARY.md)** - Test strategy and results
 - **[Manual Test Procedures](tests/OAUTH_MANUAL_TEST_PROCEDURES.md)** - Manual testing steps
 - **[Tests README](tests/README.md)** - Testing guide and execution
+
+## Data Model & Firestore Collections
+
+The application uses Google Cloud Firestore for persistent storage across three primary domains:
+
+### Core Collections
+
+**1. `sessions` - Active Game Sessions**
+- **Purpose**: Stores active and completed improv game sessions with full conversation history
+- **Document ID**: Auto-generated UUID (e.g., `a1b2c3d4-e5f6-7890-abcd-ef1234567890`)
+- **Key Fields**:
+  - `user_id`, `user_email` - OAuth user identification
+  - `status` - `active`, `completed`, `abandoned`
+  - `current_phase` - `PHASE_1_SUPPORT`, `PHASE_2_FALLIBLE`
+  - `turn_count` - Number of completed turns
+  - `game_type` - Selected improv game
+  - `location` - Scene location
+  - `conversation_history` - Full turn-by-turn conversation with timestamps
+  - `game_state` - Current phase, suggestion counts, performer tracking
+- **Usage**: Session lifecycle management, conversation persistence, phase transitions
+- **Indexes**: `user_id + created_at`, `status + created_at`, `user_id + status`
+
+**2. `user_limits` - Rate Limiting & Cost Tracking**
+- **Purpose**: Per-user rate limiting and cost management
+- **Document ID**: OAuth user ID (e.g., `google-oauth2|1234567890`)
+- **Key Fields**:
+  - `user_id`, `email` - User identification
+  - `sessions_today` - Daily session counter (resets midnight UTC)
+  - `last_reset` - Last daily reset timestamp
+  - `active_sessions` - Current concurrent session count
+  - `active_session_ids` - List of active session IDs
+  - `total_sessions` - All-time session counter
+  - `total_cost_estimate`, `daily_cost_today` - Cost tracking in USD
+  - `rate_limit_overrides` - Custom limits for admins/testers
+  - `flags` - `is_admin`, `is_tester`, `unlimited_sessions`
+- **Usage**: Rate limit enforcement (10/day, 3 concurrent), cost monitoring
+- **Indexes**: `email`, `sessions_today + last_reset`, `daily_cost_today`
+
+**3. `users` - User Profiles & Tier Management**
+- **Purpose**: User tier management (free, regular, premium) and access control
+- **Document ID**: User email (e.g., `user@example.com`)
+- **Key Fields**:
+  - `email` - Unique identifier
+  - `tier` - `free`, `regular`, `premium`
+  - `created_at`, `updated_at` - Audit timestamps
+  - `created_by` - Admin who created/migrated user
+  - `audio_enabled` - Premium feature flag
+- **Usage**: Tier-based feature gating (audio mode for premium only)
+- **Script**: `scripts/manage_users.py` for user management
+
+### Tool Data Collections
+
+These collections store static reference data seeded via `scripts/seed_firestore_tool_data.py`:
+
+**4. `improv_games` - Game Database**
+- **Purpose**: Available improv game formats with rules and constraints
+- **Fields**: `id`, `name`, `description`, `rules`, `constraints`, `difficulty`
+- **Usage**: MC Agent selects games for sessions
+
+**5. `improv_principles` - Coaching Database**
+- **Purpose**: Core improv principles for Coach Agent feedback
+- **Fields**: `id`, `principle`, `description`, `examples`, `anti_patterns`
+- **Usage**: Coach Agent provides principle-based feedback
+
+**6. `audience_archetypes` - Demographic Generator**
+- **Purpose**: Audience persona templates for Room Agent
+- **Fields**: `id`, `archetype`, `traits`, `reactions`, `catchphrases`
+- **Usage**: Room Agent simulates diverse audience reactions
+
+**7. `sentiment_keywords` - Sentiment Analysis**
+- **Purpose**: Keyword lists for sentiment analysis
+- **Fields**: `id`, `keyword`, `sentiment` (positive/negative/neutral), `weight`
+- **Usage**: Room Agent sentiment gauge for scene vibe
+
+### Configuration Collection
+
+**8. `admin_config` - Global Settings (Optional)**
+- **Purpose**: Application-wide configuration and circuit breakers
+- **Document ID**: `rate_limits`
+- **Fields**:
+  - `default_daily_session_limit`, `default_concurrent_session_limit`
+  - `max_cost_per_user_per_day`
+  - `emergency_circuit_breaker` - Cost protection threshold
+  - `feature_flags` - `rate_limiting_enabled`, `cost_tracking_enabled`
+- **Usage**: Global rate limit defaults, emergency controls
+
+### Data Flow
+
+```
+User Session Creation
+  ↓
+1. Check `user_limits` for rate limits
+2. Create document in `sessions`
+3. Increment counters in `user_limits`
+  ↓
+Turn Execution (Text Mode)
+  ↓
+4. Read `sessions` for conversation history
+5. Query `improv_games`, `improv_principles` (tools)
+6. Update `sessions` with new turn data
+  ↓
+Audio Session (Premium)
+  ↓
+7. Check `users` tier for audio access
+8. Per-session agents query tool collections
+9. Real-time updates to `sessions`
+  ↓
+Session Cleanup
+  ↓
+10. Update `sessions` status to completed
+11. Decrement `user_limits.active_sessions`
+12. Track cost in `user_limits`
+```
+
+### Initialization
+
+```bash
+# After infrastructure deployment, seed tool data collections
+python scripts/seed_firestore_tool_data.py
+
+# Manage user tiers
+python scripts/manage_users.py add user@example.com premium
+python scripts/manage_users.py list
+
+# Reset rate limits (operations)
+python scripts/reset_limits.py user_id
+```
+
+See [FIRESTORE_SCHEMA.md](docs/FIRESTORE_SCHEMA.md) for complete schema documentation including field types, security rules, and backup procedures.
 
 ## Deployment
 
