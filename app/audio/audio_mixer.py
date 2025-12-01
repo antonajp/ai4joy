@@ -23,9 +23,9 @@ AgentType = Literal["mc", "partner", "room"]
 # Default volume levels per agent
 # Room is at 30% to create ambient background effect
 DEFAULT_VOLUMES: Dict[str, float] = {
-    "mc": 1.0,       # Full volume for host
+    "mc": 1.0,  # Full volume for host
     "partner": 1.0,  # Full volume for scene partner
-    "room": 0.3,     # 30% for ambient background
+    "room": 0.3,  # 30% for ambient background
 }
 
 
@@ -141,7 +141,9 @@ class AudioMixer:
 
             try:
                 # Convert bytes to int16 array
-                audio_array = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32)
+                audio_array = np.frombuffer(audio_bytes, dtype=np.int16).astype(
+                    np.float32
+                )
 
                 # Apply volume
                 volume = self._volumes.get(agent_type, 1.0)
@@ -165,7 +167,7 @@ class AudioMixer:
         for arr in arrays:
             if len(arr) < max_length:
                 padded = np.zeros(max_length, dtype=np.float32)
-                padded[:len(arr)] = arr
+                padded[: len(arr)] = arr
                 padded_arrays.append(padded)
             else:
                 padded_arrays.append(arr)

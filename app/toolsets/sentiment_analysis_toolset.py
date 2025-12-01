@@ -165,8 +165,7 @@ class SentimentAnalysisToolset(BaseToolset):
             "very_positive": "Audience is loving this! Strong positive reaction.",
             "positive": "Audience is responding well with positive energy.",
             "neutral": (
-                "Audience reaction is neutral - "
-                "neither strongly positive nor negative."
+                "Audience reaction is neutral - neither strongly positive nor negative."
             ),
             "negative": "Audience seems underwhelmed or mildly negative.",
             "very_negative": (
@@ -195,9 +194,7 @@ class SentimentAnalysisToolset(BaseToolset):
 
         return result
 
-    async def _analyze_engagement(
-        self, observations: List[str]
-    ) -> Dict[str, Any]:
+    async def _analyze_engagement(self, observations: List[str]) -> Dict[str, Any]:
         """Analyze audience engagement from behavioral observations.
 
         Args:
@@ -344,12 +341,9 @@ class SentimentAnalysisToolset(BaseToolset):
             ),
             "positive": "Keep momentum going. Audience is with you.",
             "neutral": (
-                "Warm up the audience. "
-                "Try a high-energy game or more interaction."
+                "Warm up the audience. Try a high-energy game or more interaction."
             ),
-            "lukewarm": (
-                "Change the energy. Consider switching game types or style."
-            ),
+            "lukewarm": ("Change the energy. Consider switching game types or style."),
             "disengaged": (
                 "Reset needed. "
                 "Try audience participation or break from current approach."

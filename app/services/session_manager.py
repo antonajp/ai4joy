@@ -409,9 +409,7 @@ class SessionManager:
             )
             raise
 
-    async def update_session_turn_count(
-        self, session_id: str, turn_count: int
-    ) -> None:
+    async def update_session_turn_count(self, session_id: str, turn_count: int) -> None:
         """Update session turn count (used by audio mode).
 
         Args:

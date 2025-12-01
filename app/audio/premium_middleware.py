@@ -46,7 +46,9 @@ class FallbackMode:
     message: str
 
 
-async def check_audio_access(user_profile: Optional[UserProfile]) -> AudioAccessResponse:
+async def check_audio_access(
+    user_profile: Optional[UserProfile],
+) -> AudioAccessResponse:
     """Check if user has access to audio features.
 
     Implements tier gating:
@@ -111,7 +113,9 @@ async def check_audio_access(user_profile: Optional[UserProfile]) -> AudioAccess
     # Add warning if approaching limit (< 5 minutes remaining)
     warning = None
     if remaining < 300:
-        warning = f"You have {remaining // 60} minutes of audio remaining in this period."
+        warning = (
+            f"You have {remaining // 60} minutes of audio remaining in this period."
+        )
 
     return AudioAccessResponse(
         allowed=True,

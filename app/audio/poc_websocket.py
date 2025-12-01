@@ -25,7 +25,7 @@ class AudioWebSocketHandler:
         logger.info(
             "WebSocket connection established",
             session_id=session_id,
-            active_connections=len(self.active_connections)
+            active_connections=len(self.active_connections),
         )
 
     def disconnect(self, session_id: str):
@@ -36,14 +36,11 @@ class AudioWebSocketHandler:
         logger.info(
             "WebSocket connection closed",
             session_id=session_id,
-            active_connections=len(self.active_connections)
+            active_connections=len(self.active_connections),
         )
 
     async def handle_message(
-        self,
-        websocket: WebSocket,
-        session_id: str,
-        message: Dict[str, Any]
+        self, websocket: WebSocket, session_id: str, message: Dict[str, Any]
     ):
         """
         Process incoming WebSocket message and send response.
@@ -59,30 +56,27 @@ class AudioWebSocketHandler:
             if msg_type == "text/plain":
                 await self._handle_text_message(websocket, message, start_time)
             elif msg_type == "audio/pcm":
-                await self._handle_audio_message(websocket, session_id, message, start_time)
+                await self._handle_audio_message(
+                    websocket, session_id, message, start_time
+                )
             else:
-                await websocket.send_json({
-                    "type": "error",
-                    "error": f"Unsupported message type: {msg_type}"
-                })
+                await websocket.send_json(
+                    {"type": "error", "error": f"Unsupported message type: {msg_type}"}
+                )
 
         except Exception as e:
             logger.error(
                 "Error handling WebSocket message",
                 session_id=session_id,
                 message_type=msg_type,
-                error=str(e)
+                error=str(e),
             )
-            await websocket.send_json({
-                "type": "error",
-                "error": "Internal server error processing message"
-            })
+            await websocket.send_json(
+                {"type": "error", "error": "Internal server error processing message"}
+            )
 
     async def _handle_text_message(
-        self,
-        websocket: WebSocket,
-        message: Dict[str, Any],
-        start_time: float
+        self, websocket: WebSocket, message: Dict[str, Any], start_time: float
     ):
         """Handle text/plain message type - simple echo"""
         text = message.get("text", "")
@@ -90,7 +84,7 @@ class AudioWebSocketHandler:
         response = {
             "type": "text/plain",
             "text": f"Echo: {text}",
-            "latency_ms": round((time.time() - start_time) * 1000, 2)
+            "latency_ms": round((time.time() - start_time) * 1000, 2),
         }
 
         await websocket.send_json(response)
@@ -98,7 +92,7 @@ class AudioWebSocketHandler:
         logger.debug(
             "Text message processed",
             text_length=len(text),
-            latency_ms=response["latency_ms"]
+            latency_ms=response["latency_ms"],
         )
 
     async def _handle_audio_message(
@@ -106,16 +100,15 @@ class AudioWebSocketHandler:
         websocket: WebSocket,
         session_id: str,
         message: Dict[str, Any],
-        start_time: float
+        start_time: float,
     ):
         """Handle audio/pcm message type - decode, measure, echo"""
         encoded_audio = message.get("audio")
 
         if not encoded_audio:
-            await websocket.send_json({
-                "type": "error",
-                "error": "Missing audio data in audio/pcm message"
-            })
+            await websocket.send_json(
+                {"type": "error", "error": "Missing audio data in audio/pcm message"}
+            )
             return
 
         try:
@@ -131,7 +124,7 @@ class AudioWebSocketHandler:
                 "latency_ms": round((encode_time - start_time) * 1000, 2),
                 "decode_ms": round((decode_time - start_time) * 1000, 2),
                 "encode_ms": round((encode_time - decode_time) * 1000, 2),
-                "audio_bytes": len(audio_bytes)
+                "audio_bytes": len(audio_bytes),
             }
 
             await websocket.send_json(response)
@@ -142,19 +135,16 @@ class AudioWebSocketHandler:
                 audio_bytes=len(audio_bytes),
                 total_latency_ms=response["latency_ms"],
                 decode_ms=response["decode_ms"],
-                encode_ms=response["encode_ms"]
+                encode_ms=response["encode_ms"],
             )
 
         except Exception as e:
             logger.error(
-                "Error processing audio data",
-                session_id=session_id,
-                error=str(e)
+                "Error processing audio data", session_id=session_id, error=str(e)
             )
-            await websocket.send_json({
-                "type": "error",
-                "error": "Failed to process audio data"
-            })
+            await websocket.send_json(
+                {"type": "error", "error": "Failed to process audio data"}
+            )
 
 
 audio_handler = AudioWebSocketHandler()
@@ -189,5 +179,5 @@ async def audio_websocket_endpoint(websocket: WebSocket, session_id: str):
             "WebSocket error",
             session_id=session_id,
             error=str(e),
-            error_type=type(e).__name__
+            error_type=type(e).__name__,
         )

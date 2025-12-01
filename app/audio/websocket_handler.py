@@ -270,11 +270,13 @@ class AudioWebSocketHandler:
                 await self._handle_control_message(websocket, session_id, message)
 
             else:
-                await websocket.send_json({
-                    "type": "error",
-                    "code": "UNSUPPORTED_MESSAGE_TYPE",
-                    "message": f"Unsupported message type: {msg_type}",
-                })
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "code": "UNSUPPORTED_MESSAGE_TYPE",
+                        "message": f"Unsupported message type: {msg_type}",
+                    }
+                )
 
         except Exception as e:
             logger.error(
@@ -283,11 +285,13 @@ class AudioWebSocketHandler:
                 message_type=msg_type,
                 error=str(e),
             )
-            await websocket.send_json({
-                "type": "error",
-                "code": "PROCESSING_ERROR",
-                "message": "Error processing message",
-            })
+            await websocket.send_json(
+                {
+                    "type": "error",
+                    "code": "PROCESSING_ERROR",
+                    "message": "Error processing message",
+                }
+            )
 
     async def _handle_audio_message(
         self,
@@ -310,11 +314,13 @@ class AudioWebSocketHandler:
             audio_length=len(encoded_audio) if encoded_audio else 0,
         )
         if not encoded_audio:
-            await websocket.send_json({
-                "type": "error",
-                "code": "MISSING_AUDIO",
-                "message": "Missing audio data in message",
-            })
+            await websocket.send_json(
+                {
+                    "type": "error",
+                    "code": "MISSING_AUDIO",
+                    "message": "Missing audio data in message",
+                }
+            )
             return
 
         try:
@@ -325,11 +331,13 @@ class AudioWebSocketHandler:
             result = await self.process_audio_message(session_id, audio_bytes)
 
             if result.get("error"):
-                await websocket.send_json({
-                    "type": "error",
-                    "code": "AUDIO_PROCESSING_ERROR",
-                    "message": result.get("message", "Failed to process audio"),
-                })
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "code": "AUDIO_PROCESSING_ERROR",
+                        "message": result.get("message", "Failed to process audio"),
+                    }
+                )
 
         except AudioCodecError as e:
             logger.warning(
@@ -337,11 +345,13 @@ class AudioWebSocketHandler:
                 session_id=session_id,
                 error=str(e),
             )
-            await websocket.send_json({
-                "type": "error",
-                "code": "DECODE_ERROR",
-                "message": str(e),
-            })
+            await websocket.send_json(
+                {
+                    "type": "error",
+                    "code": "DECODE_ERROR",
+                    "message": str(e),
+                }
+            )
         except Exception as e:
             logger.error(
                 "Unexpected error processing audio",
@@ -349,11 +359,13 @@ class AudioWebSocketHandler:
                 error=str(e),
                 error_type=type(e).__name__,
             )
-            await websocket.send_json({
-                "type": "error",
-                "code": "INTERNAL_ERROR",
-                "message": "Internal error processing audio",
-            })
+            await websocket.send_json(
+                {
+                    "type": "error",
+                    "code": "INTERNAL_ERROR",
+                    "message": "Internal error processing audio",
+                }
+            )
 
     async def _handle_text_message(
         self,
@@ -400,41 +412,51 @@ class AudioWebSocketHandler:
         action = message.get("action")
 
         if action == "start_listening":
-            logger.info("Start listening - sending activity_start", session_id=session_id)
+            logger.info(
+                "Start listening - sending activity_start", session_id=session_id
+            )
             # Signal to ADK that user is starting to speak
             await self.orchestrator.send_activity_start(session_id)
-            await websocket.send_json({
-                "type": "control",
-                "action": "listening_started",
-            })
+            await websocket.send_json(
+                {
+                    "type": "control",
+                    "action": "listening_started",
+                }
+            )
 
         elif action == "stop_listening":
             logger.info("Stop listening - sending activity_end", session_id=session_id)
             # Signal to ADK that user has finished speaking
             # This triggers the agent to process the audio and respond
             await self.orchestrator.send_activity_end(session_id)
-            await websocket.send_json({
-                "type": "control",
-                "action": "listening_stopped",
-            })
+            await websocket.send_json(
+                {
+                    "type": "control",
+                    "action": "listening_stopped",
+                }
+            )
 
         elif action == "switch_to_partner":
             logger.info("Switching to Partner Agent", session_id=session_id)
             result = await self.orchestrator.start_scene_with_partner(session_id)
 
             if result.get("error"):
-                await websocket.send_json({
-                    "type": "error",
-                    "code": "AGENT_SWITCH_FAILED",
-                    "message": result.get("message", "Failed to switch to Partner"),
-                })
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "code": "AGENT_SWITCH_FAILED",
+                        "message": result.get("message", "Failed to switch to Partner"),
+                    }
+                )
             else:
                 # Notify frontend of agent switch
-                await websocket.send_json({
-                    "type": "agent_switch",
-                    "agent": "partner",
-                    "phase": result.get("phase", 1),
-                })
+                await websocket.send_json(
+                    {
+                        "type": "agent_switch",
+                        "agent": "partner",
+                        "phase": result.get("phase", 1),
+                    }
+                )
                 logger.info(
                     "Agent switched to Partner",
                     session_id=session_id,
@@ -446,25 +468,31 @@ class AudioWebSocketHandler:
             result = await self.orchestrator.switch_to_mc(session_id)
 
             if result.get("error"):
-                await websocket.send_json({
-                    "type": "error",
-                    "code": "AGENT_SWITCH_FAILED",
-                    "message": result.get("message", "Failed to switch to MC"),
-                })
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "code": "AGENT_SWITCH_FAILED",
+                        "message": result.get("message", "Failed to switch to MC"),
+                    }
+                )
             else:
                 # Notify frontend of agent switch
-                await websocket.send_json({
-                    "type": "agent_switch",
-                    "agent": "mc",
-                })
+                await websocket.send_json(
+                    {
+                        "type": "agent_switch",
+                        "agent": "mc",
+                    }
+                )
                 logger.info("Agent switched to MC", session_id=session_id)
 
         else:
-            await websocket.send_json({
-                "type": "error",
-                "code": "UNKNOWN_ACTION",
-                "message": f"Unknown control action: {action}",
-            })
+            await websocket.send_json(
+                {
+                    "type": "error",
+                    "code": "UNKNOWN_ACTION",
+                    "message": f"Unknown control action: {action}",
+                }
+            )
 
 
 # Singleton handler instance
@@ -496,27 +524,33 @@ async def _stream_responses_to_client(
                     else:
                         encoded_audio = audio_data
 
-                    await websocket.send_json({
-                        "type": "audio",
-                        "data": encoded_audio,
-                        "sample_rate": 24000,
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "audio",
+                            "data": encoded_audio,
+                            "sample_rate": 24000,
+                        }
+                    )
 
             elif response_type == "transcription":
-                await websocket.send_json({
-                    "type": "transcription",
-                    "text": response.get("text", ""),
-                    "role": response.get("role", "agent"),
-                    "agent": response.get("agent", "mc"),  # Include agent type
-                    "is_final": response.get("is_final", True),
-                })
+                await websocket.send_json(
+                    {
+                        "type": "transcription",
+                        "text": response.get("text", ""),
+                        "role": response.get("role", "agent"),
+                        "agent": response.get("agent", "mc"),  # Include agent type
+                        "is_final": response.get("is_final", True),
+                    }
+                )
 
             elif response_type == "error":
-                await websocket.send_json({
-                    "type": "error",
-                    "code": "STREAM_ERROR",
-                    "message": response.get("message", "Unknown error"),
-                })
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "code": "STREAM_ERROR",
+                        "message": response.get("message", "Unknown error"),
+                    }
+                )
 
             elif response_type == "tool_call":
                 logger.debug(
@@ -533,12 +567,14 @@ async def _stream_responses_to_client(
 
             elif response_type == "room_vibe":
                 # Forward audience reaction to frontend for visual display
-                await websocket.send_json({
-                    "type": "room_vibe",
-                    "analysis": response.get("analysis", ""),
-                    "mood_metrics": response.get("mood_metrics", {}),
-                    "timestamp": response.get("timestamp"),
-                })
+                await websocket.send_json(
+                    {
+                        "type": "room_vibe",
+                        "analysis": response.get("analysis", ""),
+                        "mood_metrics": response.get("mood_metrics", {}),
+                        "timestamp": response.get("timestamp"),
+                    }
+                )
 
                 logger.info(
                     "Room vibe sent to client",
@@ -572,12 +608,14 @@ async def _stream_responses_to_client(
 
             elif response_type == "agent_switch":
                 # Agent has switched (MC -> Partner or Partner -> MC)
-                await websocket.send_json({
-                    "type": "agent_switch",
-                    "from_agent": response.get("from_agent"),
-                    "to_agent": response.get("to_agent"),
-                    "phase": response.get("phase", 1),
-                })
+                await websocket.send_json(
+                    {
+                        "type": "agent_switch",
+                        "from_agent": response.get("from_agent"),
+                        "to_agent": response.get("to_agent"),
+                        "phase": response.get("phase", 1),
+                    }
+                )
 
                 logger.info(
                     "Agent switch sent to client",
@@ -589,14 +627,16 @@ async def _stream_responses_to_client(
 
             elif response_type == "agent_switch_pending":
                 # Agent switch is pending (tool call detected)
-                await websocket.send_json({
-                    "type": "agent_switch_pending",
-                    "from_agent": response.get("from_agent"),
-                    "to_agent": response.get("to_agent"),
-                    "game_name": response.get("game_name"),
-                    "scene_premise": response.get("scene_premise"),
-                    "reason": response.get("reason"),
-                })
+                await websocket.send_json(
+                    {
+                        "type": "agent_switch_pending",
+                        "from_agent": response.get("from_agent"),
+                        "to_agent": response.get("to_agent"),
+                        "game_name": response.get("game_name"),
+                        "scene_premise": response.get("scene_premise"),
+                        "reason": response.get("reason"),
+                    }
+                )
 
                 logger.info(
                     "Agent switch pending sent to client",
@@ -639,7 +679,9 @@ async def audio_websocket_endpoint(
         game_name: Selected game name for scene context
     """
     # Connect with authentication
-    connected = await audio_handler.connect(websocket, session_id, auth_token, game_name)
+    connected = await audio_handler.connect(
+        websocket, session_id, auth_token, game_name
+    )
     if not connected:
         return
 

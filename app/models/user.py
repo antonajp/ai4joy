@@ -49,11 +49,17 @@ class UserProfile:
     email: str
     tier: UserTier
     display_name: Optional[str] = None
-    tier_assigned_at: Optional[datetime] = field(default_factory=lambda: datetime.now(timezone.utc))
+    tier_assigned_at: Optional[datetime] = field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
     tier_expires_at: Optional[datetime] = None
     audio_usage_seconds: int = 0
-    audio_usage_reset_at: Optional[datetime] = field(default_factory=lambda: datetime.now(timezone.utc))
-    created_at: Optional[datetime] = field(default_factory=lambda: datetime.now(timezone.utc))
+    audio_usage_reset_at: Optional[datetime] = field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+    created_at: Optional[datetime] = field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
     last_login_at: Optional[datetime] = None
     created_by: Optional[str] = None
 
