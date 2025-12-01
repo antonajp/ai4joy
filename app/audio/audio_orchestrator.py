@@ -617,9 +617,11 @@ class AudioStreamOrchestrator:
                     ),
                     has_content=bool(getattr(event, "content", None)),
                     is_partial=bool(getattr(event, "partial", False)),
-                    server_content=str(getattr(event, "server_content", None))[:100]
-                    if getattr(event, "server_content", None)
-                    else None,
+                    server_content=(
+                        str(getattr(event, "server_content", None))[:100]
+                        if getattr(event, "server_content", None)
+                        else None
+                    ),
                 )
 
                 responses = await self._process_event(event, session)
