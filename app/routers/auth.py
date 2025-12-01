@@ -322,8 +322,8 @@ async def get_websocket_token(request: Request):
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     try:
-        # Validate the session is still valid
-        session_data = session_middleware.serializer.loads(
+        # Validate session by attempting to deserialize (raises on invalid)
+        session_middleware.serializer.loads(
             session_cookie, max_age=session_middleware.max_age
         )
         # Return the session cookie value as the token
