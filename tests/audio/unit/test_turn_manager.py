@@ -1,42 +1,33 @@
 """
 Unit tests for AgentTurnManager.
-Tests turn-taking logic, phase transitions, and agent switching.
+
+Tests turn counting logic for the simplified audio architecture where
+the MC agent handles all interactions (hosting + scene work).
+
+Note: Multi-agent switching tests have been removed as the audio architecture
+no longer uses separate Partner/Room agents.
 """
 
 import pytest
 from unittest.mock import MagicMock, patch
 
 
-def test_initial_state_is_mc():
-    """Turn manager should start with MC as current agent."""
+def test_initial_turn_count_is_zero():
+    """Turn manager should start with turn count of zero."""
     from app.audio.turn_manager import AgentTurnManager
 
     manager = AgentTurnManager()
 
-    assert manager.get_current_agent_type() == "mc"
     assert manager.turn_count == 0
-    assert manager.phase == 1
 
 
-def test_start_partner_turn():
-    """Should successfully switch to partner agent."""
+def test_custom_starting_turn_count():
+    """Turn manager should accept custom starting turn count."""
     from app.audio.turn_manager import AgentTurnManager
 
-    manager = AgentTurnManager()
-    manager.start_partner_turn()
+    manager = AgentTurnManager(starting_turn_count=5)
 
-    assert manager.get_current_agent_type() == "partner"
-
-
-def test_start_mc_turn():
-    """Should successfully switch back to MC agent."""
-    from app.audio.turn_manager import AgentTurnManager
-
-    manager = AgentTurnManager()
-    manager.start_partner_turn()
-    manager.start_mc_turn()
-
-    assert manager.get_current_agent_type() == "mc"
+    assert manager.turn_count == 5
 
 
 def test_on_turn_complete_increments_count():
@@ -51,42 +42,6 @@ def test_on_turn_complete_increments_count():
     assert manager.turn_count == initial_count + 1
 
 
-def test_phase_transition_at_turn_5():
-    """Phase should transition from 1 to 2 after 5 turns."""
-    from app.audio.turn_manager import AgentTurnManager
-
-    manager = AgentTurnManager()
-
-    # Complete 5 turns
-    for _ in range(5):
-        manager.on_turn_complete()
-
-    assert manager.phase == 2
-
-
-def test_phase_remains_2_after_transition():
-    """Phase should remain 2 after transition, not go to 3."""
-    from app.audio.turn_manager import AgentTurnManager
-
-    manager = AgentTurnManager()
-
-    # Complete 10 turns (well past phase transition)
-    for _ in range(10):
-        manager.on_turn_complete()
-
-    assert manager.phase == 2
-
-
-def test_get_current_agent():
-    """Should return correct agent type string."""
-    from app.audio.turn_manager import AgentTurnManager
-
-    manager = AgentTurnManager()
-
-    assert manager.get_current_agent_type() in ["mc", "partner"]
-    assert isinstance(manager.get_current_agent_type(), str)
-
-
 def test_turn_count_tracking():
     """Turn count should accurately track number of completions."""
     from app.audio.turn_manager import AgentTurnManager
@@ -98,83 +53,96 @@ def test_turn_count_tracking():
         assert manager.turn_count == i
 
 
-def test_multiple_agent_switches():
-    """Should handle multiple agent switches correctly."""
+def test_on_turn_complete_returns_phase_1():
+    """Turn completion should always return phase_1 (supportive MC)."""
     from app.audio.turn_manager import AgentTurnManager
 
     manager = AgentTurnManager()
 
-    # MC → Partner → MC → Partner
-    assert manager.get_current_agent_type() == "mc"
-    manager.start_partner_turn()
-    assert manager.get_current_agent_type() == "partner"
-    manager.start_mc_turn()
-    assert manager.get_current_agent_type() == "mc"
-    manager.start_partner_turn()
-    assert manager.get_current_agent_type() == "partner"
+    result = manager.on_turn_complete()
+
+    assert result["phase"] == "phase_1"
+    assert result["phase_changed"] is False
 
 
-def test_phase_query_method():
-    """Should have method to query current phase."""
+def test_on_turn_complete_returns_status_ok():
+    """Turn completion should return ok status."""
     from app.audio.turn_manager import AgentTurnManager
 
     manager = AgentTurnManager()
 
-    # Phase is a property, not a method
-    assert hasattr(manager, "phase")
-    assert manager.phase == 1
+    result = manager.on_turn_complete()
 
-    for _ in range(5):
-        manager.on_turn_complete()
-
-    assert manager.phase == 2
+    assert result["status"] == "ok"
 
 
-def test_turn_manager_reset():
-    """Should be able to reset turn manager state."""
+def test_on_turn_complete_returns_turn_count():
+    """Turn completion should return updated turn count."""
+    from app.audio.turn_manager import AgentTurnManager
+
+    manager = AgentTurnManager()
+
+    result = manager.on_turn_complete()
+
+    assert result["turn_count"] == 1
+
+    result2 = manager.on_turn_complete()
+
+    assert result2["turn_count"] == 2
+
+
+def test_get_state_returns_turn_count():
+    """get_state should return current turn count."""
+    from app.audio.turn_manager import AgentTurnManager
+
+    manager = AgentTurnManager()
+    manager.on_turn_complete()
+    manager.on_turn_complete()
+    manager.on_turn_complete()
+
+    state = manager.get_state()
+
+    assert state["turn_count"] == 3
+
+
+def test_reset_clears_turn_count():
+    """Reset should clear turn count to zero."""
     from app.audio.turn_manager import AgentTurnManager
 
     manager = AgentTurnManager()
 
     # Advance state
-    manager.start_partner_turn()
-    for _ in range(3):
+    for _ in range(5):
         manager.on_turn_complete()
+
+    assert manager.turn_count == 5
 
     # Reset
     manager.reset()
 
-    assert manager.get_current_agent_type() == "mc"
     assert manager.turn_count == 0
-    assert manager.phase == 1
 
 
-def test_concurrent_turn_protection():
-    """Should prevent concurrent turn modifications."""
+def test_reset_with_custom_turn_count():
+    """Reset should accept custom turn count."""
+    from app.audio.turn_manager import AgentTurnManager
+
+    manager = AgentTurnManager()
+    manager.on_turn_complete()
+
+    manager.reset(turn_count=10)
+
+    assert manager.turn_count == 10
+
+
+def test_multiple_completions_always_phase_1():
+    """Multiple turn completions should always return phase_1."""
     from app.audio.turn_manager import AgentTurnManager
 
     manager = AgentTurnManager()
 
-    # Attempting to start partner turn while already in partner turn
-    manager.start_partner_turn()
-    current_agent = manager.get_current_agent_type()
-    manager.start_partner_turn()  # Should be idempotent or raise error
-
-    assert manager.get_current_agent_type() == current_agent
-
-
-@pytest.mark.skip(reason="Turn history tracking not yet implemented")
-def test_turn_history_tracking():
-    """Should track turn history for debugging."""
-    from app.audio.turn_manager import AgentTurnManager
-
-    manager = AgentTurnManager()
-
-    manager.start_partner_turn()
-    manager.on_turn_complete()
-    manager.start_mc_turn()
-    manager.on_turn_complete()
-
-    assert hasattr(manager, "get_turn_history")
-    history = manager.get_turn_history()
-    assert len(history) >= 2
+    # Complete many turns
+    for i in range(10):
+        result = manager.on_turn_complete()
+        assert result["phase"] == "phase_1"
+        assert result["phase_changed"] is False

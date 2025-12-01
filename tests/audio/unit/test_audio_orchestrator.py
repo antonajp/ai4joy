@@ -35,26 +35,27 @@ class TestAudioStreamOrchestrator:
         return runner
 
     @pytest.mark.asyncio
-    async def test_tc_orch_01_orchestrator_initializes_with_per_session_agents(self):
-        """TC-ORCH-01: AudioStreamOrchestrator creates per-session agents."""
+    async def test_tc_orch_01_orchestrator_initializes_with_per_session_mc_agent(self):
+        """TC-ORCH-01: AudioStreamOrchestrator creates per-session MC agent.
+
+        Note: Simplified audio architecture uses only MC agent (no Partner/Room).
+        MC handles both hosting and scene work.
+        """
         from app.audio.audio_orchestrator import AudioStreamOrchestrator
 
         orchestrator = AudioStreamOrchestrator()
         session_id = "test-session-init"
 
-        # Start session to create per-session agents
+        # Start session to create per-session MC agent
         await orchestrator.start_session(
             session_id, user_id="test-user-123", user_email="test@example.com"
         )
 
-        # Session should have both MC and Partner agents
+        # Session should have MC agent only (unified MC handles all interactions)
         session = await orchestrator.get_session(session_id)
         assert session is not None
         assert session.mc_agent is not None
-        assert session.mc_agent.name == "mc_agent_audio"
-        assert session.partner_agent is not None
-        assert session.partner_agent.name == "partner_agent_audio"
-        assert session.current_agent == "mc"  # Start with MC
+        assert session.mc_agent.name == "mc_agent_audio_unified"
 
     def test_tc_orch_02_orchestrator_creates_live_request_queue(self):
         """TC-ORCH-02: Orchestrator creates LiveRequestQueue for session."""
