@@ -774,6 +774,13 @@ class AudioStreamOrchestrator:
                     "is_final": is_final,
                 })
 
+                # Extract mood/vibe from MC's speech for visual feedback
+                # Only check final transcriptions to avoid duplicate updates
+                if is_final:
+                    mood_vibe = self._extract_mood_from_mc_transcription(text)
+                    if mood_vibe:
+                        responses.append(mood_vibe)
+
         # Handle content (audio/text responses)
         if hasattr(event, "content") and event.content:
             if hasattr(event.content, "parts") and event.content.parts:
@@ -821,6 +828,13 @@ class AudioStreamOrchestrator:
                             "agent": "mc",
                             "is_final": not is_partial,
                         })
+
+                        # Extract mood/vibe from MC's text content for visual feedback
+                        # Only check final (non-partial) content
+                        if not is_partial:
+                            mood_vibe = self._extract_mood_from_mc_transcription(text_val)
+                            if mood_vibe:
+                                responses.append(mood_vibe)
 
                     # Check for function calls (log but don't process)
                     if hasattr(part, "function_call") and part.function_call:
@@ -942,6 +956,116 @@ class AudioStreamOrchestrator:
                 error=str(e),
             )
             return None
+
+    def _extract_mood_from_mc_transcription(self, text: str) -> Optional[Dict[str, Any]]:
+        """Extract mood metrics from MC transcription text.
+
+        The MC naturally weaves audience reactions into their speech. We detect
+        these phrases and generate mood metrics to update the visual background.
+
+        This consolidates audience vibes into the MC's reactions, so audio mode
+        gets the same mood visualization as text mode without a separate room agent.
+
+        Args:
+            text: MC transcription text
+
+        Returns:
+            room_vibe dict if audience reaction phrases detected, None otherwise
+        """
+        if not text:
+            return None
+
+        text_lower = text.lower()
+
+        # Laughter detection phrases - high priority
+        laughter_phrases = [
+            "cracking up", "big laugh", "laughter", "laughing",
+            "that's hilarious", "crowd is dying", "rolling"
+        ]
+
+        # High excitement/celebration phrases
+        excitement_phrases = [
+            "crowd goes wild", "standing ovation", "cheering",
+            "crowd is loving", "energy building", "on the edge of their seats",
+            "rooting for you", "they're cheering", "amazing"
+        ]
+
+        # Positive engagement phrases
+        engagement_phrases = [
+            "audience is", "crowd is", "the room", "everyone's",
+            "nodding heads", "i can feel", "i hear", "i see"
+        ]
+
+        # Tension/anticipation phrases
+        tension_phrases = [
+            "goes quiet", "holding their breath", "anticipation",
+            "tension", "suspense"
+        ]
+
+        # Check for laughter first (highest impact)
+        has_laughter = any(phrase in text_lower for phrase in laughter_phrases)
+
+        # Check for excitement
+        has_excitement = any(phrase in text_lower for phrase in excitement_phrases)
+
+        # Check for general engagement
+        has_engagement = any(phrase in text_lower for phrase in engagement_phrases)
+
+        # Check for tension (still positive, but different mood)
+        has_tension = any(phrase in text_lower for phrase in tension_phrases)
+
+        # Only generate room_vibe if we detected audience-related content
+        if not (has_laughter or has_excitement or has_engagement or has_tension):
+            return None
+
+        # Calculate mood metrics based on detected content
+        sentiment_score = 0.5  # Neutral baseline
+        engagement_score = 0.5  # Neutral baseline
+
+        if has_laughter:
+            sentiment_score = 0.9  # Very positive
+            engagement_score = 0.95  # Highly engaged
+        elif has_excitement:
+            sentiment_score = 0.8  # Positive
+            engagement_score = 0.9  # Very engaged
+        elif has_tension:
+            sentiment_score = 0.6  # Slightly positive (anticipation is good)
+            engagement_score = 0.85  # Engaged and attentive
+        elif has_engagement:
+            sentiment_score = 0.7  # Positive
+            engagement_score = 0.75  # Engaged
+
+        mood_metrics = {
+            "sentiment_score": sentiment_score,
+            "engagement_score": engagement_score,
+            "laughter_detected": has_laughter,
+        }
+
+        # Create a brief analysis description
+        if has_laughter:
+            analysis = "The audience is laughing!"
+        elif has_excitement:
+            analysis = "The crowd is energized and excited!"
+        elif has_tension:
+            analysis = "The room is quiet with anticipation..."
+        else:
+            analysis = "The audience is engaged and watching intently."
+
+        logger.info(
+            "Extracted mood from MC transcription",
+            has_laughter=has_laughter,
+            has_excitement=has_excitement,
+            has_engagement=has_engagement,
+            sentiment=sentiment_score,
+            engagement=engagement_score,
+        )
+
+        return {
+            "type": "room_vibe",
+            "analysis": analysis,
+            "mood_metrics": mood_metrics,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
 
     async def _handle_event(self, event: Any) -> Dict[str, Any]:
         """Handle a single event (for testing).

@@ -272,14 +272,18 @@
 }
 
 /* Message styling by agent type */
+/* MC messages should match text mode styling - gradient background with white text */
 .message-mc .message-bubble,
 .message-bubble-mc {
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(99, 102, 241, 0.02));
-    border-left: 3px solid var(--primary, #6366f1);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
 }
 
 .message-mc .message-role {
     color: var(--primary, #6366f1);
+    font-size: 1rem;
 }
 
 .message-partner .message-bubble,
