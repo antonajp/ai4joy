@@ -128,12 +128,19 @@ The application implements **two different orchestration architectures** based o
 - **Stage Manager Orchestration**: Root agent coordinates 4 sub-agents per turn
 - **Synchronous Turn Execution**: HTTP POST to `/session/{id}/turn` triggers full agent workflow
 - **Simple Agent Flow**: MC → Partner → Room → Coach (all on every turn)
+- **Separate Room Agent**: Dedicated Room Agent provides audience text reactions and mood visualization
+
+**Audience Reactions:**
+- Room Agent emits text reactions that appear in the chat (e.g., audience suggestions, reactions)
+- Background color changes reflect audience sentiment (coral for laughter, warm amber for excitement)
+- Distinct separation between Partner Agent dialogue and audience feedback
 
 **Characteristics:**
 - ✅ Lower complexity - proven HTTP patterns
 - ✅ Easier to debug and monitor
 - ✅ Lower cost per session
 - ✅ All agents participate on every turn
+- ✅ Clear separation of audience vs scene partner
 - ⚠️  Higher latency (2-4 seconds per turn)
 - ⚠️  No real-time interaction
 
@@ -150,12 +157,27 @@ The application implements **two different orchestration architectures** based o
 - **Push-to-Talk**: Manual activity signals control user speech (no automatic VAD)
 - **Simple Turn Counting**: `AgentTurnManager` tracks turn count and phase transitions
 - **Voice Synthesis**: Real-time text-to-speech with MC voice configuration
+- **MC-Consolidated Audience Vibes**: MC naturally weaves audience reactions into speech
+
+**Audience Reactions (Consolidated into MC):**
+- MC verbally incorporates audience reactions: "The crowd is loving this!", "That got a big laugh!"
+- Audio orchestrator detects these phrases in MC transcriptions and triggers mood visualization
+- Same visual mood feedback (background color changes) as text mode, but through MC's natural speech
+- No separate Room Agent needed - simplifies architecture while maintaining user experience
+
+| MC Phrase Type | Sentiment | Engagement | Visual Effect |
+|---------------|-----------|------------|---------------|
+| Laughter | 0.9 | 0.95 | Coral flash |
+| Excitement | 0.8 | 0.9 | Warm Amber |
+| Tension | 0.6 | 0.85 | Subtle shift |
+| Engagement | 0.7 | 0.75 | Soft change |
 
 **Key Design Decisions (IQS-63):**
 1. **Unified MC Agent**: MC handles game hosting, scene partner work, and suggestions - no agent switching
 2. **Session Isolation**: Each session gets its own MC agent instance to prevent cross-talk
 3. **Simplified State**: Only track turn count and phase - no agent handoffs or coordination
 4. **Single Audio Stream**: One voice (MC) for consistent user experience
+5. **MC-Driven Mood**: Audience vibe extracted from MC speech rather than separate agent
 
 **Characteristics:**
 - 🎤 Real-time voice interaction with single MC voice
@@ -163,6 +185,7 @@ The application implements **two different orchestration architectures** based o
 - ✅ No agent handoffs or coordination complexity
 - ✅ Lower latency (~1 second response time)
 - ✅ Reduced API costs (~67% reduction from previous multi-agent design)
+- ✅ Same visual mood feedback as text mode
 - 💰 Premium-only feature (tier-gated)
 
 **Code Locations:**
@@ -182,6 +205,8 @@ The application implements **two different orchestration architectures** based o
 | **Interaction** | Turn-based | Real-time streaming |
 | **Audio** | None | PCM16 bidirectional streaming |
 | **Agent Coordination** | Stage Manager orchestrates | None (single agent) |
+| **Audience Reactions** | Separate Room Agent emits text | MC weaves reactions into speech |
+| **Mood Visualization** | Room Agent triggers color changes | MC phrases trigger color changes |
 | **Memory Overhead** | Low | Moderate (per-session agent) |
 | **Cost** | ~$0.20/session | ~$0.60/session |
 | **Complexity** | Moderate | Low-Moderate |
@@ -749,5 +774,5 @@ Copyright 2025 JP Antona. All rights reserved.
 ---
 
 **Project Status**: 🟢 Production Ready (ADK-First Architecture Complete)
-**Last Updated**: 2025-11-25
+**Last Updated**: 2025-11-30
 **Version**: 2.0.0 (ADK-First)
