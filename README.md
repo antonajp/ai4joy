@@ -2,7 +2,7 @@
 
 **An AI-Powered Social Gym for Improvisational Comedy Practice**
 
-> **Note:** This project uses **Application-Level OAuth 2.0** for authentication. See [OAUTH_IMPLEMENTATION_CHANGE.md](docs/OAUTH_IMPLEMENTATION_CHANGE.md) for details on why we chose application-level OAuth over IAP.
+> **Note:** This project uses **Application-Level OAuth 2.0** for authentication with Google Sign-In and email whitelist access control.
 
 Improv Olympics is a multi-agent AI application that enables users to practice improvisational comedy skills through interactive text-based sessions with specialized AI agents. Built on Google Cloud Platform with Application-Level OAuth 2.0 authentication and per-user rate limiting to support a pilot launch for 10-50 early adopters.
 
@@ -252,11 +252,11 @@ ai4joy/
 │   └── rollback.sh             # Rollback script
 │
 ├── docs/                       # Documentation
-│   ├── gcp-deployment-architecture.md
-│   ├── deployment-runbook.md
+│   ├── API_DOCUMENTATION.md
+│   ├── DEPLOYMENT.md
+│   ├── design_overview.md
 │   ├── FIRESTORE_SCHEMA.md
-│   ├── OAUTH_GUIDE.md
-│   └── OAUTH_IMPLEMENTATION_CHANGE.md
+│   └── OAUTH_GUIDE.md
 │
 ├── .claude/                    # Claude Code configuration
 │   ├── agents/                 # Specialized agents
@@ -272,25 +272,19 @@ ai4joy/
 
 ### Core Documentation
 
-- **[Application README](app/README.md)** - Detailed API documentation, local development setup
-- **[GCP Deployment Architecture](docs/gcp-deployment-architecture.md)** - Infrastructure design and rationale
-- **[Deployment Runbook](docs/deployment-runbook.md)** - Step-by-step deployment procedures
-- **[OAuth Guide](docs/OAUTH_GUIDE.md)** - OAuth 2.0 setup and user management
-- **[OAuth Implementation Change](docs/OAUTH_IMPLEMENTATION_CHANGE.md)** - Why we changed from IAP to app-level OAuth
+- **[Application README](app/README.md)** - Backend application, API endpoints, local development setup
+- **[Deployment Guide](docs/DEPLOYMENT.md)** - Complete deployment procedures and infrastructure setup
+- **[OAuth Guide](docs/OAUTH_GUIDE.md)** - OAuth 2.0 setup and user access management
+- **[API Documentation](docs/API_DOCUMENTATION.md)** - Complete API reference
 - **[Firestore Schema](docs/FIRESTORE_SCHEMA.md)** - Database schema documentation
-- **[Terraform README](infrastructure/terraform/README.md)** - Infrastructure configuration
-
-### Implementation Documentation
-
-- **[Implementation Summary](IMPLEMENTATION_SUMMARY.md)** - Complete implementation details for IQS-45
-- **[Application README](APPLICATION_README.md)** - Application-specific implementation notes
-- **[Deployment Summary](docs/DEPLOYMENT_SUMMARY_IQS45.md)** - Deployment details for IQS-45
+- **[Design Overview](docs/design_overview.md)** - Original vision and design philosophy
+- **[Terraform README](infrastructure/terraform/README.md)** - Infrastructure as code configuration
 
 ### Testing Documentation
 
 - **[Testing Summary](tests/TESTING_SUMMARY.md)** - Test strategy and results
-- **[OAuth Test Report](tests/IQS45_OAUTH_TEST_REPORT.md)** - OAuth integration test results
 - **[Manual Test Procedures](tests/OAUTH_MANUAL_TEST_PROCEDURES.md)** - Manual testing steps
+- **[Tests README](tests/README.md)** - Testing guide and execution
 
 ## Deployment
 

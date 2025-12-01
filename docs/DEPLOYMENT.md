@@ -1,6 +1,6 @@
 # Improv Olympics - GCP Deployment Guide
 
-> **Note:** This project uses **Application-Level OAuth 2.0** for authentication. See [docs/OAUTH_IMPLEMENTATION_CHANGE.md](docs/OAUTH_IMPLEMENTATION_CHANGE.md) for details on why we chose application-level OAuth over IAP.
+> **Note:** This project uses **Application-Level OAuth 2.0** for authentication with Google Sign-In and email whitelist access control.
 
 Complete guide for deploying the Improv Olympics multi-agent application to Google Cloud Platform.
 
@@ -41,37 +41,12 @@ cd ../..
 
 ## Documentation Structure
 
-This deployment includes comprehensive documentation:
+This deployment guide provides complete infrastructure setup procedures. Additional documentation:
 
-### Core Documentation
-
-1. **[GCP Deployment Architecture](docs/gcp-deployment-architecture.md)**
-   - Complete infrastructure design
-   - Service selection rationale
-   - Cost analysis
-   - Security configuration
-   - Monitoring setup
-   - WebSocket architecture (future)
-
-2. **[Deployment Runbook](docs/deployment-runbook.md)**
-   - Step-by-step deployment procedures
-   - Rollback procedures
-   - Troubleshooting guide
-   - Incident response procedures
-   - Maintenance tasks
-
-3. **[OAuth Guide](docs/OAUTH_GUIDE.md)**
-   - Application-Level OAuth 2.0 setup
-   - Managing user access via ALLOWED_USERS
-   - Testing OAuth flow
-   - Per-user rate limiting
-   - Troubleshooting authentication issues
-
-4. **[Terraform README](infrastructure/terraform/README.md)**
-   - Terraform configuration guide
-   - Variable documentation
-   - Common operations
-   - Security best practices
+- **[OAuth Guide](OAUTH_GUIDE.md)** - OAuth 2.0 setup and user access management
+- **[API Documentation](API_DOCUMENTATION.md)** - Complete API reference
+- **[Terraform README](../infrastructure/terraform/README.md)** - Infrastructure as code configuration
+- **[Firestore Schema](FIRESTORE_SCHEMA.md)** - Database schema documentation
 
 ### Infrastructure as Code
 
@@ -211,7 +186,7 @@ This deployment includes comprehensive documentation:
 **High usage** (10,000 sessions/month):
 - **Total: ~$425/month**
 
-See [Cost Analysis](docs/gcp-deployment-architecture.md#8-cost-analysis--optimization) for detailed breakdown and optimization strategies.
+For cost optimization strategies, adjust `min_instances`, `max_instances`, and rate limits in `terraform.tfvars`.
 
 ## Prerequisites
 
@@ -562,8 +537,6 @@ If deployment fails or causes issues:
 
 ## Troubleshooting
 
-See [Deployment Runbook - Troubleshooting](docs/deployment-runbook.md#troubleshooting) for detailed procedures.
-
 ### Common Issues
 
 **SSL Certificate Not Provisioning**
@@ -600,15 +573,15 @@ See [Deployment Runbook - Troubleshooting](docs/deployment-runbook.md#troublesho
    - Review logs for suspicious activity
 
 5. **Rotate secrets regularly**
-   - Rotate session_encryption_key quarterly
-   - Follow [Maintenance Procedures](docs/deployment-runbook.md#maintenance-procedures)
+   - Rotate SESSION_SECRET_KEY quarterly
+   - Use `gcloud secrets versions add` to rotate secrets
 
 ## Support
 
 ### Documentation
-- [GCP Deployment Architecture](docs/gcp-deployment-architecture.md)
-- [Deployment Runbook](docs/deployment-runbook.md)
-- [Terraform README](infrastructure/terraform/README.md)
+- [OAuth Guide](OAUTH_GUIDE.md)
+- [API Documentation](API_DOCUMENTATION.md)
+- [Terraform README](../infrastructure/terraform/README.md)
 
 ### Resources
 - [GCP Documentation](https://cloud.google.com/docs)

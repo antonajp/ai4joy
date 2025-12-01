@@ -177,7 +177,6 @@ gcloud run deploy improv-olympics ...
 
 ```
 tests/
-├── GCP_DEPLOYMENT_TEST_PLAN.md          # Comprehensive test plan (43 test cases)
 ├── TESTING_SUMMARY.md                   # This file - executive summary
 ├── README.md                            # Detailed test execution guide
 ├── run_tests.sh                         # Quick test execution script
@@ -268,7 +267,7 @@ tests/
 ## Next Steps
 
 ### Before First Deployment
-1. ✅ Review complete test plan (`GCP_DEPLOYMENT_TEST_PLAN.md`)
+1. ✅ Review test suite (see `README.md`)
 2. ✅ Set up GCP project and credentials
 3. ✅ Install test dependencies
 4. ✅ Run pre-deployment tests locally
@@ -314,9 +313,9 @@ tests/
 
 ## Documentation References
 
-- **Complete Test Plan:** `GCP_DEPLOYMENT_TEST_PLAN.md`
-- **Execution Guide:** `README.md`
+- **Test Execution Guide:** `README.md`
 - **Design Overview:** `/docs/design_overview.md`
+- **Deployment Guide:** `/docs/DEPLOYMENT.md`
 - **GCP Documentation:** https://cloud.google.com/run/docs
 
 ---
