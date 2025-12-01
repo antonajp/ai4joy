@@ -557,11 +557,11 @@ After test execution:
 
 ## Additional Resources
 
-- **IAP Documentation:** https://cloud.google.com/iap/docs
+- **OAuth 2.0 Documentation:** https://cloud.google.com/docs/authentication
 - **OAuth 2.0 Spec:** https://oauth.net/2/
-- **GCP Test Plan:** `/tests/GCP_DEPLOYMENT_TEST_PLAN.md`
-- **OAuth Integration Summary:** `/docs/OAUTH_INTEGRATION_SUMMARY.md`
-- **Linear Ticket:** IQS-45
+- **Testing Summary:** `/tests/TESTING_SUMMARY.md`
+- **OAuth Guide:** `/docs/OAUTH_GUIDE.md`
+- **Deployment Guide:** `/docs/DEPLOYMENT.md`
 
 ---
 

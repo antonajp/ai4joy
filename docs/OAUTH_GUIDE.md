@@ -1,8 +1,6 @@
 # Application-Level OAuth 2.0 User Management Guide
 
-> **Note:** This project uses **Application-Level OAuth 2.0** for authentication. See [OAUTH_IMPLEMENTATION_CHANGE.md](OAUTH_IMPLEMENTATION_CHANGE.md) for details on why we chose application-level OAuth over IAP.
-
-Complete guide for managing user access to the Improv Olympics application via Application-Level Google OAuth 2.0.
+Complete guide for managing user access to the Improv Olympics application via Application-Level Google OAuth 2.0 with email whitelist access control.
 
 ## Table of Contents
 
@@ -466,9 +464,9 @@ terraform apply
 ## Support
 
 ### Documentation
-- OAuth Implementation Change: [OAUTH_IMPLEMENTATION_CHANGE.md](OAUTH_IMPLEMENTATION_CHANGE.md)
-- GCP Deployment Architecture: [gcp-deployment-architecture.md](gcp-deployment-architecture.md)
-- Deployment Guide: [../DEPLOYMENT.md](../DEPLOYMENT.md)
+- Deployment Guide: [DEPLOYMENT.md](DEPLOYMENT.md)
+- API Documentation: [API_DOCUMENTATION.md](API_DOCUMENTATION.md)
+- Firestore Schema: [FIRESTORE_SCHEMA.md](FIRESTORE_SCHEMA.md)
 
 ### Console Links
 - OAuth Credentials: https://console.cloud.google.com/apis/credentials

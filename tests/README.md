@@ -6,7 +6,8 @@ Comprehensive testing suite for GCP production deployment of the Improv Olympics
 
 ```
 tests/
-├── GCP_DEPLOYMENT_TEST_PLAN.md    # Comprehensive test plan with all test cases
+├── TESTING_SUMMARY.md              # Test strategy overview
+├── README.md                       # This file - test execution guide
 ├── conftest.py                     # Shared pytest fixtures and configuration
 ├── requirements-test.txt           # Python testing dependencies
 │
@@ -320,16 +321,16 @@ open htmlcov/index.html
 
 When adding new tests:
 
-1. Add test case to `GCP_DEPLOYMENT_TEST_PLAN.md`
-2. Implement test in appropriate subdirectory
-3. Add necessary fixtures to `conftest.py`
+1. Implement test in appropriate subdirectory
+2. Add necessary fixtures to `conftest.py`
+3. Update `TESTING_SUMMARY.md` if adding new test categories
 4. Update this README with execution instructions
 5. Ensure tests pass locally before committing
 
 ## Support
 
 For questions or issues:
-- Review test plan: `GCP_DEPLOYMENT_TEST_PLAN.md`
+- Review test strategy: `TESTING_SUMMARY.md`
 - Check Cloud Logging for deployment issues
 - Verify GCP quotas and permissions
 

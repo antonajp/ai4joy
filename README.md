@@ -2,7 +2,7 @@
 
 **An AI-Powered Social Gym for Improvisational Comedy Practice**
 
-> **Note:** This project uses **Application-Level OAuth 2.0** for authentication. See [OAUTH_IMPLEMENTATION_CHANGE.md](docs/OAUTH_IMPLEMENTATION_CHANGE.md) for details on why we chose application-level OAuth over IAP.
+> **Note:** This project uses **Application-Level OAuth 2.0** for authentication with Google Sign-In and email whitelist access control.
 
 Improv Olympics is a multi-agent AI application that enables users to practice improvisational comedy skills through interactive text-based sessions with specialized AI agents. Built on Google Cloud Platform with Application-Level OAuth 2.0 authentication and per-user rate limiting to support a pilot launch for 10-50 early adopters.
 
@@ -114,6 +114,93 @@ All agents backed by:
 - ADK CloudTraceCallback (observability)
 - Singleton InMemoryRunner (efficient execution)
 ```
+
+## Orchestration Modes: Text vs Audio
+
+The application implements **two different orchestration architectures** based on user tier:
+
+### Text Mode (Free & Regular Tiers)
+
+**HTTP-based request/response model** with multi-agent orchestration:
+
+**Architecture:**
+- **Single Singleton Runner**: One shared `InMemoryRunner` instance across all text sessions
+- **Stage Manager Orchestration**: Root agent coordinates 4 sub-agents per turn
+- **Synchronous Turn Execution**: HTTP POST to `/session/{id}/turn` triggers full agent workflow
+- **Simple Agent Flow**: MC → Partner → Room → Coach (all on every turn)
+
+**Characteristics:**
+- ✅ Lower complexity - proven HTTP patterns
+- ✅ Easier to debug and monitor
+- ✅ Lower cost per session
+- ✅ All agents participate on every turn
+- ⚠️  Higher latency (2-4 seconds per turn)
+- ⚠️  No real-time interaction
+
+**Code Location:** `app/services/turn_orchestrator.py`
+
+### Audio Mode (Premium Tier)
+
+**WebSocket-based streaming with unified MC agent** (simplified in IQS-63):
+
+**Architecture:**
+- **Per-Session Runner**: Each audio session gets its own `Runner` instance for isolation
+- **Single MC Agent**: One unified MC agent handles both hosting AND scene work per session
+- **Live API Integration**: Uses ADK's `run_live()` for real-time bidirectional audio streaming
+- **Push-to-Talk**: Manual activity signals control user speech (no automatic VAD)
+- **Simple Turn Counting**: `AgentTurnManager` tracks turn count and phase transitions
+- **Voice Synthesis**: Real-time text-to-speech with MC voice configuration
+
+**Key Design Decisions (IQS-63):**
+1. **Unified MC Agent**: MC handles game hosting, scene partner work, and suggestions - no agent switching
+2. **Session Isolation**: Each session gets its own MC agent instance to prevent cross-talk
+3. **Simplified State**: Only track turn count and phase - no agent handoffs or coordination
+4. **Single Audio Stream**: One voice (MC) for consistent user experience
+
+**Characteristics:**
+- 🎤 Real-time voice interaction with single MC voice
+- ✅ Simple architecture - one agent per session
+- ✅ No agent handoffs or coordination complexity
+- ✅ Lower latency (~1 second response time)
+- ✅ Reduced API costs (~67% reduction from previous multi-agent design)
+- 💰 Premium-only feature (tier-gated)
+
+**Code Locations:**
+- Main: `app/audio/audio_orchestrator.py`
+- WebSocket Handler: `app/audio/websocket_handler.py`
+- Turn Management: `app/audio/turn_manager.py`
+- Voice Config: `app/audio/voice_config.py`
+
+### Comparison Table
+
+| Aspect | Text Mode (Regular) | Audio Mode (Premium) |
+|--------|-------------------|---------------------|
+| **Transport** | HTTP POST | WebSocket |
+| **Runner** | 1 singleton shared | 1 per session |
+| **Agents** | Stage Manager + 4 sub-agents | Single MC agent |
+| **Latency** | 2-4 seconds | ~1 second |
+| **Interaction** | Turn-based | Real-time streaming |
+| **Audio** | None | PCM16 bidirectional streaming |
+| **Agent Coordination** | Stage Manager orchestrates | None (single agent) |
+| **Memory Overhead** | Low | Moderate (per-session agent) |
+| **Cost** | ~$0.20/session | ~$0.60/session |
+| **Complexity** | Moderate | Low-Moderate |
+| **Phase Transitions** | Yes | Yes (same logic) |
+
+### When to Use Each Mode
+
+**Text Mode (Default):**
+- Initial user onboarding
+- Cost-sensitive deployments
+- Mobile/low-bandwidth scenarios
+- Testing and development
+- All user tiers (free, regular, premium)
+
+**Audio Mode (Premium Feature):**
+- Premium users seeking immersive voice experience
+- Natural conversation practice
+- Real-time improv sessions
+- Users with stable internet connections
 
 ## Key Features
 
@@ -246,17 +333,24 @@ ai4joy/
 │   ├── test_rate_limiting.py   # Rate limit tests
 │   └── test_infrastructure.py  # Infrastructure validation
 │
-├── scripts/                    # Deployment scripts
+├── scripts/                    # Operational scripts
 │   ├── setup.sh                # Initial GCP setup
 │   ├── deploy.sh               # Application deployment
-│   └── rollback.sh             # Rollback script
+│   ├── rollback.sh             # Rollback to previous revision
+│   ├── seed_firestore_tool_data.py  # Seed Firestore with tool data
+│   ├── manage_users.py         # User tier management
+│   ├── reset_limits.py         # Reset user rate limits
+│   ├── logs.sh                 # View application logs
+│   ├── smoke_test.py           # Post-deployment validation
+│   ├── test_local_app.sh       # Local testing script
+│   └── test_turn.py            # Turn execution testing
 │
 ├── docs/                       # Documentation
-│   ├── gcp-deployment-architecture.md
-│   ├── deployment-runbook.md
+│   ├── API_DOCUMENTATION.md
+│   ├── DEPLOYMENT.md
+│   ├── design_overview.md
 │   ├── FIRESTORE_SCHEMA.md
-│   ├── OAUTH_GUIDE.md
-│   └── OAUTH_IMPLEMENTATION_CHANGE.md
+│   └── OAUTH_GUIDE.md
 │
 ├── .claude/                    # Claude Code configuration
 │   ├── agents/                 # Specialized agents
@@ -272,25 +366,148 @@ ai4joy/
 
 ### Core Documentation
 
-- **[Application README](app/README.md)** - Detailed API documentation, local development setup
-- **[GCP Deployment Architecture](docs/gcp-deployment-architecture.md)** - Infrastructure design and rationale
-- **[Deployment Runbook](docs/deployment-runbook.md)** - Step-by-step deployment procedures
-- **[OAuth Guide](docs/OAUTH_GUIDE.md)** - OAuth 2.0 setup and user management
-- **[OAuth Implementation Change](docs/OAUTH_IMPLEMENTATION_CHANGE.md)** - Why we changed from IAP to app-level OAuth
+- **[Application README](app/README.md)** - Backend application, API endpoints, local development setup
+- **[Deployment Guide](docs/DEPLOYMENT.md)** - Complete deployment procedures and infrastructure setup
+- **[OAuth Guide](docs/OAUTH_GUIDE.md)** - OAuth 2.0 setup and user access management
+- **[API Documentation](docs/API_DOCUMENTATION.md)** - Complete API reference
 - **[Firestore Schema](docs/FIRESTORE_SCHEMA.md)** - Database schema documentation
-- **[Terraform README](infrastructure/terraform/README.md)** - Infrastructure configuration
-
-### Implementation Documentation
-
-- **[Implementation Summary](IMPLEMENTATION_SUMMARY.md)** - Complete implementation details for IQS-45
-- **[Application README](APPLICATION_README.md)** - Application-specific implementation notes
-- **[Deployment Summary](docs/DEPLOYMENT_SUMMARY_IQS45.md)** - Deployment details for IQS-45
+- **[Design Overview](docs/design_overview.md)** - Original vision and design philosophy
+- **[Terraform README](infrastructure/terraform/README.md)** - Infrastructure as code configuration
 
 ### Testing Documentation
 
 - **[Testing Summary](tests/TESTING_SUMMARY.md)** - Test strategy and results
-- **[OAuth Test Report](tests/IQS45_OAUTH_TEST_REPORT.md)** - OAuth integration test results
 - **[Manual Test Procedures](tests/OAUTH_MANUAL_TEST_PROCEDURES.md)** - Manual testing steps
+- **[Tests README](tests/README.md)** - Testing guide and execution
+
+## Data Model & Firestore Collections
+
+The application uses Google Cloud Firestore for persistent storage across three primary domains:
+
+### Core Collections
+
+**1. `sessions` - Active Game Sessions**
+- **Purpose**: Stores active and completed improv game sessions with full conversation history
+- **Document ID**: Auto-generated UUID (e.g., `a1b2c3d4-e5f6-7890-abcd-ef1234567890`)
+- **Key Fields**:
+  - `user_id`, `user_email` - OAuth user identification
+  - `status` - `active`, `completed`, `abandoned`
+  - `current_phase` - `PHASE_1_SUPPORT`, `PHASE_2_FALLIBLE`
+  - `turn_count` - Number of completed turns
+  - `game_type` - Selected improv game
+  - `location` - Scene location
+  - `conversation_history` - Full turn-by-turn conversation with timestamps
+  - `game_state` - Current phase, suggestion counts, performer tracking
+- **Usage**: Session lifecycle management, conversation persistence, phase transitions
+- **Indexes**: `user_id + created_at`, `status + created_at`, `user_id + status`
+
+**2. `user_limits` - Rate Limiting & Cost Tracking**
+- **Purpose**: Per-user rate limiting and cost management
+- **Document ID**: OAuth user ID (e.g., `google-oauth2|1234567890`)
+- **Key Fields**:
+  - `user_id`, `email` - User identification
+  - `sessions_today` - Daily session counter (resets midnight UTC)
+  - `last_reset` - Last daily reset timestamp
+  - `active_sessions` - Current concurrent session count
+  - `active_session_ids` - List of active session IDs
+  - `total_sessions` - All-time session counter
+  - `total_cost_estimate`, `daily_cost_today` - Cost tracking in USD
+  - `rate_limit_overrides` - Custom limits for admins/testers
+  - `flags` - `is_admin`, `is_tester`, `unlimited_sessions`
+- **Usage**: Rate limit enforcement (10/day, 3 concurrent), cost monitoring
+- **Indexes**: `email`, `sessions_today + last_reset`, `daily_cost_today`
+
+**3. `users` - User Profiles & Tier Management**
+- **Purpose**: User tier management (free, regular, premium) and access control
+- **Document ID**: User email (e.g., `user@example.com`)
+- **Key Fields**:
+  - `email` - Unique identifier
+  - `tier` - `free`, `regular`, `premium`
+  - `created_at`, `updated_at` - Audit timestamps
+  - `created_by` - Admin who created/migrated user
+  - `audio_enabled` - Premium feature flag
+- **Usage**: Tier-based feature gating (audio mode for premium only)
+- **Script**: `scripts/manage_users.py` for user management
+
+### Tool Data Collections
+
+These collections store static reference data seeded via `scripts/seed_firestore_tool_data.py`:
+
+**4. `improv_games` - Game Database**
+- **Purpose**: Available improv game formats with rules and constraints
+- **Fields**: `id`, `name`, `description`, `rules`, `constraints`, `difficulty`
+- **Usage**: MC Agent selects games for sessions
+
+**5. `improv_principles` - Coaching Database**
+- **Purpose**: Core improv principles for Coach Agent feedback
+- **Fields**: `id`, `principle`, `description`, `examples`, `anti_patterns`
+- **Usage**: Coach Agent provides principle-based feedback
+
+**6. `audience_archetypes` - Demographic Generator**
+- **Purpose**: Audience persona templates for Room Agent
+- **Fields**: `id`, `archetype`, `traits`, `reactions`, `catchphrases`
+- **Usage**: Room Agent simulates diverse audience reactions
+
+**7. `sentiment_keywords` - Sentiment Analysis**
+- **Purpose**: Keyword lists for sentiment analysis
+- **Fields**: `id`, `keyword`, `sentiment` (positive/negative/neutral), `weight`
+- **Usage**: Room Agent sentiment gauge for scene vibe
+
+### Configuration Collection
+
+**8. `admin_config` - Global Settings (Optional)**
+- **Purpose**: Application-wide configuration and circuit breakers
+- **Document ID**: `rate_limits`
+- **Fields**:
+  - `default_daily_session_limit`, `default_concurrent_session_limit`
+  - `max_cost_per_user_per_day`
+  - `emergency_circuit_breaker` - Cost protection threshold
+  - `feature_flags` - `rate_limiting_enabled`, `cost_tracking_enabled`
+- **Usage**: Global rate limit defaults, emergency controls
+
+### Data Flow
+
+```
+User Session Creation
+  ↓
+1. Check `user_limits` for rate limits
+2. Create document in `sessions`
+3. Increment counters in `user_limits`
+  ↓
+Turn Execution (Text Mode)
+  ↓
+4. Read `sessions` for conversation history
+5. Query `improv_games`, `improv_principles` (tools)
+6. Update `sessions` with new turn data
+  ↓
+Audio Session (Premium)
+  ↓
+7. Check `users` tier for audio access
+8. Per-session agents query tool collections
+9. Real-time updates to `sessions`
+  ↓
+Session Cleanup
+  ↓
+10. Update `sessions` status to completed
+11. Decrement `user_limits.active_sessions`
+12. Track cost in `user_limits`
+```
+
+### Initialization
+
+```bash
+# After infrastructure deployment, seed tool data collections
+python scripts/seed_firestore_tool_data.py
+
+# Manage user tiers
+python scripts/manage_users.py add user@example.com premium
+python scripts/manage_users.py list
+
+# Reset rate limits (operations)
+python scripts/reset_limits.py user_id
+```
+
+See [FIRESTORE_SCHEMA.md](docs/FIRESTORE_SCHEMA.md) for complete schema documentation including field types, security rules, and backup procedures.
 
 ## Deployment
 
@@ -427,6 +644,34 @@ curl http://localhost:8080/api/v1/session/start \
 curl http://localhost:8080/auth/user \
   -H "Cookie: session=<your-session-cookie>"
 ```
+
+## Operational Scripts
+
+The `scripts/` directory contains operational utilities for deployment and maintenance. See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for complete documentation.
+
+### Quick Reference
+
+```bash
+# Setup & Initialization
+./scripts/setup.sh                                    # One-time GCP setup
+python scripts/seed_firestore_tool_data.py            # Seed Firestore with tool data
+
+# Deployment
+./scripts/deploy.sh                                   # Deploy application
+./scripts/rollback.sh                                 # Rollback deployment
+
+# User Management
+python scripts/manage_users.py add user@example.com premium
+python scripts/manage_users.py list
+python scripts/manage_users.py remove user@example.com
+
+# Operations
+python scripts/reset_limits.py user_id                # Reset rate limits
+./scripts/logs.sh tail                                # View logs
+python scripts/smoke_test.py --url https://ai4joy.org # Post-deployment tests
+```
+
+See [Deployment Scripts Documentation](docs/DEPLOYMENT.md#deployment-scripts) for detailed usage.
 
 ## Current Status
 
