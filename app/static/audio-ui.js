@@ -43,6 +43,9 @@ class AudioUIController {
         this.audioManager.onAgentSwitch = (data) => {
             this.handleAgentSwitch(data);
         };
+        this.audioManager.onRoomVibe = (data) => {
+            this.handleRoomVibe(data);
+        };
     }
 
     handleTurnComplete(data) {
@@ -106,6 +109,61 @@ class AudioUIController {
         marker.innerHTML = `<hr><span>Switched to ${agentName} - ${time}</span><hr>`;
         container.appendChild(marker);
         container.scrollTop = container.scrollHeight;
+    }
+
+    handleRoomVibe(data) {
+        const { analysis, moodMetrics, timestamp } = data;
+        this.logger.info('Room vibe:', analysis ? analysis.substring(0, 50) : '');
+
+        // Use existing displayRoomMessage function from app.js if available
+        if (typeof displayRoomMessage === 'function') {
+            // Convert to the format expected by displayRoomMessage
+            const roomVibe = {
+                analysis: analysis,
+                mood_metrics: moodMetrics
+            };
+            displayRoomMessage(roomVibe, timestamp || new Date().toISOString());
+        } else {
+            // Fallback: directly update mood visualizer and display message
+            if (moodMetrics && typeof moodVisualizer !== 'undefined') {
+                moodVisualizer.update(moodMetrics);
+            }
+            this.displayRoomVibeMessage(analysis, timestamp);
+        }
+
+        // Announce to screen reader for accessibility
+        if (analysis) {
+            this.announceToScreenReader(`Audience reaction: ${analysis}`);
+        }
+    }
+
+    displayRoomVibeMessage(analysis, timestamp) {
+        const container = document.getElementById('messages-container');
+        if (!container || !analysis) return;
+
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'message message-room';
+
+        const time = this.formatTime(timestamp ? new Date(timestamp) : new Date());
+
+        messageDiv.innerHTML = `
+            <div class="message-header">
+                <span class="message-role">Audience Vibe</span>
+                <span class="message-time">${time}</span>
+            </div>
+            <div class="message-bubble">
+                <p class="message-text">${this.escapeHtml(analysis)}</p>
+            </div>
+        `;
+
+        container.appendChild(messageDiv);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     async initialize(isPremium) {

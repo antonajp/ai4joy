@@ -6,6 +6,7 @@ audio conversations with the MC Agent.
 """
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, AsyncGenerator
 
 from google.adk.runners import RunConfig
@@ -853,6 +854,12 @@ class AudioStreamOrchestrator:
                 "speak": True,
             })
 
+            # Check if this is an audience-related tool result
+            # Generate room_vibe event for visual display in frontend
+            room_vibe = self._extract_room_vibe_from_tool_result(event.tool_result)
+            if room_vibe:
+                responses.append(room_vibe)
+
         # Log turn completion for debugging
         if hasattr(event, "turn_complete") and event.turn_complete:
             logger.info("Agent turn completed")
@@ -861,6 +868,80 @@ class AudioStreamOrchestrator:
             logger.info("Agent was interrupted by user")
 
         return responses
+
+    def _extract_room_vibe_from_tool_result(self, tool_result: Any) -> Optional[Dict[str, Any]]:
+        """Extract room_vibe event from audience-related tool results.
+
+        When the MC calls audience tools like _get_suggestion_for_game or
+        _generate_audience_suggestion, we extract the suggestion and create
+        a room_vibe event for visual display in the frontend.
+
+        Args:
+            tool_result: Tool result from ADK event
+
+        Returns:
+            room_vibe dict if this is an audience tool result, None otherwise
+        """
+        try:
+            result = tool_result.result
+            tool_name = getattr(tool_result, "name", "") or ""
+
+            # Check if this is an audience-related tool
+            audience_tools = [
+                "_get_suggestion_for_game",
+                "_generate_audience_suggestion",
+                "get_suggestion_for_game",
+                "generate_audience_suggestion",
+            ]
+
+            # Also check the result format - audience suggestions are strings
+            # that typically contain "shouts" or "yells" from audience members
+            is_audience_result = (
+                tool_name in audience_tools
+                or (isinstance(result, str) and any(
+                    phrase in result.lower()
+                    for phrase in ["shouts:", "yells:", "calls out:", "suggests:", "from the crowd"]
+                ))
+            )
+
+            if not is_audience_result:
+                return None
+
+            # Extract the suggestion text
+            if isinstance(result, str):
+                analysis = result
+            elif isinstance(result, dict):
+                analysis = result.get("suggestion") or result.get("analysis") or str(result)
+            else:
+                analysis = str(result)
+
+            # Generate mood metrics based on the suggestion
+            # Audience suggestions indicate engagement, so we use positive metrics
+            mood_metrics = {
+                "sentiment_score": 0.6,  # Positive - audience is engaged
+                "engagement_score": 0.8,  # High engagement - they're shouting suggestions
+                "laughter_detected": False,  # Only true if audience is laughing
+            }
+
+            logger.info(
+                "Extracted room_vibe from audience tool result",
+                tool_name=tool_name,
+                analysis_preview=analysis[:50] if analysis else "",
+            )
+
+            return {
+                "type": "room_vibe",
+                "analysis": analysis,
+                "mood_metrics": mood_metrics,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+
+        except Exception as e:
+            logger.warning(
+                "Failed to extract room_vibe from tool result",
+                error=str(e),
+            )
+            return None
 
     async def _handle_event(self, event: Any) -> Dict[str, Any]:
         """Handle a single event (for testing).
