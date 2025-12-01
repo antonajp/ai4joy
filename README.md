@@ -246,10 +246,17 @@ ai4joy/
 │   ├── test_rate_limiting.py   # Rate limit tests
 │   └── test_infrastructure.py  # Infrastructure validation
 │
-├── scripts/                    # Deployment scripts
+├── scripts/                    # Operational scripts
 │   ├── setup.sh                # Initial GCP setup
 │   ├── deploy.sh               # Application deployment
-│   └── rollback.sh             # Rollback script
+│   ├── rollback.sh             # Rollback to previous revision
+│   ├── seed_firestore_tool_data.py  # Seed Firestore with tool data
+│   ├── manage_users.py         # User tier management
+│   ├── reset_limits.py         # Reset user rate limits
+│   ├── logs.sh                 # View application logs
+│   ├── smoke_test.py           # Post-deployment validation
+│   ├── test_local_app.sh       # Local testing script
+│   └── test_turn.py            # Turn execution testing
 │
 ├── docs/                       # Documentation
 │   ├── API_DOCUMENTATION.md
@@ -421,6 +428,34 @@ curl http://localhost:8080/api/v1/session/start \
 curl http://localhost:8080/auth/user \
   -H "Cookie: session=<your-session-cookie>"
 ```
+
+## Operational Scripts
+
+The `scripts/` directory contains operational utilities for deployment and maintenance. See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for complete documentation.
+
+### Quick Reference
+
+```bash
+# Setup & Initialization
+./scripts/setup.sh                                    # One-time GCP setup
+python scripts/seed_firestore_tool_data.py            # Seed Firestore with tool data
+
+# Deployment
+./scripts/deploy.sh                                   # Deploy application
+./scripts/rollback.sh                                 # Rollback deployment
+
+# User Management
+python scripts/manage_users.py add user@example.com premium
+python scripts/manage_users.py list
+python scripts/manage_users.py remove user@example.com
+
+# Operations
+python scripts/reset_limits.py user_id                # Reset rate limits
+./scripts/logs.sh tail                                # View logs
+python scripts/smoke_test.py --url https://ai4joy.org # Post-deployment tests
+```
+
+See [Deployment Scripts Documentation](docs/DEPLOYMENT.md#deployment-scripts) for detailed usage.
 
 ## Current Status
 

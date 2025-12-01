@@ -72,25 +72,149 @@ This deployment guide provides complete infrastructure setup procedures. Additio
 
 ### Deployment Scripts
 
-- **Setup**: `scripts/setup.sh`
-  - Initial GCP project setup
-  - API enablement
-  - Bucket creation
-  - Key generation
+All operational scripts are located in `scripts/` directory.
 
-- **Deploy**: `scripts/deploy.sh`
-  - Manual deployment option
-  - Build-only or deploy-only modes
-  - Custom tag support
+#### Setup & Initialization
 
-- **Rollback**: `scripts/rollback.sh`
-  - Quick rollback to previous revision
-  - Interactive or scripted
+**`scripts/setup.sh`** - Initial GCP Project Setup
+```bash
+# One-time setup: creates buckets, enables APIs, generates keys
+export PROJECT_ID="your-project-id"
+export BILLING_ACCOUNT_ID="your-billing-account"
+./scripts/setup.sh
+```
+- Creates Terraform state bucket
+- Creates build artifacts bucket
+- Enables required GCP APIs
+- Generates session encryption key
 
-- **Logs**: `scripts/logs.sh`
-  - Tail logs in real-time
-  - Read historical logs
-  - Filter error logs
+**`scripts/seed_firestore_tool_data.py`** - Seed Firestore with Tool Data
+```bash
+# Run once after infrastructure deployment to populate tool collections
+python scripts/seed_firestore_tool_data.py
+
+# Dry run (preview without writing)
+python scripts/seed_firestore_tool_data.py --dry-run
+```
+Seeds Firestore collections:
+- `improv_games` - Game database for MC agent
+- `improv_principles` - Core improv principles for Coach agent
+- `audience_archetypes` - Demographics for Room agent
+- `sentiment_keywords` - Keywords for sentiment analysis
+
+#### Deployment & Rollback
+
+**`scripts/deploy.sh`** - Manual Deployment
+```bash
+# Full deployment (build + deploy)
+./scripts/deploy.sh
+
+# Build only
+./scripts/deploy.sh --build-only
+
+# Deploy only (skip build)
+./scripts/deploy.sh --deploy-only
+
+# Custom image tag
+./scripts/deploy.sh --tag v1.2.3
+```
+
+**`scripts/rollback.sh`** - Rollback to Previous Revision
+```bash
+# Interactive rollback (lists revisions, prompts for selection)
+./scripts/rollback.sh
+
+# Quick rollback to previous revision
+./scripts/rollback.sh --previous
+```
+
+#### Operations & Maintenance
+
+**`scripts/manage_users.py`** - User Tier Management
+```bash
+# Add user with tier (free, regular, premium)
+python scripts/manage_users.py add user@example.com premium
+
+# Update user tier
+python scripts/manage_users.py update user@example.com regular
+
+# List all users
+python scripts/manage_users.py list
+
+# List users by tier
+python scripts/manage_users.py list --tier premium
+
+# Remove user
+python scripts/manage_users.py remove user@example.com
+
+# Migrate from ALLOWED_USERS env var to Firestore
+python scripts/manage_users.py migrate-env
+```
+
+**`scripts/reset_limits.py`** - Reset User Rate Limits
+```bash
+# Interactive: lists users with active sessions, prompts for action
+python scripts/reset_limits.py
+
+# Reset specific user's limits
+python scripts/reset_limits.py user_id
+
+# Reset daily limits only
+python scripts/reset_limits.py user_id --daily
+
+# Reset concurrent limits only
+python scripts/reset_limits.py user_id --concurrent
+
+# Reset all limits
+python scripts/reset_limits.py user_id --all-limits
+```
+
+**`scripts/logs.sh`** - View Application Logs
+```bash
+# Tail logs in real-time
+./scripts/logs.sh tail
+
+# View last 100 lines
+./scripts/logs.sh
+
+# View last N lines
+./scripts/logs.sh 50
+
+# Filter for errors only
+./scripts/logs.sh errors 50
+```
+
+#### Testing & Validation
+
+**`scripts/smoke_test.py`** - Post-Deployment Smoke Tests
+```bash
+# Run smoke tests against deployed service
+python scripts/smoke_test.py --url https://ai4joy.org
+
+# Verbose output
+python scripts/smoke_test.py --url https://ai4joy.org --verbose
+
+# Skip auth tests (for testing health endpoints only)
+python scripts/smoke_test.py --url https://ai4joy.org --skip-auth
+```
+Validates:
+- Health and readiness endpoints
+- OAuth authentication flow
+- Session creation and management
+- Turn execution
+- Rate limiting
+
+**`scripts/test_local_app.sh`** - Local Application Testing
+```bash
+# Test local development server
+./scripts/test_local_app.sh
+```
+
+**`scripts/test_turn.py`** - Turn Execution Testing
+```bash
+# Test turn execution with sample input
+python scripts/test_turn.py --session-id sess_abc123
+```
 
 ## Architecture Overview
 
