@@ -898,6 +898,18 @@ class AudioStreamOrchestrator:
                     for response in responses:
                         yield response
 
+                    # Yield any pending Room Agent audio
+                    if hasattr(session, "pending_room_audio") and session.pending_room_audio:
+                        for room_audio in session.pending_room_audio:
+                            logger.info(
+                                "Yielding Room Agent audio",
+                                session_id=session_id,
+                                audio_bytes=len(room_audio.get("data", b"")),
+                                sentiment=room_audio.get("sentiment"),
+                            )
+                            yield room_audio
+                        session.pending_room_audio = []
+
                     # If agent switch is needed, break out of the inner loop
                     if agent_switch_needed:
                         break
@@ -1628,10 +1640,10 @@ class AudioStreamOrchestrator:
         energy_level: float,
         context: Optional[str] = None,
     ) -> None:
-        """Send prompt to Room Agent for ambient commentary.
+        """Generate and queue Room Agent ambient commentary audio.
 
-        Generates an appropriate prompt based on sentiment/energy and sends
-        it to the Room Agent's queue to trigger audio generation.
+        Uses Gemini TTS to generate brief audio reactions based on
+        sentiment/energy, then queues them for streaming to the client.
 
         Args:
             session: Audio session with Room Agent
@@ -1639,40 +1651,62 @@ class AudioStreamOrchestrator:
             energy_level: Energy level from 0.0 to 1.0
             context: Optional context about what's happening
         """
-        # Get commentary prompt from ambient trigger
-        prompt_text = self.get_ambient_prompt(
-            session_id=session.session_id,
-            sentiment=sentiment,
-            energy_level=energy_level,
-            context=context,
-        )
+        from app.audio.room_tts import get_room_tts
 
-        if not prompt_text:
-            logger.warning(
-                "Failed to generate ambient prompt",
-                session_id=session.session_id,
+        try:
+            # Get the Room Agent TTS generator
+            room_tts = get_room_tts()
+
+            # Generate ambient reaction audio
+            audio_data = await room_tts.generate_ambient_reaction(
+                sentiment=sentiment,
+                energy_level=energy_level,
+                context=context,
             )
-            return
 
-        # Send to Room Agent queue
-        # Note: Room Agent needs its own queue or we need to manage queue switching
-        # For now, we'll log this as a TODO - the Room Agent audio integration
-        # will need its own streaming mechanism
-        logger.info(
-            "Room Agent ambient prompt generated",
-            session_id=session.session_id,
-            sentiment=sentiment,
-            energy_level=energy_level,
-            has_context=bool(context),
-            prompt_length=len(prompt_text),
-        )
+            if audio_data:
+                # Queue the Room Agent audio for streaming
+                # It will be sent as a separate audio chunk with "room" agent type
+                # The frontend can mix it at 30% volume
+                if hasattr(session, "room_audio_queue"):
+                    await session.room_audio_queue.put({
+                        "type": "room_audio",
+                        "data": audio_data,
+                        "mime_type": "audio/pcm;rate=24000",
+                        "sentiment": sentiment,
+                        "energy_level": energy_level,
+                    })
+                    logger.info(
+                        "Room Agent audio queued for streaming",
+                        session_id=session.session_id,
+                        audio_bytes=len(audio_data),
+                        sentiment=sentiment,
+                    )
+                else:
+                    # Log for debugging - room audio queue not set up
+                    logger.warning(
+                        "Room audio queue not available - storing for next yield",
+                        session_id=session.session_id,
+                    )
+                    # Store in session for next response yield
+                    if not hasattr(session, "pending_room_audio"):
+                        session.pending_room_audio = []
+                    session.pending_room_audio.append({
+                        "type": "room_audio",
+                        "data": audio_data,
+                        "mime_type": "audio/pcm;rate=24000",
+                        "sentiment": sentiment,
+                    })
+            else:
+                logger.debug(
+                    "No Room Agent audio generated",
+                    session_id=session.session_id,
+                    sentiment=sentiment,
+                )
 
-        # TODO: Implement Room Agent audio streaming
-        # This will require either:
-        # 1. A separate run_live session for Room Agent, or
-        # 2. Dynamic agent switching with queue management, or
-        # 3. Pre-generated audio clips triggered by sentiment
-        logger.debug(
-            "Room Agent audio streaming not yet implemented - prompt logged only",
-            session_id=session.session_id,
-        )
+        except Exception as e:
+            logger.error(
+                "Failed to generate Room Agent audio",
+                session_id=session.session_id,
+                error=str(e),
+            )
