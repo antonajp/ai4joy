@@ -9,7 +9,7 @@ This service provides async Firestore operations for user management including:
 """
 
 from datetime import datetime, timezone
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict
 
 from app.config import get_settings
 from app.models.user import UserProfile, UserTier

@@ -428,8 +428,7 @@ async def execute_turn(
             pii_types=[d.pii_type for d in pii_result.detections],
         )
 
-    # Use redacted version for all logging from this point forward
-    _sanitized_input = pii_result.redacted_text  # noqa: F841 - kept for future logging use
+    # Note: pii_result.redacted_text available for future sanitized logging
 
     # Retrieve session
     session = await session_manager.get_session(session_id)

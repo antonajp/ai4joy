@@ -338,19 +338,28 @@ ROOM: [Audience vibe analysis]
                 ):
                     # Skip events that contain tool/function calls (internal orchestration)
                     # These include transfer_to_agent calls that shouldn't be shown to users
-                    if hasattr(event, "get_function_calls") and event.get_function_calls():
+                    if (
+                        hasattr(event, "get_function_calls")
+                        and event.get_function_calls()
+                    ):
                         continue
 
                     if hasattr(event, "content") and event.content:
                         if hasattr(event.content, "parts"):
                             for part in event.content.parts:
                                 # Skip function call parts
-                                if hasattr(part, "function_call") and part.function_call:
+                                if (
+                                    hasattr(part, "function_call")
+                                    and part.function_call
+                                ):
                                     continue
                                 if hasattr(part, "text") and part.text:
                                     # Filter out any leaked tool call text patterns
                                     text = part.text
-                                    if "called tool" in text and "transfer_to_agent" in text:
+                                    if (
+                                        "called tool" in text
+                                        and "transfer_to_agent" in text
+                                    ):
                                         continue
                                     response_parts.append(text)
 
@@ -411,10 +420,19 @@ ROOM: [Audience vibe analysis]
 
         # Laughter detection keywords
         laughter_keywords = [
-            "laugh", "laughing", "hilarious", "cracking up", "roar",
-            "hysterical", "chuckle", "giggle", "guffaw"
+            "laugh",
+            "laughing",
+            "hilarious",
+            "cracking up",
+            "roar",
+            "hysterical",
+            "chuckle",
+            "giggle",
+            "guffaw",
         ]
-        laughter_detected = any(keyword in analysis_lower for keyword in laughter_keywords)
+        laughter_detected = any(
+            keyword in analysis_lower for keyword in laughter_keywords
+        )
 
         # Engagement score calculation - check negative first to avoid substring issues
         # ("disengaged" contains "engaged", so check disengaged first)
@@ -436,18 +454,45 @@ ROOM: [Audience vibe analysis]
 
         # Positive sentiment keywords (higher weight)
         positive_high = [
-            "loving", "enthusiastic", "excited", "thrilled", "ecstatic",
-            "uproarious", "wild", "erupting", "explosive",
+            "loving",
+            "enthusiastic",
+            "excited",
+            "thrilled",
+            "ecstatic",
+            "uproarious",
+            "wild",
+            "erupting",
+            "explosive",
         ]
         positive_mid = [
-            "positive", "enjoying", "happy", "pleased", "delighted",
-            "jovial", "lighthearted", "playful", "amused", "fun",
-            "warmth", "warm", "cheerful", "joyful", "gleeful",
+            "positive",
+            "enjoying",
+            "happy",
+            "pleased",
+            "delighted",
+            "jovial",
+            "lighthearted",
+            "playful",
+            "amused",
+            "fun",
+            "warmth",
+            "warm",
+            "cheerful",
+            "joyful",
+            "gleeful",
         ]
 
         # Negative sentiment keywords
         negative_high = ["hostile", "angry", "furious", "heckling"]
-        negative_mid = ["negative", "bored", "disengaged", "disappointed", "frustrated", "confused", "lost"]
+        negative_mid = [
+            "negative",
+            "bored",
+            "disengaged",
+            "disappointed",
+            "frustrated",
+            "confused",
+            "lost",
+        ]
 
         # Calculate sentiment based on keyword presence
         if any(word in analysis_lower for word in positive_high):
@@ -462,8 +507,12 @@ ROOM: [Audience vibe analysis]
         # Boost scores if laughter detected (laughter indicates high positive engagement)
         if laughter_detected:
             if sentiment_score >= 0:
-                sentiment_score = max(sentiment_score, 0.7)  # Laughter is strongly positive
-            engagement_score = max(engagement_score, 0.8)  # Laughter shows high engagement
+                sentiment_score = max(
+                    sentiment_score, 0.7
+                )  # Laughter is strongly positive
+            engagement_score = max(
+                engagement_score, 0.8
+            )  # Laughter shows high engagement
 
         # Ensure bounds
         sentiment_score = max(-1.0, min(1.0, sentiment_score))

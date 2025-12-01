@@ -113,7 +113,9 @@ class RoomAgentTTS:
             Brief reaction text suitable for TTS
         """
         # Map sentiment to reaction category
-        if sentiment == "very_positive" or (sentiment == "positive" and energy_level > 0.7):
+        if sentiment == "very_positive" or (
+            sentiment == "positive" and energy_level > 0.7
+        ):
             category = "very_positive"
         elif sentiment == "positive":
             category = "positive"
