@@ -278,8 +278,10 @@ async def get_current_user(request: Request):
         # Look up user tier from Firestore if enabled
         if user_email:
             from app.middleware.oauth_auth import should_use_firestore_auth
+
             if should_use_firestore_auth():
                 from app.services.user_service import get_user_by_email
+
                 try:
                     user_profile = await get_user_by_email(user_email)
                     if user_profile:
@@ -316,6 +318,7 @@ async def get_websocket_token(request: Request):
     session_cookie = request.cookies.get("session")
     if not session_cookie:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     try:
@@ -329,6 +332,7 @@ async def get_websocket_token(request: Request):
     except Exception as e:
         logger.warning("WS token request failed - invalid session", error=str(e))
         from fastapi import HTTPException
+
         raise HTTPException(status_code=401, detail="Session expired")
 
 

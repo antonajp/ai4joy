@@ -391,19 +391,28 @@ This is the transition to scene work, so make it feel like a big moment!"""
                 ):
                     # Skip events that contain tool/function calls (internal orchestration)
                     # These include transfer_to_agent calls that shouldn't be shown to users
-                    if hasattr(event, "get_function_calls") and event.get_function_calls():
+                    if (
+                        hasattr(event, "get_function_calls")
+                        and event.get_function_calls()
+                    ):
                         continue
 
                     if hasattr(event, "content") and event.content:
                         if hasattr(event.content, "parts"):
                             for part in event.content.parts:
                                 # Skip function call parts
-                                if hasattr(part, "function_call") and part.function_call:
+                                if (
+                                    hasattr(part, "function_call")
+                                    and part.function_call
+                                ):
                                     continue
                                 if hasattr(part, "text") and part.text:
                                     # Filter out any leaked tool call text patterns
                                     text = part.text
-                                    if "called tool" in text and "transfer_to_agent" in text:
+                                    if (
+                                        "called tool" in text
+                                        and "transfer_to_agent" in text
+                                    ):
                                         continue
                                     response_parts.append(text)
 

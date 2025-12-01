@@ -26,11 +26,7 @@ async def audio_poc_health() -> Dict[str, Any]:
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "service": "audio-poc",
         "version": "0.1.0-poc",
-        "features": {
-            "websocket": True,
-            "audio_codec": True,
-            "adk_integration": False
-        }
+        "features": {"websocket": True, "audio_codec": True, "adk_integration": False},
     }
 
 

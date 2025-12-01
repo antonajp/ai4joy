@@ -275,7 +275,9 @@ class AudioStreamOrchestrator:
             mc_agent_name=mc_agent.name,
         )
 
-    def _send_initial_greeting(self, queue: Any, game_name: Optional[str] = None) -> None:
+    def _send_initial_greeting(
+        self, queue: Any, game_name: Optional[str] = None
+    ) -> None:
         """Send initial greeting prompt to trigger MC to speak.
 
         Uses send_content() to send a turn-based message that triggers
@@ -294,13 +296,10 @@ class AudioStreamOrchestrator:
                 f"Ask how they're feeling and help them warm up for the scene.]"
             )
         else:
-            greeting_text = (
-                "[Voice mode activated. Please greet me as the MC and ask how I'm feeling today.]"
-            )
+            greeting_text = "[Voice mode activated. Please greet me as the MC and ask how I'm feeling today.]"
 
         greeting_prompt = types.Content(
-            role="user",
-            parts=[types.Part.from_text(text=greeting_text)]
+            role="user", parts=[types.Part.from_text(text=greeting_text)]
         )
         queue.send_content(greeting_prompt)
         logger.debug(
@@ -610,11 +609,17 @@ class AudioStreamOrchestrator:
                     event_number=event_count,
                     event_type=type(event).__name__,
                     has_turn_complete=bool(getattr(event, "turn_complete", False)),
-                    has_input_transcription=bool(getattr(event, "input_transcription", None)),
-                    has_output_transcription=bool(getattr(event, "output_transcription", None)),
+                    has_input_transcription=bool(
+                        getattr(event, "input_transcription", None)
+                    ),
+                    has_output_transcription=bool(
+                        getattr(event, "output_transcription", None)
+                    ),
                     has_content=bool(getattr(event, "content", None)),
                     is_partial=bool(getattr(event, "partial", False)),
-                    server_content=str(getattr(event, "server_content", None))[:100] if getattr(event, "server_content", None) else None,
+                    server_content=str(getattr(event, "server_content", None))[:100]
+                    if getattr(event, "server_content", None)
+                    else None,
                 )
 
                 responses = await self._process_event(event, session)
@@ -635,13 +640,17 @@ class AudioStreamOrchestrator:
                         )
 
                         # Emit turn_complete event with phase info
-                        responses.append({
-                            "type": "turn_complete",
-                            "turn_count": session.turn_count,
-                            "phase": turn_result["phase"],
-                            "phase_changed": turn_result.get("phase_changed", False),
-                            "agent": "mc",
-                        })
+                        responses.append(
+                            {
+                                "type": "turn_complete",
+                                "turn_count": session.turn_count,
+                                "phase": turn_result["phase"],
+                                "phase_changed": turn_result.get(
+                                    "phase_changed", False
+                                ),
+                                "agent": "mc",
+                            }
+                        )
                     else:
                         # Fallback for sessions without turn manager
                         session.turn_count += 1
@@ -650,13 +659,17 @@ class AudioStreamOrchestrator:
                             session_id=session_id,
                             turn_count=session.turn_count,
                         )
-                        responses.append({
-                            "type": "turn_complete",
-                            "turn_count": session.turn_count,
-                        })
+                        responses.append(
+                            {
+                                "type": "turn_complete",
+                                "turn_count": session.turn_count,
+                            }
+                        )
 
                     # Update turn count in Firestore for persistence
-                    await self._update_session_turn_count(session_id, session.turn_count)
+                    await self._update_session_turn_count(
+                        session_id, session.turn_count
+                    )
 
                 if responses:
                     logger.debug(
@@ -684,7 +697,9 @@ class AudioStreamOrchestrator:
             )
             yield {"type": "error", "message": str(e)}
 
-    async def _process_event(self, event: Any, session: AudioSession) -> list[Dict[str, Any]]:
+    async def _process_event(
+        self, event: Any, session: AudioSession
+    ) -> list[Dict[str, Any]]:
         """Process an event from the agent.
 
         ADK run_live events have these key attributes:
@@ -725,11 +740,13 @@ class AudioStreamOrchestrator:
                 error_code=event.error_code,
                 error_message=getattr(event, "error_message", "Unknown error"),
             )
-            responses.append({
-                "type": "error",
-                "code": event.error_code,
-                "message": getattr(event, "error_message", "Unknown error"),
-            })
+            responses.append(
+                {
+                    "type": "error",
+                    "code": event.error_code,
+                    "message": getattr(event, "error_message", "Unknown error"),
+                }
+            )
             return responses
 
         # Handle user transcription (what the user said)
@@ -745,12 +762,14 @@ class AudioStreamOrchestrator:
                     text=text[:100] if len(text) > 100 else text,
                     is_final=is_final,
                 )
-                responses.append({
-                    "type": "transcription",
-                    "text": text,
-                    "role": "user",
-                    "is_final": is_final,
-                })
+                responses.append(
+                    {
+                        "type": "transcription",
+                        "text": text,
+                        "role": "user",
+                        "is_final": is_final,
+                    }
+                )
 
         # Handle agent transcription (what the agent said)
         # ADK returns Transcription objects with .text and .finished properties
@@ -766,13 +785,15 @@ class AudioStreamOrchestrator:
                     text=text[:100] if len(text) > 100 else text,
                     is_final=is_final,
                 )
-                responses.append({
-                    "type": "transcription",
-                    "text": text,
-                    "role": "agent",
-                    "agent": "mc",
-                    "is_final": is_final,
-                })
+                responses.append(
+                    {
+                        "type": "transcription",
+                        "text": text,
+                        "role": "agent",
+                        "agent": "mc",
+                        "is_final": is_final,
+                    }
+                )
 
                 # Extract mood/vibe from MC's speech for visual feedback
                 # Only check final transcriptions to avoid duplicate updates
@@ -800,39 +821,45 @@ class AudioStreamOrchestrator:
                             ),
                             data_length=data_len,
                         )
-                        responses.append({
-                            "type": "audio",
-                            "data": part.inline_data.data,
-                            "mime_type": getattr(
-                                part.inline_data, "mime_type", "audio/pcm;rate=24000"
-                            ),
-                        })
+                        responses.append(
+                            {
+                                "type": "audio",
+                                "data": part.inline_data.data,
+                                "mime_type": getattr(
+                                    part.inline_data,
+                                    "mime_type",
+                                    "audio/pcm;rate=24000",
+                                ),
+                            }
+                        )
 
                     # Check for text content
                     if hasattr(part, "text") and part.text:
                         is_partial = bool(getattr(event, "partial", False))
                         text_val = part.text
-                        text_len = (
-                            len(text_val) if isinstance(text_val, str) else 0
-                        )
+                        text_len = len(text_val) if isinstance(text_val, str) else 0
                         logger.debug(
                             "Text content received",
                             agent_type="mc",
                             text_length=text_len,
                             partial=is_partial,
                         )
-                        responses.append({
-                            "type": "transcription",
-                            "text": part.text,
-                            "role": "agent",
-                            "agent": "mc",
-                            "is_final": not is_partial,
-                        })
+                        responses.append(
+                            {
+                                "type": "transcription",
+                                "text": part.text,
+                                "role": "agent",
+                                "agent": "mc",
+                                "is_final": not is_partial,
+                            }
+                        )
 
                         # Extract mood/vibe from MC's text content for visual feedback
                         # Only check final (non-partial) content
                         if not is_partial:
-                            mood_vibe = self._extract_mood_from_mc_transcription(text_val)
+                            mood_vibe = self._extract_mood_from_mc_transcription(
+                                text_val
+                            )
                             if mood_vibe:
                                 responses.append(mood_vibe)
 
@@ -847,26 +874,32 @@ class AudioStreamOrchestrator:
                             function_args=func_args,
                         )
 
-                        responses.append({
-                            "type": "tool_call",
-                            "name": func_name,
-                            "args": func_args,
-                        })
+                        responses.append(
+                            {
+                                "type": "tool_call",
+                                "name": func_name,
+                                "args": func_args,
+                            }
+                        )
 
         # Handle function responses (legacy format)
         if hasattr(event, "tool_call") and event.tool_call:
-            responses.append({
-                "type": "tool_call",
-                "name": event.tool_call.name,
-                "args": event.tool_call.args,
-            })
+            responses.append(
+                {
+                    "type": "tool_call",
+                    "name": event.tool_call.name,
+                    "args": event.tool_call.args,
+                }
+            )
 
         if hasattr(event, "tool_result") and event.tool_result:
-            responses.append({
-                "type": "tool_result",
-                "result": event.tool_result.result,
-                "speak": True,
-            })
+            responses.append(
+                {
+                    "type": "tool_result",
+                    "result": event.tool_result.result,
+                    "speak": True,
+                }
+            )
 
             # Check if this is an audience-related tool result
             # Generate room_vibe event for visual display in frontend
@@ -883,7 +916,9 @@ class AudioStreamOrchestrator:
 
         return responses
 
-    def _extract_room_vibe_from_tool_result(self, tool_result: Any) -> Optional[Dict[str, Any]]:
+    def _extract_room_vibe_from_tool_result(
+        self, tool_result: Any
+    ) -> Optional[Dict[str, Any]]:
         """Extract room_vibe event from audience-related tool results.
 
         When the MC calls audience tools like _get_suggestion_for_game or
@@ -910,12 +945,18 @@ class AudioStreamOrchestrator:
 
             # Also check the result format - audience suggestions are strings
             # that typically contain "shouts" or "yells" from audience members
-            is_audience_result = (
-                tool_name in audience_tools
-                or (isinstance(result, str) and any(
+            is_audience_result = tool_name in audience_tools or (
+                isinstance(result, str)
+                and any(
                     phrase in result.lower()
-                    for phrase in ["shouts:", "yells:", "calls out:", "suggests:", "from the crowd"]
-                ))
+                    for phrase in [
+                        "shouts:",
+                        "yells:",
+                        "calls out:",
+                        "suggests:",
+                        "from the crowd",
+                    ]
+                )
             )
 
             if not is_audience_result:
@@ -925,7 +966,9 @@ class AudioStreamOrchestrator:
             if isinstance(result, str):
                 analysis = result
             elif isinstance(result, dict):
-                analysis = result.get("suggestion") or result.get("analysis") or str(result)
+                analysis = (
+                    result.get("suggestion") or result.get("analysis") or str(result)
+                )
             else:
                 analysis = str(result)
 
@@ -957,7 +1000,9 @@ class AudioStreamOrchestrator:
             )
             return None
 
-    def _extract_mood_from_mc_transcription(self, text: str) -> Optional[Dict[str, Any]]:
+    def _extract_mood_from_mc_transcription(
+        self, text: str
+    ) -> Optional[Dict[str, Any]]:
         """Extract mood metrics from MC transcription text.
 
         The MC naturally weaves audience reactions into their speech. We detect
@@ -979,27 +1024,47 @@ class AudioStreamOrchestrator:
 
         # Laughter detection phrases - high priority
         laughter_phrases = [
-            "cracking up", "big laugh", "laughter", "laughing",
-            "that's hilarious", "crowd is dying", "rolling"
+            "cracking up",
+            "big laugh",
+            "laughter",
+            "laughing",
+            "that's hilarious",
+            "crowd is dying",
+            "rolling",
         ]
 
         # High excitement/celebration phrases
         excitement_phrases = [
-            "crowd goes wild", "standing ovation", "cheering",
-            "crowd is loving", "energy building", "on the edge of their seats",
-            "rooting for you", "they're cheering", "amazing"
+            "crowd goes wild",
+            "standing ovation",
+            "cheering",
+            "crowd is loving",
+            "energy building",
+            "on the edge of their seats",
+            "rooting for you",
+            "they're cheering",
+            "amazing",
         ]
 
         # Positive engagement phrases
         engagement_phrases = [
-            "audience is", "crowd is", "the room", "everyone's",
-            "nodding heads", "i can feel", "i hear", "i see"
+            "audience is",
+            "crowd is",
+            "the room",
+            "everyone's",
+            "nodding heads",
+            "i can feel",
+            "i hear",
+            "i see",
         ]
 
         # Tension/anticipation phrases
         tension_phrases = [
-            "goes quiet", "holding their breath", "anticipation",
-            "tension", "suspense"
+            "goes quiet",
+            "holding their breath",
+            "anticipation",
+            "tension",
+            "suspense",
         ]
 
         # Check for laughter first (highest impact)
@@ -1160,7 +1225,9 @@ class AudioStreamOrchestrator:
         if session:
             await track_audio_usage(session.user_email, duration_seconds)
 
-    async def _update_session_turn_count(self, session_id: str, turn_count: int) -> None:
+    async def _update_session_turn_count(
+        self, session_id: str, turn_count: int
+    ) -> None:
         """Update session turn count in Firestore.
 
         Args:

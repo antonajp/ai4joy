@@ -70,7 +70,9 @@ def create_room_agent() -> Agent:
         tools=[sentiment_toolset, archetypes_toolset],
     )
 
-    logger.info("Room Agent created successfully with SentimentAnalysis and AudienceArchetypes toolsets")
+    logger.info(
+        "Room Agent created successfully with SentimentAnalysis and AudienceArchetypes toolsets"
+    )
     return agent
 
 

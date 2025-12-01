@@ -17,9 +17,9 @@ AgentType = Literal["mc", "partner", "room"]
 # Voice names for each agent type
 # See: https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/gemini-live#voices
 VOICE_NAMES = {
-    "mc": "Aoede",      # Warm, welcoming host voice
+    "mc": "Aoede",  # Warm, welcoming host voice
     "partner": "Puck",  # Playful, energetic scene partner voice
-    "room": "Charon",   # Deep, ambient voice for audience commentary
+    "room": "Charon",  # Deep, ambient voice for audience commentary
 }
 
 
@@ -93,6 +93,5 @@ def get_all_voice_configs() -> dict[AgentType, VoiceConfig]:
         Dictionary mapping agent types to their voice configurations
     """
     return {
-        agent_type: get_voice_config(agent_type)
-        for agent_type in VOICE_NAMES.keys()
+        agent_type: get_voice_config(agent_type) for agent_type in VOICE_NAMES.keys()
     }

@@ -157,7 +157,10 @@ class AmbientAudioTrigger:
             should_trigger = False
 
             # Significant sentiment moments
-            if sentiment in [SentimentLevel.VERY_POSITIVE, SentimentLevel.VERY_NEGATIVE]:
+            if sentiment in [
+                SentimentLevel.VERY_POSITIVE,
+                SentimentLevel.VERY_NEGATIVE,
+            ]:
                 should_trigger = True
                 logger.debug(
                     "Trigger due to significant sentiment",
@@ -219,8 +222,10 @@ class AmbientAudioTrigger:
         self._template_index += 1
 
         # Build prompt
-        energy_desc = "high" if energy_level >= HIGH_ENERGY_THRESHOLD else (
-            "low" if energy_level <= LOW_ENERGY_THRESHOLD else "moderate"
+        energy_desc = (
+            "high"
+            if energy_level >= HIGH_ENERGY_THRESHOLD
+            else ("low" if energy_level <= LOW_ENERGY_THRESHOLD else "moderate")
         )
 
         prompt = f"[Room Agent ambient commentary - {energy_desc} energy] {template}"
