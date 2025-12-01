@@ -201,10 +201,10 @@ GAMES_DATA = [
     {
         "id": "first_line_last_line",
         "name": "First Line / Last Line",
-        "description": "The scene is given its first and last lines. Players must create a coherent scene that logically connects these two points.",
+        "description": "The scene is given its first and last lines by the audience. Players must create a coherent scene that logically connects these two points.",
         "rules": [
-            "Scene partner provides opening and closing lines",
-            "First player starts with the given opening line",
+            "The AUDIENCE shouts out the opening and closing lines",
+            "Player starts the scene with the audience's opening line",
             "Build a scene that will justify the ending",
             "Scene ends when the closing line is delivered",
             "Focus on the journey between the lines",
