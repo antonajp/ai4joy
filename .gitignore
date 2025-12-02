@@ -90,3 +90,6 @@ coordination/orchestration/*
 claude-flow
 # Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
+
+#Firebase Auth connection
+improv-olympics-firebase-adminsdk-fbsvc-315dfda5aa.json
