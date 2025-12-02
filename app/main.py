@@ -134,6 +134,42 @@ async def startup_event():
         location=os.environ.get("GOOGLE_CLOUD_LOCATION"),
     )
 
+    # Initialize Firebase Admin SDK if Firebase Auth is enabled (IQS-65 Phase 1)
+    if settings.firebase_auth_enabled:
+        try:
+            import firebase_admin
+            from firebase_admin import credentials
+
+            # Check if Firebase app is already initialized
+            if not firebase_admin._apps:
+                # Use Application Default Credentials (ADC) for authentication
+                # In production (Cloud Run), this uses the Workload Identity
+                # In local dev, set GOOGLE_APPLICATION_CREDENTIALS env var
+                cred = credentials.ApplicationDefault()
+                firebase_admin.initialize_app(
+                    cred,
+                    {
+                        "projectId": settings.firebase_project_id,
+                    },
+                )
+                logger.info(
+                    "Firebase Admin SDK initialized",
+                    project_id=settings.firebase_project_id,
+                    require_email_verification=settings.firebase_require_email_verification,
+                )
+            else:
+                logger.info("Firebase Admin SDK already initialized")
+        except Exception as e:
+            logger.error(
+                "Failed to initialize Firebase Admin SDK",
+                error=str(e),
+                project_id=settings.firebase_project_id,
+            )
+            # Don't fail startup - Firebase auth is optional
+            logger.warning("Firebase authentication will be unavailable")
+    else:
+        logger.info("Firebase authentication disabled, using OAuth only")
+
     logger.info("Initializing singleton Runner")
     initialize_runner()
 
