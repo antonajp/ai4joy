@@ -4,7 +4,7 @@
 
 > **Note:** This project uses **Application-Level OAuth 2.0** for authentication with Google Sign-In and email whitelist access control.
 
-Improv Olympics is a multi-agent AI application that enables users to practice improvisational comedy skills through interactive text-based sessions with specialized AI agents. Built on Google Cloud Platform with Application-Level OAuth 2.0 authentication and per-user rate limiting to support a pilot launch for 10-50 early adopters.
+Improv Olympics is a multi-agent AI application that enables users to practice improvisational comedy skills through interactive text-based or live audio sessions with specialized AI agents. Built on Google Cloud Platform with Application-Level OAuth 2.0 authentication and per-user rate limiting to support a pilot launch for 10-50 early adopters.
 
 ## Table of Contents
 
