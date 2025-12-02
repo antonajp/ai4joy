@@ -77,24 +77,27 @@ if [ "$DEPLOY_ONLY" = false ]; then
     GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
     BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-    docker build \
+    # Ensure buildx builder exists with multi-platform support
+    if ! docker buildx inspect multiarch-builder > /dev/null 2>&1; then
+        echo -e "${YELLOW}Creating multi-architecture builder...${NC}"
+        docker buildx create --name multiarch-builder --use --bootstrap
+    else
+        docker buildx use multiarch-builder
+    fi
+
+    # Build and push in one step using buildx (required for cross-platform)
+    echo -e "${YELLOW}Building and pushing image for linux/amd64...${NC}"
+    docker buildx build \
         --platform linux/amd64 \
         --build-arg BUILD_DATE="${BUILD_DATE}" \
         --build-arg GIT_COMMIT="${GIT_COMMIT}" \
         --tag "${ARTIFACT_REGISTRY}/${IMAGE_NAME}:${TAG}" \
         --tag "${ARTIFACT_REGISTRY}/${IMAGE_NAME}:${GIT_COMMIT}" \
         --tag "${ARTIFACT_REGISTRY}/${IMAGE_NAME}:latest" \
+        --push \
         .
 
-    echo -e "${GREEN}✓ Image built successfully${NC}"
-    echo ""
-
-    # Push image
-    echo -e "${YELLOW}Pushing image to Artifact Registry...${NC}"
-    docker push "${ARTIFACT_REGISTRY}/${IMAGE_NAME}:${TAG}"
-    docker push "${ARTIFACT_REGISTRY}/${IMAGE_NAME}:${GIT_COMMIT}"
-    docker push "${ARTIFACT_REGISTRY}/${IMAGE_NAME}:latest"
-    echo -e "${GREEN}✓ Image pushed successfully${NC}"
+    echo -e "${GREEN}✓ Image built and pushed successfully${NC}"
     echo ""
 fi
 

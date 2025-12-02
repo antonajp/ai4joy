@@ -35,8 +35,9 @@ LABEL version="1.0.0"
 LABEL build_date="${BUILD_DATE}"
 LABEL git_commit="${GIT_COMMIT}"
 
-# Create non-root user
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+# Create non-root user (using adduser for better compatibility with slim images)
+RUN addgroup --system --gid 1001 appuser && \
+    adduser --system --uid 1001 --gid 1001 --home /home/appuser appuser
 
 # Set working directory
 WORKDIR /app

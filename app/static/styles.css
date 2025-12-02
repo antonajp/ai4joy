@@ -461,6 +461,16 @@ header {
     align-items: center;
     justify-content: center;
     padding: var(--space-md);
+    overflow-y: auto;
+}
+
+/* On mobile, align modal to top for better UX with tall content */
+@media (max-width: 500px) {
+    .modal {
+        align-items: flex-start;
+        padding-top: var(--space-lg);
+        padding-bottom: var(--space-lg);
+    }
 }
 
 .modal-overlay {
@@ -1590,11 +1600,49 @@ header {
 @media (max-width: 500px) {
     .game-selection-grid {
         grid-template-columns: 1fr;
+        max-height: 250px;
     }
 
     .modal-content-wide {
         max-width: 100%;
+        max-height: calc(100vh - var(--space-xl));
         margin: var(--space-md);
         padding: var(--space-lg);
+        padding-bottom: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    /* Make the modal body scrollable while keeping buttons fixed */
+    .modal-content-wide .modal-title,
+    .modal-content-wide .modal-description {
+        flex-shrink: 0;
+    }
+
+    .modal-content-wide .game-selection-grid {
+        flex-shrink: 1;
+        min-height: 150px;
+    }
+
+    .modal-content-wide .selected-game-info {
+        flex-shrink: 0;
+        max-height: 120px;
+        overflow-y: auto;
+    }
+
+    .modal-content-wide .modal-instruction {
+        flex-shrink: 0;
+    }
+
+    /* Sticky action buttons at bottom on mobile */
+    .modal-content-wide .form-actions {
+        flex-shrink: 0;
+        position: sticky;
+        bottom: 0;
+        background: white;
+        padding: var(--space-md) 0;
+        margin-top: auto;
+        border-top: 1px solid var(--gray-200);
     }
 }
