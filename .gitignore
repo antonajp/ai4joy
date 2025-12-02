@@ -93,3 +93,4 @@ hive-mind-prompt-*.txt
 
 #Firebase Auth connection
 improv-olympics-firebase-adminsdk-fbsvc-315dfda5aa.json
+gcloud_client_secret.json
