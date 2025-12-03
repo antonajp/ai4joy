@@ -1,7 +1,7 @@
 class AudioUIController {
     constructor(audioManager) {
         this.audioManager = audioManager;
-        this.isPremium = false;
+        this.hasVoiceAccess = false;  // Voice access for freemium and premium users
         this.isVoiceMode = false;
         this.isPushToTalkActive = false;
         this.isPttTransitioning = false;
@@ -166,8 +166,8 @@ class AudioUIController {
         return div.innerHTML;
     }
 
-    async initialize(isPremium) {
-        this.isPremium = isPremium;
+    async initialize(hasVoiceAccess) {
+        this.hasVoiceAccess = hasVoiceAccess;
         this.isGameSelected = false;  // Voice mode disabled until game is selected
         this.selectedGame = null;
         this.hasAutoActivated = false;  // Track if we've already auto-activated voice mode
@@ -175,7 +175,7 @@ class AudioUIController {
         this.createPushToTalkButton();
         this.createMicrophoneModal();
         this.setupKeyboardShortcuts();
-        this.logger.info('AudioUI initialized', { isPremium, voiceEnabled: false });
+        this.logger.info('AudioUI initialized', { hasVoiceAccess, voiceEnabled: false });
     }
 
     /**
@@ -189,7 +189,7 @@ class AudioUIController {
         this.isGameSelected = true;
         this.selectedGame = selectedGame;
 
-        if (this.elements.voiceModeBtn && this.isPremium) {
+        if (this.elements.voiceModeBtn && this.hasVoiceAccess) {
             this.elements.voiceModeBtn.disabled = false;
             this.elements.voiceModeBtn.classList.remove('mode-btn-disabled');
             // Remove the setup badge since game is now selected
@@ -200,10 +200,10 @@ class AudioUIController {
             this.elements.voiceModeBtn.setAttribute('aria-label', 'Voice mode - Ready to start scene');
             this.logger.info('Voice mode button enabled', { game: selectedGame?.name, autoActivate });
 
-            // Auto-activate voice mode for premium users (only once)
+            // Auto-activate voice mode for users with voice access (only once)
             if (autoActivate && !this.isVoiceMode && !this.hasAutoActivated) {
                 this.hasAutoActivated = true;
-                this.logger.info('Auto-activating voice mode for premium user');
+                this.logger.info('Auto-activating voice mode for user with voice access');
                 // Small delay to ensure UI is ready and user sees the transition
                 setTimeout(() => {
                     this.enableVoiceMode();
@@ -228,9 +228,9 @@ class AudioUIController {
         const container = document.createElement('div');
         container.className = 'mode-selector-container';
         // Voice mode starts disabled - enabled after game selection
-        // Premium users see "Select game first", non-premium see "PRO" badge
-        const voiceDisabledReason = this.isPremium ? 'Select a game first' : 'Premium required';
-        const voiceBadge = this.isPremium
+        // Users with voice access see "Select game first", others see "PRO" badge
+        const voiceDisabledReason = this.hasVoiceAccess ? 'Select a game first' : 'Premium required';
+        const voiceBadge = this.hasVoiceAccess
             ? '<span class="setup-badge" title="Complete setup first">Setup</span>'
             : '<span class="premium-badge" title="Upgrade to Premium">PRO</span>';
 
@@ -400,7 +400,7 @@ class AudioUIController {
     }
 
     async enableVoiceMode() {
-        if (!this.isPremium) {
+        if (!this.hasVoiceAccess) {
             this.showUpgradePrompt();
             return;
         }

@@ -30,6 +30,8 @@ const FirebaseAuthState = {
     currentUser: null,
     tokenRefreshInterval: null,
     initialized: false,
+    authReady: null, // Promise that resolves when initial auth state is determined
+    authReadyResolve: null, // Resolver for authReady promise
 };
 
 /**
@@ -38,11 +40,16 @@ const FirebaseAuthState = {
  * @param {Object} firebaseConfig - Firebase configuration object
  * @returns {Promise<void>}
  */
-export async function initializeFirebaseAuth(firebaseConfig) {
+async function initializeFirebaseAuth(firebaseConfig) {
     if (FirebaseAuthState.initialized) {
         console.log('[Firebase Auth] Already initialized');
-        return;
+        return FirebaseAuthState.authReady;
     }
+
+    // Create promise that resolves when initial auth state is determined
+    FirebaseAuthState.authReady = new Promise((resolve) => {
+        FirebaseAuthState.authReadyResolve = resolve;
+    });
 
     try {
         // Initialize Firebase app
@@ -52,14 +59,32 @@ export async function initializeFirebaseAuth(firebaseConfig) {
         FirebaseAuthState.auth = firebase.auth();
 
         // Set up auth state observer
+        // The first callback fires immediately with the initial auth state
+        let isFirstCallback = true;
         FirebaseAuthState.auth.onAuthStateChanged(async (user) => {
-            await handleAuthStateChanged(user);
+            const isAuthenticated = await handleAuthStateChanged(user);
+
+            // Resolve the authReady promise after first auth state is processed
+            if (isFirstCallback) {
+                isFirstCallback = false;
+                console.log('[Firebase Auth] Initial auth state processed, authenticated:', isAuthenticated);
+                FirebaseAuthState.authReadyResolve({
+                    authenticated: isAuthenticated,
+                    user: user
+                });
+            }
         });
 
         FirebaseAuthState.initialized = true;
         console.log('[Firebase Auth] Initialized successfully');
+
+        // Return promise that resolves when initial auth state is ready
+        return FirebaseAuthState.authReady;
     } catch (error) {
         console.error('[Firebase Auth] Initialization failed:', error);
+        if (FirebaseAuthState.authReadyResolve) {
+            FirebaseAuthState.authReadyResolve({ authenticated: false, user: null });
+        }
         throw new Error(`Firebase initialization failed: ${error.message}`);
     }
 }
@@ -68,6 +93,7 @@ export async function initializeFirebaseAuth(firebaseConfig) {
  * Handle Firebase auth state changes
  *
  * @param {firebase.User|null} user - Firebase user object
+ * @returns {Promise<boolean>} Whether user is authenticated with backend
  */
 async function handleAuthStateChanged(user) {
     if (user) {
@@ -80,11 +106,28 @@ async function handleAuthStateChanged(user) {
         });
 
         // Check email verification (AC-AUTH-03)
+        // Reload user to get fresh emailVerified status from Firebase servers
+        // This handles edge cases where cached state has stale emailVerified value
         if (!user.emailVerified) {
-            console.warn('[Firebase Auth] Email not verified');
-            // Don't create session if email is not verified
-            // Backend will also enforce this
-            return;
+            console.log('[Firebase Auth] Email not verified in cache, reloading user data...');
+            try {
+                await user.reload();
+                // Get the refreshed user object
+                const refreshedUser = FirebaseAuthState.auth.currentUser;
+                if (refreshedUser && refreshedUser.emailVerified) {
+                    console.log('[Firebase Auth] Email verified after reload');
+                    FirebaseAuthState.currentUser = refreshedUser;
+                    user = refreshedUser;
+                } else {
+                    console.warn('[Firebase Auth] Email still not verified after reload');
+                    // Don't create session if email is not verified
+                    // Backend will also enforce this
+                    return false;
+                }
+            } catch (reloadError) {
+                console.warn('[Firebase Auth] Failed to reload user:', reloadError);
+                return false;
+            }
         }
 
         // Get Firebase ID token and verify with backend
@@ -94,10 +137,12 @@ async function handleAuthStateChanged(user) {
 
             // Set up automatic token refresh
             setupTokenRefresh();
+            return true; // Successfully authenticated with backend
         } catch (error) {
             console.error('[Firebase Auth] Token verification failed:', error);
             // Sign out on verification failure
             await signOut();
+            return false;
         }
     } else {
         FirebaseAuthState.currentUser = null;
@@ -108,6 +153,7 @@ async function handleAuthStateChanged(user) {
             clearInterval(FirebaseAuthState.tokenRefreshInterval);
             FirebaseAuthState.tokenRefreshInterval = null;
         }
+        return false;
     }
 }
 
@@ -179,7 +225,7 @@ function setupTokenRefresh() {
  * @param {string} password - User password
  * @returns {Promise<firebase.User>}
  */
-export async function signUpWithEmail(email, password) {
+async function signUpWithEmail(email, password) {
     if (!FirebaseAuthState.auth) {
         throw new Error('Firebase Auth not initialized');
     }
@@ -197,6 +243,14 @@ export async function signUpWithEmail(email, password) {
 
         console.log('[Firebase Auth] Sign up successful, verification email sent');
 
+        // Sign out the user after signup so they must sign in fresh after verification.
+        // This ensures they get a fresh token with emailVerified: true after clicking
+        // the verification link and signing in again.
+        // Without this, Firebase SDK may cache emailVerified: false from the signup,
+        // and the backend token verification (which creates the Firestore user) won't happen.
+        await FirebaseAuthState.auth.signOut();
+        console.log('[Firebase Auth] User signed out after signup - must sign in after verification');
+
         return userCredential.user;
     } catch (error) {
         console.error('[Firebase Auth] Sign up failed:', error);
@@ -211,7 +265,7 @@ export async function signUpWithEmail(email, password) {
  * @param {string} password - User password
  * @returns {Promise<firebase.User>}
  */
-export async function signInWithEmail(email, password) {
+async function signInWithEmail(email, password) {
     if (!FirebaseAuthState.auth) {
         throw new Error('Firebase Auth not initialized');
     }
@@ -238,7 +292,7 @@ export async function signInWithEmail(email, password) {
  *
  * @returns {Promise<firebase.User>}
  */
-export async function signInWithGoogle() {
+async function signInWithGoogle() {
     if (!FirebaseAuthState.auth) {
         throw new Error('Firebase Auth not initialized');
     }
@@ -267,7 +321,7 @@ export async function signInWithGoogle() {
  *
  * @returns {Promise<void>}
  */
-export async function signOut() {
+async function signOut() {
     if (!FirebaseAuthState.auth) {
         throw new Error('Firebase Auth not initialized');
     }
@@ -292,7 +346,7 @@ export async function signOut() {
  *
  * @returns {Promise<void>}
  */
-export async function sendEmailVerification() {
+async function sendEmailVerification() {
     if (!FirebaseAuthState.currentUser) {
         throw new Error('No user signed in');
     }
@@ -313,7 +367,7 @@ export async function sendEmailVerification() {
  * @param {string} email - User email
  * @returns {Promise<void>}
  */
-export async function sendPasswordResetEmail(email) {
+async function sendPasswordResetEmail(email) {
     if (!FirebaseAuthState.auth) {
         throw new Error('Firebase Auth not initialized');
     }
@@ -333,7 +387,7 @@ export async function sendPasswordResetEmail(email) {
  *
  * @returns {firebase.User|null}
  */
-export function getCurrentUser() {
+function getCurrentUser() {
     return FirebaseAuthState.currentUser;
 }
 
@@ -342,7 +396,7 @@ export function getCurrentUser() {
  *
  * @returns {boolean}
  */
-export function isAuthenticated() {
+function isAuthenticated() {
     return FirebaseAuthState.currentUser !== null &&
            FirebaseAuthState.currentUser.emailVerified;
 }
@@ -378,7 +432,7 @@ function getFirebaseErrorMessage(error) {
  * @param {number} timeout - Timeout in milliseconds (default: 5000)
  * @returns {Promise<void>}
  */
-export function waitForAuthInit(timeout = 5000) {
+function waitForAuthInit(timeout = 5000) {
     return new Promise((resolve, reject) => {
         if (FirebaseAuthState.initialized) {
             resolve();
@@ -397,3 +451,32 @@ export function waitForAuthInit(timeout = 5000) {
         }, 100);
     });
 }
+
+/**
+ * Wait for auth to be ready (initial state determined)
+ * Call this after initializeFirebaseAuth to get auth result
+ *
+ * @returns {Promise<{authenticated: boolean, user: firebase.User|null}>}
+ */
+function waitForAuthReady() {
+    if (FirebaseAuthState.authReady) {
+        return FirebaseAuthState.authReady;
+    }
+    // Not initialized yet, return immediate false
+    return Promise.resolve({ authenticated: false, user: null });
+}
+
+// Export module to global scope for app.js to access
+window.firebaseAuthModule = {
+    initializeFirebaseAuth,
+    signUpWithEmail,
+    signInWithEmail,
+    signInWithGoogle,
+    signOut,
+    sendEmailVerification,
+    sendPasswordResetEmail,
+    getCurrentUser,
+    isAuthenticated,
+    waitForAuthInit,
+    waitForAuthReady
+};

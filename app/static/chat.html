@@ -18,6 +18,16 @@
                     <h1 class="logo">Improv Olympics</h1>
                 </a>
                 <div class="nav-actions">
+                    <!-- Freemium Session Counter (IQS-65) -->
+                    <div id="session-counter" class="session-counter" hidden>
+                        <span class="session-icon" aria-hidden="true">🎤</span>
+                        <span class="session-count">
+                            <span id="sessions-used">0</span>/<span id="sessions-limit">2</span>
+                        </span>
+                        <button id="upgrade-btn" class="btn-upgrade" aria-label="Upgrade to premium">
+                            Upgrade
+                        </button>
+                    </div>
                     <button id="end-session-btn" class="btn btn-danger" aria-label="End current scene">
                         End Scene
                     </button>
@@ -164,6 +174,69 @@
 
     <!-- Toast notifications -->
     <div id="toast-container" class="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Upgrade Modal (IQS-65) -->
+    <div id="upgrade-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="upgrade-modal-title" style="display: none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-content upgrade-modal-content">
+            <button id="close-upgrade-modal" class="modal-close" aria-label="Close">&times;</button>
+
+            <div class="upgrade-hero">
+                <div class="upgrade-icon">🎭</div>
+                <h2 id="upgrade-modal-title" class="modal-title">You've Used Your Free Audio Sessions</h2>
+                <p class="upgrade-subtitle">Upgrade to Premium for unlimited voice sessions</p>
+            </div>
+
+            <div class="upgrade-comparison">
+                <div class="tier-card tier-free">
+                    <h3 class="tier-name">Free</h3>
+                    <div class="tier-price"><span class="price-amount">$0</span>/month</div>
+                    <ul class="tier-features">
+                        <li class="feature-included">✓ Unlimited text sessions</li>
+                        <li class="feature-included">✓ 2 audio sessions (lifetime)</li>
+                        <li class="feature-excluded">✗ Advanced coaching</li>
+                        <li class="feature-excluded">✗ Session history</li>
+                    </ul>
+                    <button class="btn btn-secondary" disabled>Current Plan</button>
+                </div>
+
+                <div class="tier-card tier-premium">
+                    <div class="tier-badge">Recommended</div>
+                    <h3 class="tier-name">Premium</h3>
+                    <div class="tier-price"><span class="price-amount">$9.99</span>/month</div>
+                    <ul class="tier-features">
+                        <li class="feature-included">✓ Everything in Free</li>
+                        <li class="feature-included">✓ <strong>Unlimited audio sessions</strong></li>
+                        <li class="feature-included">✓ Advanced coaching insights</li>
+                        <li class="feature-included">✓ Session history & playback</li>
+                    </ul>
+                    <button id="upgrade-to-premium-btn" class="btn btn-primary btn-large">Upgrade Now</button>
+                </div>
+            </div>
+
+            <div class="upgrade-footer">
+                <p>You can continue using text sessions for free.</p>
+                <button id="continue-text-btn" class="btn btn-secondary">Continue with Text Mode</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK v10.8.0 (compat mode for existing code) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+
+    <!-- Firebase/Identity Platform Configuration -->
+    <script>
+      // Identity Platform config for coherent-answer-479115-e1 project
+      window.FIREBASE_CONFIG = {
+        apiKey: "AIzaSyCPww6j0vqFyKRez3Pr8tiVZYF6KmPkuMU",
+        authDomain: "coherent-answer-479115-e1.firebaseapp.com",
+        projectId: "coherent-answer-479115-e1"
+      };
+    </script>
+
+    <!-- Firebase Auth Module -->
+    <script type="module" src="/static/firebase-auth.js"></script>
 
     <!-- Mood visualization for audience reactions (IQS-56) -->
     <script src="/static/mood-visualizer.js"></script>

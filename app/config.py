@@ -160,6 +160,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env.local"  # Use .env.local for local dev
         case_sensitive = False
+        extra = "ignore"  # Allow extra env vars like GOOGLE_APPLICATION_CREDENTIALS
 
 
 @lru_cache()

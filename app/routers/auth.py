@@ -4,6 +4,7 @@ from fastapi import APIRouter, Request, HTTPException, status
 from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 from authlib.integrations.starlette_client import OAuth
 from starlette.config import Config as StarletteConfig
+from itsdangerous import URLSafeTimedSerializer
 
 from app.config import get_settings
 from app.utils.logger import get_logger
@@ -276,16 +277,19 @@ async def get_current_user(request: Request):
         user_tier = "free"  # Default tier
 
         # Look up user tier from Firestore if enabled
+        # Check both use_firestore_auth AND firebase_auth_enabled since
+        # Firebase auth users are also stored in Firestore
         if user_email:
             from app.middleware.oauth_auth import should_use_firestore_auth
 
-            if should_use_firestore_auth():
+            if should_use_firestore_auth() or settings.firebase_auth_enabled:
                 from app.services.user_service import get_user_by_email
 
                 try:
                     user_profile = await get_user_by_email(user_email)
                     if user_profile:
                         user_tier = user_profile.tier.value
+                        logger.debug("User tier fetched from Firestore", email=user_email, tier=user_tier)
                 except Exception as tier_err:
                     logger.warning("Failed to fetch user tier", error=str(tier_err))
 
@@ -520,11 +524,16 @@ async def verify_firebase_token_endpoint(request: Request):
         )
 
     except Exception as e:
+        import traceback
         logger.error(
             "Unexpected error in Firebase token verification",
             error=str(e),
             error_type=type(e).__name__,
+            traceback=traceback.format_exc(),
         )
+        # Print to stderr for visibility during development
+        print(f"FIREBASE AUTH ERROR: {type(e).__name__}: {e}")
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred during authentication",
@@ -1158,4 +1167,177 @@ async def mfa_status(request: Request):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get MFA status",
+        )
+
+
+# ============================================
+# Freemium Session Limit Endpoints (IQS-65)
+# ============================================
+
+
+@router.get("/user/session-limit")
+async def get_session_limit_status(request: Request):
+    """Get freemium session limit status for the current user.
+
+    Returns session usage and limit information for freemium users.
+    Premium users will have has_access=True and is_premium=True.
+
+    Returns:
+        SessionLimitStatus with access status, usage counts, and messaging
+    """
+    from app.services.freemium_session_limiter import check_session_limit
+    from app.services.user_service import get_user_by_email
+    from app.models.user import UserTier
+
+    # Validate session
+    session_cookie = request.cookies.get("session")
+    if not session_cookie:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated"
+        )
+
+    try:
+        serializer = URLSafeTimedSerializer(
+            settings.session_secret_key or "dev-secret-key-change-in-production"
+        )
+        session_data = serializer.loads(session_cookie, max_age=86400)
+    except Exception as e:
+        logger.warning("Invalid session cookie", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid session"
+        )
+
+    email = session_data.get("email")
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No email in session"
+        )
+
+    user_profile = await get_user_by_email(email)
+    if not user_profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    # Check if premium user
+    is_premium = user_profile.tier == UserTier.PREMIUM
+
+    if is_premium:
+        return {
+            "has_access": True,
+            "is_premium": True,
+            "sessions_used": 0,
+            "sessions_limit": 0,
+            "sessions_remaining": -1,  # Unlimited
+            "is_at_limit": False,
+            "upgrade_required": False,
+            "message": "You have unlimited audio sessions."
+        }
+
+    # Get freemium limit status
+    limit_status = await check_session_limit(user_profile)
+
+    return {
+        "has_access": limit_status.has_access,
+        "is_premium": False,
+        "sessions_used": limit_status.sessions_used,
+        "sessions_limit": limit_status.sessions_limit,
+        "sessions_remaining": limit_status.sessions_remaining,
+        "is_at_limit": limit_status.is_at_limit,
+        "upgrade_required": limit_status.upgrade_required,
+        "message": limit_status.message
+    }
+
+
+@router.post("/user/session-complete")
+async def complete_audio_session(request: Request):
+    """Mark an audio session as complete and increment the session counter.
+
+    This should be called when a freemium user completes an audio session.
+    Uses atomic Firestore operations to prevent race conditions.
+
+    Returns:
+        Success status and updated session count
+    """
+    from app.services.freemium_session_limiter import increment_session_count
+    from app.services.user_service import get_user_by_email
+    from app.models.user import UserTier
+
+    # Validate session
+    session_cookie = request.cookies.get("session")
+    if not session_cookie:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated"
+        )
+
+    try:
+        serializer = URLSafeTimedSerializer(
+            settings.session_secret_key or "dev-secret-key-change-in-production"
+        )
+        session_data = serializer.loads(session_cookie, max_age=86400)
+    except Exception as e:
+        logger.warning("Invalid session cookie", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid session"
+        )
+
+    email = session_data.get("email")
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No email in session"
+        )
+
+    # Get user profile
+    user_profile = await get_user_by_email(email)
+    if not user_profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    # Premium users don't need to track sessions
+    if user_profile.tier == UserTier.PREMIUM:
+        return {
+            "success": True,
+            "is_premium": True,
+            "sessions_used": 0,
+            "message": "Premium user - unlimited sessions"
+        }
+
+    # Increment session count for freemium users
+    try:
+        success = await increment_session_count(email)
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to increment session count"
+            )
+
+        # Get updated count
+        updated_profile = await get_user_by_email(email)
+        new_count = updated_profile.premium_sessions_used if updated_profile else 0
+        limit = updated_profile.premium_sessions_limit if updated_profile else 2
+
+        return {
+            "success": True,
+            "is_premium": False,
+            "sessions_used": new_count,
+            "sessions_limit": limit,
+            "sessions_remaining": max(0, limit - new_count),
+            "message": f"Session recorded. {max(0, limit - new_count)} sessions remaining."
+        }
+
+    except Exception as e:
+        logger.error("Failed to complete session", email=email, error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to record session completion"
         )

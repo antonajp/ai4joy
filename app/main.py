@@ -13,6 +13,14 @@ AI-powered social gym, featuring:
 """
 
 import os
+from pathlib import Path
+
+# Load .env.local for local development (must happen before any other imports)
+# This ensures GOOGLE_APPLICATION_CREDENTIALS is available via os.environ
+env_local = Path(__file__).parent.parent / ".env.local"
+if env_local.exists():
+    from dotenv import load_dotenv
+    load_dotenv(env_local, override=False)
 
 # Configure google-genai for Vertex AI BEFORE any ADK imports
 # This must happen at module load time, before Agent classes are imported
@@ -76,9 +84,11 @@ app.add_middleware(
 )
 
 # Starlette SessionMiddleware for OAuth state management
+# Use a different cookie name to avoid conflict with our auth session cookie
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.session_secret_key or "dev-secret-key-change-in-production",
+    session_cookie="oauth_state",  # Renamed from default "session" to avoid conflict
     max_age=3600,  # 1 hour for OAuth state
 )
 
@@ -142,10 +152,21 @@ async def startup_event():
 
             # Check if Firebase app is already initialized
             if not firebase_admin._apps:
-                # Use Application Default Credentials (ADC) for authentication
-                # In production (Cloud Run), this uses the Workload Identity
-                # In local dev, set GOOGLE_APPLICATION_CREDENTIALS env var
-                cred = credentials.ApplicationDefault()
+                # Check for explicit service account file (local development)
+                service_account_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+                if service_account_path and os.path.exists(service_account_path):
+                    # Use Certificate credentials for explicit service account file
+                    cred = credentials.Certificate(service_account_path)
+                    logger.info(
+                        "Using service account credentials",
+                        path=service_account_path,
+                    )
+                else:
+                    # Use Application Default Credentials (ADC) for production
+                    # In Cloud Run, this uses Workload Identity
+                    cred = credentials.ApplicationDefault()
+                    logger.info("Using Application Default Credentials")
+
                 firebase_admin.initialize_app(
                     cred,
                     {
