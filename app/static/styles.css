@@ -305,6 +305,40 @@ header {
 }
 
 /* ============================================
+   Announcement Banner
+   ============================================ */
+
+.announcement-banner {
+    background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+    color: white;
+    padding: var(--space-sm) 0;
+    text-align: center;
+}
+
+.announcement-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+}
+
+.announcement-badge {
+    background: white;
+    color: #059669;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.announcement-text {
+    font-size: 0.9375rem;
+}
+
+/* ============================================
    Hero Section
    ============================================ */
 
@@ -324,9 +358,30 @@ header {
 .hero-subtitle {
     font-size: 1.25rem;
     max-width: 700px;
-    margin: 0 auto var(--space-2xl);
+    margin: 0 auto var(--space-lg);
     line-height: 1.7;
     color: rgba(255, 255, 255, 0.95);
+}
+
+.hero-highlight {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(4px);
+    padding: var(--space-sm) var(--space-lg);
+    border-radius: var(--radius-xl);
+    margin-bottom: var(--space-2xl);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.hero-highlight-icon {
+    font-size: 1.25rem;
+}
+
+.hero-highlight-text {
+    font-size: 1rem;
+    color: white;
 }
 
 .hero-actions {
@@ -340,6 +395,17 @@ header {
     font-size: 0.875rem;
     color: rgba(255, 255, 255, 0.8);
     margin: 0;
+}
+
+.freemium-notice {
+    background: rgba(255, 255, 255, 0.1);
+    padding: var(--space-sm) var(--space-lg);
+    border-radius: var(--radius-md);
+    color: white;
+}
+
+.freemium-notice strong {
+    color: #fcd34d;
 }
 
 /* ============================================
@@ -372,11 +438,36 @@ header {
     box-shadow: var(--shadow-md);
     text-align: center;
     transition: transform var(--transition-base);
+    position: relative;
 }
 
 .feature-card:hover {
     transform: translateY(-4px);
     box-shadow: var(--shadow-lg);
+}
+
+.feature-card-highlight {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border: 2px solid #f59e0b;
+}
+
+.feature-card-highlight:hover {
+    box-shadow: 0 10px 25px -5px rgba(245, 158, 11, 0.3);
+}
+
+.feature-badge {
+    position: absolute;
+    top: -0.5rem;
+    right: -0.5rem;
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    padding: 0.25rem 0.625rem;
+    border-radius: var(--radius-md);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    box-shadow: var(--shadow-md);
 }
 
 .feature-icon {

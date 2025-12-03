@@ -38,8 +38,8 @@
             <div class="nav-content">
                 <h1 class="logo">Improv Olympics</h1>
                 <div class="nav-actions">
-                    <button id="login-btn" class="btn btn-secondary" aria-label="Sign in with Google">
-                        Sign In
+                    <button id="login-btn" class="btn btn-primary" aria-label="Sign in for free">
+                        Try Free
                     </button>
                     <button id="logout-btn" class="btn btn-secondary" aria-label="Sign out" style="display: none;">
                         Sign Out
@@ -50,6 +50,16 @@
     </header>
 
     <main id="main-content" role="main">
+        <!-- Announcement Banner -->
+        <div class="announcement-banner" role="alert">
+            <div class="container announcement-container">
+                <span class="announcement-badge">NEW</span>
+                <span class="announcement-text">
+                    <strong>Realtime Audio is here!</strong> Talk naturally with your AI scene partner using voice.
+                </span>
+            </div>
+        </div>
+
         <!-- Hero Section -->
         <section class="hero" aria-labelledby="hero-title">
             <div class="container">
@@ -58,11 +68,14 @@
                     Rebuild your social confidence in a safe, judgment-free environment.
                     Practice real-time improvisation with AI partners that adapt to your skill level.
                 </p>
+                <div class="hero-highlight">
+                    <span class="hero-highlight-icon" aria-hidden="true">🎙️</span>
+                    <span class="hero-highlight-text">Now with <strong>realtime voice conversations</strong> - speak naturally, get instant responses</span>
+                </div>
                 <div class="hero-actions">
                     <button id="start-session-btn" class="btn btn-primary btn-large" disabled aria-describedby="auth-notice">
                         Start Your Scene
                     </button>
-                    <p id="auth-notice" class="auth-notice">Sign in to start your improv session</p>
                 </div>
             </div>
         </section>
@@ -72,6 +85,15 @@
             <div class="container">
                 <h2 id="features-title" class="section-title">How It Works</h2>
                 <div class="features-grid">
+                    <article class="feature-card feature-card-highlight">
+                        <div class="feature-badge">NEW</div>
+                        <div class="feature-icon" aria-hidden="true">🎙️</div>
+                        <h3 class="feature-title">Realtime Audio</h3>
+                        <p class="feature-description">
+                            Talk naturally with your AI scene partner using your voice.
+                            Experience fluid, real-time conversations just like on stage.
+                        </p>
+                    </article>
                     <article class="feature-card">
                         <div class="feature-icon" aria-hidden="true">🎭</div>
                         <h3 class="feature-title">Scene Partner</h3>
