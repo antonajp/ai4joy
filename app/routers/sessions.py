@@ -166,6 +166,7 @@ async def start_session(
         "Session creation requested",
         user_id=user_id,
         user_email=user_email,
+        interaction_mode=session_data.interaction_mode.value if session_data.interaction_mode else "text",
     )
 
     try:
@@ -205,6 +206,7 @@ async def start_session(
     return SessionResponse(
         session_id=session.session_id,
         status=session.status,
+        interaction_mode=session.interaction_mode.value if hasattr(session.interaction_mode, 'value') else str(session.interaction_mode),
         created_at=session.created_at,
         expires_at=session.expires_at,
         turn_count=session.turn_count,
@@ -244,6 +246,7 @@ async def get_session_info(
     return SessionResponse(
         session_id=session.session_id,
         status=session.status,
+        interaction_mode=session.interaction_mode.value if hasattr(session.interaction_mode, 'value') else str(session.interaction_mode),
         created_at=session.created_at,
         expires_at=session.expires_at,
         turn_count=session.turn_count,

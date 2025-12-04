@@ -6,6 +6,12 @@ from pydantic import BaseModel, Field
 from enum import Enum
 
 
+class InteractionMode(str, Enum):
+    """Interaction mode for the session."""
+    TEXT = "text"
+    AUDIO = "audio"
+
+
 class SessionStatus(str, Enum):
     """Session lifecycle states.
 
@@ -48,6 +54,10 @@ class SessionCreate(BaseModel):
     selected_game_name: Optional[str] = Field(
         None, description="Pre-selected game name"
     )
+    interaction_mode: Optional[InteractionMode] = Field(
+        default=InteractionMode.TEXT,
+        description="Interaction mode: 'text' for HTTP-based or 'audio' for WebSocket-based"
+    )
 
 
 class Session(BaseModel):
@@ -59,6 +69,7 @@ class Session(BaseModel):
     user_name: Optional[str] = None
 
     status: SessionStatus = SessionStatus.INITIALIZED
+    interaction_mode: InteractionMode = InteractionMode.TEXT
 
     created_at: datetime
     updated_at: datetime
@@ -85,6 +96,7 @@ class SessionResponse(BaseModel):
 
     session_id: str
     status: str
+    interaction_mode: str = "text"  # Added in IQS-75 for mode tracking
     created_at: datetime
     expires_at: datetime
     turn_count: int = 0

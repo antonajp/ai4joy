@@ -441,9 +441,24 @@ class AudioUIController {
             this.logger.warn('[IQS-66] Could not check pre-selected mode:', error);
         }
 
-        // IQS-66 FIX #4: Prevent mode switching during active scene
-        if (AppState.sessionId && !this.isVoiceMode) {
-            this.logger.warn('[IQS-66] Cannot switch to voice mode during active scene');
+        // IQS-75 FIX: Prevent mode switching ONLY during active scene work (turn_count > 0)
+        // Allow initial mode selection before any turns have been taken
+        const sessionTurnCount = AppState.currentSession?.turn_count;
+        const stateTurnCount = AppState.currentTurn;
+        const currentTurnCount = sessionTurnCount ?? stateTurnCount ?? 0;
+        const isSceneActive = currentTurnCount > 0;
+
+        this.logger.info('[IQS-75] enableVoiceMode check', {
+            sessionId: AppState.sessionId,
+            sessionTurnCount,
+            stateTurnCount,
+            currentTurnCount,
+            isSceneActive,
+            isVoiceMode: this.isVoiceMode
+        });
+
+        if (AppState.sessionId && !this.isVoiceMode && isSceneActive) {
+            this.logger.warn('[IQS-75] BLOCKED: Cannot switch during active scene', { turnCount: currentTurnCount });
             if (typeof showToast === 'function') {
                 showToast('To switch modes, please end the current scene and return to game selection.', 'info');
             } else {
@@ -451,6 +466,8 @@ class AudioUIController {
             }
             return;
         }
+
+        this.logger.info('[IQS-75] Proceeding to enable voice mode');
 
         if (!this.hasVoiceAccess) {
             this.showUpgradePrompt();
@@ -545,9 +562,13 @@ class AudioUIController {
     }
 
     setTextMode() {
-        // IQS-66 FIX #4: Prevent mode switching during active scene
-        if (AppState.sessionId && this.isVoiceMode) {
-            this.logger.warn('[IQS-66] Cannot switch to text mode during active scene');
+        // IQS-75 FIX: Prevent mode switching ONLY during active scene work (turn_count > 0)
+        // Allow initial mode selection before any turns have been taken
+        const currentTurnCount = AppState.currentSession?.turn_count || AppState.currentTurn || 0;
+        const isSceneActive = currentTurnCount > 0;
+
+        if (AppState.sessionId && this.isVoiceMode && isSceneActive) {
+            this.logger.warn('[IQS-66] Cannot switch to text mode during active scene (turn_count > 0)');
             if (typeof showToast === 'function') {
                 showToast('To switch modes, please end the current scene and return to game selection.', 'info');
             } else {

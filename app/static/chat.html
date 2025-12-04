@@ -241,10 +241,11 @@
     <!-- Mood visualization for audience reactions (IQS-56) -->
     <script src="/static/mood-visualizer.js"></script>
     <!-- Audio streaming for voice mode (IQS-62) -->
-    <script src="/static/audio-codec.js"></script>
-    <script src="/static/audio-manager.js"></script>
-    <script src="/static/audio-ui.js"></script>
-    <script src="/static/app.js"></script>
+    <!-- IQS-75: Added cache-busting version param to force reload -->
+    <script src="/static/audio-codec.js?v=75b"></script>
+    <script src="/static/audio-manager.js?v=75b"></script>
+    <script src="/static/audio-ui.js?v=75b"></script>
+    <script src="/static/app.js?v=75b"></script>
     <!-- IQS-66 FIX #1: Hide mode selector during active scene to prevent mid-scene switching -->
     <style>
         .mode-selector-container {

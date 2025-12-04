@@ -1426,7 +1426,12 @@ async function initializeChatInterface() {
 
         hideLoading();
         const mcWelcomeStatuses = ['initialized', 'mc_welcome', 'game_select', 'suggestion_phase'];
-        if (mcWelcomeStatuses.includes(session.status)) {
+
+        // IQS-75 FIX: Skip HTTP MC welcome if voice mode is pre-selected with a game
+        // Voice mode handles its own greeting via WebSocket
+        const shouldSkipMCWelcome = AppState.isVoiceMode && AppState.selectedGame;
+
+        if (mcWelcomeStatuses.includes(session.status) && !shouldSkipMCWelcome) {
             AppState.mcWelcomeComplete = false;
             console.log(`[App] Session status: ${session.status}, starting MC welcome phase`);
 
@@ -1439,6 +1444,11 @@ async function initializeChatInterface() {
             }
 
             await startMCWelcomePhase(sessionId);
+        } else if (shouldSkipMCWelcome) {
+            // IQS-75: Voice mode with pre-selected game - skip MC welcome, let audio handle it
+            console.log('[IQS-75] Voice mode with pre-selected game, skipping HTTP MC welcome');
+            AppState.mcWelcomeComplete = true;
+            displaySystemMessage(`🎤 Voice mode activated! Starting scene with "${AppState.selectedGame.name}"...`);
         } else {
             AppState.mcWelcomeComplete = true;
             if (session.turn_count === 0) {
