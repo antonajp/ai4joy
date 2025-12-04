@@ -50,6 +50,40 @@ const AppState = {
 // ============================================
 
 /**
+ * Utility functions for safe sessionStorage operations (IQS-66 Issue #2)
+ * Handles exceptions in private browsing, disabled cookies, and quota exceeded scenarios
+ */
+function safeStorageGet(key, defaultValue = null) {
+    try {
+        return sessionStorage.getItem(key);
+    } catch (error) {
+        console.warn(`[Storage] Failed to read ${key}:`, error);
+        return defaultValue;
+    }
+}
+
+function safeStorageSet(key, value) {
+    try {
+        sessionStorage.setItem(key, value);
+        return true;
+    } catch (error) {
+        console.error(`[Storage] Failed to write ${key}:`, error);
+        showToast('Unable to save session preferences. Private browsing mode?', 'warning');
+        return false;
+    }
+}
+
+function safeStorageRemove(key) {
+    try {
+        sessionStorage.removeItem(key);
+        return true;
+    } catch (error) {
+        console.warn(`[Storage] Failed to remove ${key}:`, error);
+        return false;
+    }
+}
+
+/**
  * Show loading overlay with custom message
  */
 function showLoading(message = 'Loading...') {
@@ -208,21 +242,21 @@ function formatTime(date) {
  * Store session ID in sessionStorage
  */
 function storeSessionId(sessionId) {
-    sessionStorage.setItem('improv_session_id', sessionId);
+    safeStorageSet('improv_session_id', sessionId);
 }
 
 /**
  * Get session ID from sessionStorage
  */
 function getStoredSessionId() {
-    return sessionStorage.getItem('improv_session_id');
+    return safeStorageGet('improv_session_id');
 }
 
 /**
  * Clear stored session ID
  */
 function clearStoredSessionId() {
-    sessionStorage.removeItem('improv_session_id');
+    safeStorageRemove('improv_session_id');
 }
 
 // ============================================
@@ -826,6 +860,7 @@ function showSignUpForm() {
 
 /**
  * Handle start session button click - fetch games and show selection
+ * IQS-66 FIX #3 & #4: Check for existing mode selection before applying tier defaults
  */
 async function handleStartSession() {
     if (!AppState.isAuthenticated) {
@@ -834,6 +869,25 @@ async function handleStartSession() {
     }
 
     showModal('setup-modal');
+
+    // IQS-66 Issue #4: Check for existing mode selection before applying tier defaults
+    const existingMode = safeStorageGet('improv_voice_mode')?.toLowerCase();
+
+    if (existingMode === 'true' || existingMode === 'false') {
+        // User has previous selection - restore it
+        console.log('[IQS-66] Restoring previous mode selection:', existingMode === 'true' ? 'voice' : 'text');
+        await handleModeSelection(existingMode === 'true' ? 'audio' : 'text');
+    } else {
+        // No previous selection - apply tier-based defaults
+        const userTier = AppState.currentUser?.tier || 'free';
+        if (userTier === 'premium' || userTier === 'freemium') {
+            console.log('[IQS-66] Applying tier-based default: voice mode for', userTier);
+            await handleModeSelection('audio');
+        } else {
+            console.log('[IQS-66] Applying tier-based default: text mode for', userTier);
+            await handleModeSelection('text');
+        }
+    }
 
     // Show loading state with spinner
     const grid = document.getElementById('game-selection-grid');
@@ -903,6 +957,7 @@ async function retryLoadGames() {
 
 /**
  * Display game selection grid in modal
+ * FIX: IQS-66 Issue #3 - Use event delegation instead of inline onclick to prevent XSS
  */
 function displayGameSelectionGrid(games) {
     const grid = document.getElementById('game-selection-grid');
@@ -913,6 +968,8 @@ function displayGameSelectionGrid(games) {
         return;
     }
 
+    // IQS-66 SECURITY FIX: Remove inline onclick handlers, use data-* attributes instead
+    // This prevents JavaScript injection even if game data is compromised
     const gameCards = games.map((game, index) => {
         const difficultyClass = `difficulty-${game.difficulty || 'beginner'}`;
         const fullDescription = game.description || '';
@@ -920,13 +977,14 @@ function displayGameSelectionGrid(games) {
 
         return `
             <button class="game-card ${difficultyClass}"
-                    onclick="handleGameSelection('${escapeHtml(game.id)}', '${escapeHtml(game.name)}', '${escapeHtml(game.difficulty || 'beginner')}')"
-                    onkeydown="handleGameCardKeyboard(event, '${escapeHtml(game.id)}', '${escapeHtml(game.name)}', '${escapeHtml(game.difficulty || 'beginner')}')"
                     role="option"
                     aria-selected="false"
                     data-game-id="${escapeHtml(game.id)}"
+                    data-game-name="${escapeHtml(game.name)}"
+                    data-game-difficulty="${escapeHtml(game.difficulty || 'beginner')}"
                     data-game-index="${index}"
-                    data-full-description="${escapeHtml(fullDescription)}">
+                    data-full-description="${escapeHtml(fullDescription)}"
+                    aria-label="Select ${escapeHtml(game.name)} - ${escapeHtml(game.difficulty || 'beginner')} difficulty">
                 <span class="game-card-name">${escapeHtml(game.name)}</span>
                 <span class="game-card-difficulty">${escapeHtml(game.difficulty || 'Beginner')}</span>
                 ${truncatedDesc ? `<span class="game-card-description">${escapeHtml(truncatedDesc)}</span>` : ''}
@@ -947,8 +1005,9 @@ function displayGameSelectionGrid(games) {
 
 /**
  * Handle keyboard navigation for game cards
+ * IQS-66 SECURITY FIX: Read data from data-* attributes instead of function parameters
  */
-function handleGameCardKeyboard(event, gameId, gameName, difficulty) {
+function handleGameCardKeyboard(event) {
     const cards = Array.from(document.querySelectorAll('.game-card'));
     const currentCard = event.target.closest('.game-card');
     const currentIndex = cards.indexOf(currentCard);
@@ -957,6 +1016,10 @@ function handleGameCardKeyboard(event, gameId, gameName, difficulty) {
         case 'Enter':
         case ' ':
             event.preventDefault();
+            // Read data from data-* attributes (secure against XSS)
+            const gameId = currentCard.dataset.gameId;
+            const gameName = currentCard.dataset.gameName;
+            const difficulty = currentCard.dataset.gameDifficulty;
             handleGameSelection(gameId, gameName, difficulty);
             break;
         case 'ArrowDown':
@@ -1037,6 +1100,7 @@ function handleGameSelection(gameId, gameName, difficulty) {
 
 /**
  * Handle session creation with pre-selected game
+ * IQS-66: Now includes mode selection (text vs audio)
  */
 async function handleCreateSession() {
     if (!AppState.selectedGame) {
@@ -1056,7 +1120,11 @@ async function handleCreateSession() {
         storeSessionId(session.session_id);
 
         // Store selected game in sessionStorage for chat page
-        sessionStorage.setItem('improv_selected_game', JSON.stringify(AppState.selectedGame));
+        safeStorageSet('improv_selected_game', JSON.stringify(AppState.selectedGame));
+
+        // Store selected mode in sessionStorage (IQS-66)
+        safeStorageSet('improv_voice_mode', AppState.isVoiceMode ? 'true' : 'false');
+        console.log(`[App] Session created with mode: ${AppState.isVoiceMode ? 'audio' : 'text'}`);
 
         // Redirect to chat interface
         window.location.href = `/static/chat.html?session=${session.session_id}`;
@@ -1080,6 +1148,190 @@ async function handleSessionFormSubmit(event) {
  */
 function handleCancelSession() {
     hideModal('setup-modal');
+}
+
+/**
+ * Handle mode selection (text vs audio) - IQS-66
+ * FIX: IQS-66 Issue #1 - Check permissions BEFORE updating state to prevent race condition
+ * FIX: IQS-66 Issue #3 - Apply tier-based defaults on modal initialization
+ */
+async function handleModeSelection(mode) {
+    const textModeBtn = document.getElementById('text-mode-btn');
+    const voiceModeBtn = document.getElementById('voice-mode-btn');
+    const helperText = document.getElementById('mode-helper-text');
+    const micWarning = document.getElementById('mic-permission-warning');
+
+    // Update button states
+    if (mode === 'text') {
+        // Select text mode
+        textModeBtn?.classList.add('mode-btn-active');
+        textModeBtn?.setAttribute('aria-checked', 'true');
+        voiceModeBtn?.classList.remove('mode-btn-active');
+        voiceModeBtn?.setAttribute('aria-checked', 'false');
+
+        // Update helper text
+        if (helperText) {
+            helperText.textContent = "You'll type your responses and read your partner's replies";
+        }
+
+        // Hide microphone warning
+        if (micWarning) {
+            micWarning.style.display = 'none';
+        }
+
+        // Update app state
+        AppState.isVoiceMode = false;
+
+        // Announce to screen readers
+        const announcement = "Text mode selected. You'll type your responses.";
+        if (helperText) {
+            helperText.setAttribute('aria-live', 'polite');
+            helperText.textContent = announcement;
+        }
+
+    } else if (mode === 'audio') {
+        // IQS-66 SECURITY FIX: Check microphone permissions FIRST before updating state
+        // This prevents race condition where state shows voice mode but permissions are denied
+        const permissionResult = await checkMicrophonePermissions();
+
+        if (permissionResult.success) {
+            // Permissions granted - enable voice mode
+            voiceModeBtn?.classList.add('mode-btn-active');
+            voiceModeBtn?.setAttribute('aria-checked', 'true');
+            textModeBtn?.classList.remove('mode-btn-active');
+            textModeBtn?.setAttribute('aria-checked', 'false');
+
+            // Update helper text
+            if (helperText) {
+                helperText.textContent = "You'll speak and hear responses in real-time using your microphone";
+            }
+
+            // Hide microphone warning
+            if (micWarning) {
+                micWarning.style.display = 'none';
+            }
+
+            // Update app state ONLY after successful permission check
+            AppState.isVoiceMode = true;
+
+            // Announce to screen readers
+            const announcement = "Voice mode selected. You'll speak into your microphone.";
+            if (helperText) {
+                helperText.setAttribute('aria-live', 'polite');
+                helperText.textContent = announcement;
+            }
+        } else {
+            // Permissions denied - revert to text mode and show detailed error
+            AppState.isVoiceMode = false;
+
+            // Revert button states to text mode
+            voiceModeBtn?.classList.remove('mode-btn-active');
+            voiceModeBtn?.setAttribute('aria-checked', 'false');
+            textModeBtn?.classList.add('mode-btn-active');
+            textModeBtn?.classList.add('mode-btn-active');
+            textModeBtn?.setAttribute('aria-checked', 'true');
+
+            // Update helper text
+            if (helperText) {
+                helperText.textContent = "You'll type your responses and read your partner's replies";
+            }
+
+            // Show detailed error message in warning banner
+            if (micWarning) {
+                const warningText = micWarning.querySelector('p');
+                if (warningText) {
+                    warningText.textContent = permissionResult.message;
+                }
+                micWarning.style.display = 'flex';
+            }
+
+            // Announce error to screen readers
+            if (helperText) {
+                helperText.setAttribute('aria-live', 'assertive');
+                helperText.textContent = permissionResult.message;
+            }
+        }
+    }
+}
+
+/**
+ * Handle keyboard navigation for mode selection - IQS-66
+ */
+function handleModeKeyboard(event) {
+    const textModeBtn = document.getElementById('text-mode-btn');
+    const voiceModeBtn = document.getElementById('voice-mode-btn');
+
+    switch (event.key) {
+        case 'ArrowLeft':
+            event.preventDefault();
+            handleModeSelection('text');
+            textModeBtn?.focus();
+            break;
+        case 'ArrowRight':
+            event.preventDefault();
+            handleModeSelection('audio');
+            voiceModeBtn?.focus();
+            break;
+        case ' ':
+        case 'Enter':
+            event.preventDefault();
+            const mode = event.target.dataset.mode;
+            if (mode) {
+                handleModeSelection(mode);
+            }
+            break;
+    }
+}
+
+/**
+ * Check if microphone permissions are available - IQS-66
+ * FIX: IQS-66 Issue #2 - Enhanced error handling with detailed user feedback
+ * Returns an object with success status and user-friendly error messages
+ */
+async function checkMicrophonePermissions() {
+    try {
+        // Check if MediaDevices API is supported
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            console.warn('[App] MediaDevices API not available');
+            return {
+                success: false,
+                error: 'unsupported',
+                message: 'Your browser does not support voice mode. Please use a modern browser (Chrome, Firefox, Safari).'
+            };
+        }
+
+        // Try to get microphone access (this will prompt user if not already granted)
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        // Stop the stream immediately - we just wanted to check permissions
+        stream.getTracks().forEach(track => track.stop());
+
+        return { success: true };
+
+    } catch (error) {
+        console.warn('[App] Microphone permission issue:', error);
+
+        // Differentiate error types and provide specific user feedback
+        if (error.name === 'NotAllowedError') {
+            return {
+                success: false,
+                error: 'permission_denied',
+                message: 'Microphone access denied. Please enable microphone permissions in your browser settings.'
+            };
+        } else if (error.name === 'NotFoundError') {
+            return {
+                success: false,
+                error: 'no_microphone',
+                message: 'No microphone found. Please connect a microphone to use voice mode.'
+            };
+        } else {
+            return {
+                success: false,
+                error: 'unknown',
+                message: 'Unable to access microphone. Please try again or use text mode.'
+            };
+        }
+    }
 }
 
 // ============================================
@@ -1113,8 +1365,23 @@ async function initializeChatInterface() {
         return;
     }
 
+    // IQS-66 Issue #1 & #2: Case-insensitive mode check with safe storage
+    const preSelectedMode = safeStorageGet('improv_voice_mode')?.toLowerCase();
+    if (preSelectedMode === 'true') {
+        console.log('[IQS-66] User pre-selected voice mode, initializing audio');
+        AppState.isVoiceMode = true;
+    } else if (preSelectedMode === 'false') {
+        console.log('[IQS-66] User pre-selected text mode, initializing text interface');
+        AppState.isVoiceMode = false;
+    } else {
+        console.log('[IQS-66] No pre-selected mode, using tier default');
+        // Default based on tier if no explicit selection
+        const userTier = AppState.currentUser?.tier || 'free';
+        AppState.isVoiceMode = (userTier === 'premium' || userTier === 'freemium');
+    }
+
     // Check if we have a pre-selected game from the landing page
-    const storedGame = sessionStorage.getItem('improv_selected_game');
+    const storedGame = safeStorageGet('improv_selected_game');
     if (storedGame) {
         try {
             AppState.selectedGame = JSON.parse(storedGame);
@@ -1130,6 +1397,9 @@ async function initializeChatInterface() {
         AppState.currentSession = session;
         AppState.currentTurn = session.turn_count;
 
+        // Store session ID in AppState for mode-lock check (IQS-66)
+        AppState.sessionId = sessionId;
+
         // If session has a game but AppState doesn't, sync from session
         if (session.selected_game_name && !AppState.selectedGame) {
             AppState.selectedGame = {
@@ -1143,8 +1413,11 @@ async function initializeChatInterface() {
         await initializeAudioFeatures();
 
         // If game is pre-selected, enable voice mode button immediately for premium users
+        // IQS-66 CRITICAL FIX: Pass autoActivate=false to prevent override of user's text mode selection
+        // Only auto-activate if user explicitly selected voice mode
         if (AppState.selectedGame && AppState.audioUI) {
-            AppState.audioUI.enableVoiceModeButton(AppState.selectedGame);
+            const shouldAutoActivate = AppState.isVoiceMode; // Only if user pre-selected voice mode
+            AppState.audioUI.enableVoiceModeButton(AppState.selectedGame, shouldAutoActivate);
             updateGameDisplay(AppState.selectedGame.name);
         }
 
@@ -1197,9 +1470,10 @@ async function startMCWelcomePhase(sessionId) {
             updateGameDisplay(response.selected_game.name);
 
             // Enable voice mode button as soon as game is selected (for premium users)
-            // User can switch to voice mode without completing full MC welcome phase
+            // IQS-66: Respect user's pre-selected mode
             if (AppState.audioUI) {
-                AppState.audioUI.enableVoiceModeButton(response.selected_game);
+                const shouldAutoActivate = AppState.isVoiceMode;
+                AppState.audioUI.enableVoiceModeButton(response.selected_game, shouldAutoActivate);
             }
         }
 
@@ -1217,8 +1491,10 @@ async function startMCWelcomePhase(sessionId) {
             displaySystemMessage(`MC welcome complete! The scene is about to begin. Enter your first line when ready.${voiceHintWelcome}`);
 
             // Enable voice mode button now that game is selected
+            // IQS-66: Respect user's pre-selected mode
             if (AppState.audioUI && AppState.selectedGame) {
-                AppState.audioUI.enableVoiceModeButton(AppState.selectedGame);
+                const shouldAutoActivate = AppState.isVoiceMode;
+                AppState.audioUI.enableVoiceModeButton(AppState.selectedGame, shouldAutoActivate);
             }
         }
 
@@ -1269,9 +1545,10 @@ async function handleMCWelcomeInput(userInput) {
             displaySystemMessage(`Game selected: ${response.selected_game.name}`);
 
             // Enable voice mode button as soon as game is selected (for premium users)
-            // User can switch to voice mode without completing full MC welcome phase
+            // IQS-66: Respect user's pre-selected mode
             if (AppState.audioUI) {
-                AppState.audioUI.enableVoiceModeButton(response.selected_game);
+                const shouldAutoActivate = AppState.isVoiceMode;
+                AppState.audioUI.enableVoiceModeButton(response.selected_game, shouldAutoActivate);
             }
         }
 
@@ -1289,8 +1566,10 @@ async function handleMCWelcomeInput(userInput) {
             displaySystemMessage(`🎭 The stage is set! Enter your first line to begin the scene.${voiceHintStage}`);
 
             // Enable voice mode button now that game is selected
+            // IQS-66: Respect user's pre-selected mode
             if (AppState.audioUI && AppState.selectedGame) {
-                AppState.audioUI.enableVoiceModeButton(AppState.selectedGame);
+                const shouldAutoActivate = AppState.isVoiceMode;
+                AppState.audioUI.enableVoiceModeButton(AppState.selectedGame, shouldAutoActivate);
             }
         }
 
@@ -1780,6 +2059,7 @@ function handleEndSessionClick() {
 
 /**
  * Handle confirm end session
+ * IQS-66 Issue #3: Clear ALL session state including mode lock
  */
 async function handleConfirmEndSession() {
     try {
@@ -1789,7 +2069,16 @@ async function handleConfirmEndSession() {
             await closeSession(AppState.currentSession.session_id);
         }
 
+        // IQS-66 Issue #3: Clear ALL session state
         clearStoredSessionId();
+        AppState.sessionId = null;  // Clear mode lock
+        AppState.currentSession = null;
+        AppState.currentTurn = 0;
+
+        // Clear mode selection so user can choose fresh on next session
+        safeStorageRemove('improv_voice_mode');
+        safeStorageRemove('improv_selected_game');
+
         hideLoading();
 
         showToast('Scene ended successfully', 'success');
@@ -1818,6 +2107,31 @@ function handleCancelEndSession() {
  * Setup event listeners for landing page
  */
 function setupLandingPageListeners() {
+    // IQS-66 SECURITY FIX: Set up event delegation for game card clicks
+    // This is more secure than inline onclick handlers and prevents XSS injection
+    const gameGrid = document.getElementById('game-selection-grid');
+    if (gameGrid) {
+        // Click event delegation for game cards
+        gameGrid.addEventListener('click', (event) => {
+            const gameCard = event.target.closest('.game-card');
+            if (gameCard) {
+                const gameId = gameCard.dataset.gameId;
+                const gameName = gameCard.dataset.gameName;
+                const gameDifficulty = gameCard.dataset.gameDifficulty;
+
+                handleGameSelection(gameId, gameName, gameDifficulty);
+            }
+        });
+
+        // Keyboard event delegation for game cards
+        gameGrid.addEventListener('keydown', (event) => {
+            const gameCard = event.target.closest('.game-card');
+            if (gameCard) {
+                handleGameCardKeyboard(event);
+            }
+        });
+    }
+
     // Auth buttons
     const loginBtn = document.getElementById('login-btn');
     const logoutBtn = document.getElementById('logout-btn');
@@ -1903,6 +2217,20 @@ function setupLandingPageListeners() {
     const createSessionBtn = document.getElementById('create-session-btn');
     if (createSessionBtn) {
         createSessionBtn.addEventListener('click', handleCreateSession);
+    }
+
+    // Mode selection buttons (IQS-66)
+    const textModeBtn = document.getElementById('text-mode-btn');
+    const voiceModeBtn = document.getElementById('voice-mode-btn');
+
+    if (textModeBtn) {
+        textModeBtn.addEventListener('click', () => handleModeSelection('text'));
+        textModeBtn.addEventListener('keydown', handleModeKeyboard);
+    }
+
+    if (voiceModeBtn) {
+        voiceModeBtn.addEventListener('click', () => handleModeSelection('audio'));
+        voiceModeBtn.addEventListener('keydown', handleModeKeyboard);
     }
 
     // Modal controls

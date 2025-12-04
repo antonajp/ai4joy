@@ -245,6 +245,12 @@
     <script src="/static/audio-manager.js"></script>
     <script src="/static/audio-ui.js"></script>
     <script src="/static/app.js"></script>
+    <!-- IQS-66 FIX #1: Hide mode selector during active scene to prevent mid-scene switching -->
+    <style>
+        .mode-selector-container {
+            display: none !important;
+        }
+    </style>
     <script>
         // Handle responsive session info panel
         function handleSessionInfoResponsive() {

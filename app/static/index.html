@@ -171,6 +171,42 @@
                     Select an improv game to get started. Each game has different rules and challenges.
                 </p>
 
+                <!-- Mode Selection (IQS-66) -->
+                <div class="mode-selection-container">
+                    <label id="mode-selection-label" class="mode-selection-label">Choose how you'll interact:</label>
+                    <div class="mode-selector" role="radiogroup" aria-labelledby="mode-selection-label">
+                        <button type="button"
+                                id="text-mode-btn"
+                                class="mode-btn mode-btn-active"
+                                role="radio"
+                                aria-checked="true"
+                                aria-describedby="text-mode-desc"
+                                data-mode="text">
+                            <span class="mode-icon">💬</span>
+                            <span class="mode-label">Text Mode</span>
+                            <span class="mode-description" id="text-mode-desc">Type your responses, take your time</span>
+                        </button>
+                        <button type="button"
+                                id="voice-mode-btn"
+                                class="mode-btn"
+                                role="radio"
+                                aria-checked="false"
+                                aria-describedby="audio-mode-desc"
+                                data-mode="audio">
+                            <span class="mode-icon">🎙️</span>
+                            <span class="mode-label">Voice Mode</span>
+                            <span class="mode-description" id="audio-mode-desc">Speak naturally, real-time conversation</span>
+                        </button>
+                    </div>
+                    <p id="mode-helper-text" class="mode-helper-text" aria-live="polite">
+                        You'll type your responses and read your partner's replies
+                    </p>
+                    <div id="mic-permission-warning" class="mic-permission-warning" style="display: none;" role="alert">
+                        <span class="warning-icon">⚠️</span>
+                        <span class="warning-text">Microphone access required for Voice Mode. Please enable in browser settings or switch to Text Mode.</span>
+                    </div>
+                </div>
+
                 <!-- Game Selection Grid -->
                 <div id="game-selection-grid" class="game-selection-grid" role="listbox" aria-label="Available improv games">
                     <div class="games-loading">Loading games...</div>
