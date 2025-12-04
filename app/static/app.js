@@ -1179,8 +1179,9 @@ async function handleModeSelection(mode) {
             micWarning.style.display = 'none';
         }
 
-        // Update app state
+        // Update app state and storage immediately
         AppState.isVoiceMode = false;
+        safeStorageSet('improv_voice_mode', 'false');
 
         // Announce to screen readers
         const announcement = "Text mode selected. You'll type your responses.";
@@ -1211,8 +1212,9 @@ async function handleModeSelection(mode) {
                 micWarning.style.display = 'none';
             }
 
-            // Update app state ONLY after successful permission check
+            // Update app state and storage ONLY after successful permission check
             AppState.isVoiceMode = true;
+            safeStorageSet('improv_voice_mode', 'true');
 
             // Announce to screen readers
             const announcement = "Voice mode selected. You'll speak into your microphone.";
@@ -1223,6 +1225,7 @@ async function handleModeSelection(mode) {
         } else {
             // Permissions denied - revert to text mode and show detailed error
             AppState.isVoiceMode = false;
+            safeStorageSet('improv_voice_mode', 'false');
 
             // Revert button states to text mode
             voiceModeBtn?.classList.remove('mode-btn-active');
@@ -1425,6 +1428,16 @@ async function initializeChatInterface() {
         const mcWelcomeStatuses = ['initialized', 'mc_welcome', 'game_select', 'suggestion_phase'];
         if (mcWelcomeStatuses.includes(session.status)) {
             AppState.mcWelcomeComplete = false;
+            console.log(`[App] Session status: ${session.status}, starting MC welcome phase`);
+
+            // Show context message if resuming a session that's past the initial state
+            if (session.status !== 'initialized') {
+                const gameName = session.selected_game_name || AppState.selectedGame?.name;
+                if (gameName) {
+                    displaySystemMessage(`📍 Resuming session for "${gameName}"...`);
+                }
+            }
+
             await startMCWelcomePhase(sessionId);
         } else {
             AppState.mcWelcomeComplete = true;
@@ -1487,7 +1500,13 @@ async function startMCWelcomePhase(sessionId) {
         // If MC welcome is complete, transition to scene work
         if (response.mc_welcome_complete) {
             AppState.mcWelcomeComplete = true;
-            const voiceHintWelcome = AppState.currentUser?.tier === 'premium' ? ' Voice Mode is activating...' : ' Enable Voice Mode (Premium) for real-time audio.';
+            // Only show voice hint if user is in voice mode, not just because they're premium
+            let voiceHintWelcome = '';
+            if (AppState.isVoiceMode) {
+                voiceHintWelcome = ' Voice Mode is activating...';
+            } else if (AppState.currentUser?.tier !== 'premium') {
+                voiceHintWelcome = ' Enable Voice Mode (Premium) for real-time audio.';
+            }
             displaySystemMessage(`MC welcome complete! The scene is about to begin. Enter your first line when ready.${voiceHintWelcome}`);
 
             // Enable voice mode button now that game is selected
@@ -1498,9 +1517,101 @@ async function startMCWelcomePhase(sessionId) {
             }
         }
 
+        // Auto-continue to get audience suggestion when in awaiting_suggestion phase
+        // This happens when game is pre-selected and MC has asked for a suggestion
+        if (response.phase === 'awaiting_suggestion' && !response.mc_welcome_complete) {
+            console.log('[MC Welcome] Auto-continuing to get audience suggestion...');
+            setTimeout(async () => {
+                await continueToAudienceSuggestion(sessionId);
+            }, 1500);
+        }
+
     } catch (error) {
         hideTypingIndicator();
         showToast(`MC welcome failed: ${error.message}`, 'error');
+    }
+}
+
+/**
+ * Continue the MC welcome flow to get audience suggestion and complete setup.
+ * This is called automatically when phase is 'awaiting_suggestion'.
+ */
+async function continueToAudienceSuggestion(sessionId) {
+    try {
+        showTypingIndicator();
+        const suggestionResponse = await executeMCWelcome(sessionId, null);
+        hideTypingIndicator();
+        displayMCMessage(suggestionResponse.mc_response, suggestionResponse.timestamp);
+        AppState.mcPhase = suggestionResponse.phase;
+
+        if (suggestionResponse.audience_suggestion) {
+            AppState.audienceSuggestion = suggestionResponse.audience_suggestion;
+        }
+
+        updateMCPhaseDisplay(suggestionResponse.phase);
+
+        // Check if we need to continue to the final step (rules and start)
+        if (!suggestionResponse.mc_welcome_complete && suggestionResponse.phase !== 'awaiting_suggestion') {
+            console.log('[MC Welcome] Auto-continuing to rules and scene start...');
+            setTimeout(async () => {
+                await continueToSceneStart(sessionId);
+            }, 1500);
+        }
+
+        // Check if suggestion phase completed the welcome
+        if (suggestionResponse.mc_welcome_complete) {
+            AppState.mcWelcomeComplete = true;
+            let voiceHint = '';
+            if (AppState.isVoiceMode) {
+                voiceHint = ' Voice Mode is activating...';
+            } else if (AppState.currentUser?.tier !== 'premium') {
+                voiceHint = ' Enable Voice Mode (Premium) for real-time audio.';
+            }
+            displaySystemMessage(`🎭 The stage is set! Enter your first line to begin the scene.${voiceHint}`);
+
+            if (AppState.audioUI && AppState.selectedGame) {
+                const shouldAutoActivate = AppState.isVoiceMode;
+                AppState.audioUI.enableVoiceModeButton(AppState.selectedGame, shouldAutoActivate);
+            }
+        }
+    } catch (err) {
+        hideTypingIndicator();
+        console.error('[MC Welcome] Auto-continue to suggestion failed:', err);
+        showToast('Failed to get audience suggestion. Please refresh.', 'error');
+    }
+}
+
+/**
+ * Continue to the final scene start phase (rules explanation and transition).
+ */
+async function continueToSceneStart(sessionId) {
+    try {
+        showTypingIndicator();
+        const finalResponse = await executeMCWelcome(sessionId, null);
+        hideTypingIndicator();
+        displayMCMessage(finalResponse.mc_response, finalResponse.timestamp);
+        AppState.mcPhase = finalResponse.phase;
+        updateMCPhaseDisplay(finalResponse.phase);
+
+        if (finalResponse.mc_welcome_complete) {
+            AppState.mcWelcomeComplete = true;
+            let voiceHint = '';
+            if (AppState.isVoiceMode) {
+                voiceHint = ' Voice Mode is activating...';
+            } else if (AppState.currentUser?.tier !== 'premium') {
+                voiceHint = ' Enable Voice Mode (Premium) for real-time audio.';
+            }
+            displaySystemMessage(`🎭 The stage is set! Enter your first line to begin the scene.${voiceHint}`);
+
+            if (AppState.audioUI && AppState.selectedGame) {
+                const shouldAutoActivate = AppState.isVoiceMode;
+                AppState.audioUI.enableVoiceModeButton(AppState.selectedGame, shouldAutoActivate);
+            }
+        }
+    } catch (err) {
+        hideTypingIndicator();
+        console.error('[MC Welcome] Auto-continue to scene start failed:', err);
+        showToast('Failed to start scene. Please refresh.', 'error');
     }
 }
 
@@ -1514,8 +1625,10 @@ async function handleMCWelcomeInput(userInput) {
     disableChatInput();
 
     try {
-        // Display user message
-        displayUserMessage(userInput, new Date().toISOString());
+        // Display user message only if there's actual user input
+        if (userInput && userInput.trim()) {
+            displayUserMessage(userInput, new Date().toISOString());
+        }
 
         // Show typing indicator
         showTypingIndicator();
@@ -1562,7 +1675,13 @@ async function handleMCWelcomeInput(userInput) {
         // Check if MC welcome is complete
         if (response.mc_welcome_complete) {
             AppState.mcWelcomeComplete = true;
-            const voiceHintStage = AppState.currentUser?.tier === 'premium' ? ' Voice Mode is activating...' : ' Enable Voice Mode (Premium) for real-time audio.';
+            // Only show voice hint if user is in voice mode, not just because they're premium
+            let voiceHintStage = '';
+            if (AppState.isVoiceMode) {
+                voiceHintStage = ' Voice Mode is activating...';
+            } else if (AppState.currentUser?.tier !== 'premium') {
+                voiceHintStage = ' Enable Voice Mode (Premium) for real-time audio.';
+            }
             displaySystemMessage(`🎭 The stage is set! Enter your first line to begin the scene.${voiceHintStage}`);
 
             // Enable voice mode button now that game is selected
@@ -1571,6 +1690,15 @@ async function handleMCWelcomeInput(userInput) {
                 const shouldAutoActivate = AppState.isVoiceMode;
                 AppState.audioUI.enableVoiceModeButton(AppState.selectedGame, shouldAutoActivate);
             }
+        }
+
+        // Auto-continue to get audience suggestion when in awaiting_suggestion phase
+        // This allows the MC flow to proceed without requiring user input for the suggestion
+        if (response.phase === 'awaiting_suggestion' && !response.mc_welcome_complete) {
+            console.log('[MC Welcome] Auto-continuing to get audience suggestion...');
+            setTimeout(async () => {
+                await continueToAudienceSuggestion(AppState.currentSession.session_id);
+            }, 1500);
         }
 
     } catch (error) {
@@ -2279,7 +2407,8 @@ function setupChatPageListeners() {
         userInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                chatForm.dispatchEvent(new Event('submit'));
+                // Must be cancelable for event.preventDefault() to work in the handler
+                chatForm.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
             }
         });
     }

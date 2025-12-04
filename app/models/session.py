@@ -7,18 +7,37 @@ from enum import Enum
 
 
 class SessionStatus(str, Enum):
-    """Session lifecycle states"""
+    """Session lifecycle states.
 
-    INITIALIZED = "initialized"
-    MC_WELCOME = "mc_welcome"  # MC introducing and welcoming user
-    GAME_SELECT = "game_select"  # User selecting game or MC suggesting
-    SUGGESTION_PHASE = "suggestion_phase"  # Collecting audience suggestion
-    MC_PHASE = "mc_phase"  # Legacy - kept for compatibility
-    ACTIVE = "active"  # Scene work in progress
-    SCENE_COMPLETE = "scene_complete"
-    COACH_PHASE = "coach_phase"
-    CLOSED = "closed"
-    TIMEOUT = "timeout"
+    TEXT MODE (Freemium) FLOW:
+    INITIALIZED -> MC_WELCOME -> GAME_SELECT -> SUGGESTION_PHASE -> ACTIVE ->
+    SCENE_COMPLETE -> COACH_PHASE -> CLOSED
+
+    TEXT MODE (With Pre-selected Game):
+    INITIALIZED -> GAME_SELECT (skips MC_WELCOME) -> SUGGESTION_PHASE -> ACTIVE ->
+    SCENE_COMPLETE -> COACH_PHASE -> CLOSED
+
+    AUDIO MODE (Premium) FLOW:
+    INITIALIZED -> ACTIVE -> CLOSED
+    (Direct ADK orchestration via WebSocket, stateless design)
+
+    LEGACY STATUSES:
+    - MC_PHASE: Deprecated, kept for backwards compatibility only. Not used in current flows.
+
+    TIMEOUT:
+    - Terminal status when session expires (>60min since creation)
+    """
+
+    INITIALIZED = "initialized"  # Session created, awaiting first interaction
+    MC_WELCOME = "mc_welcome"  # TEXT MODE: MC introducing and welcoming user
+    GAME_SELECT = "game_select"  # TEXT MODE: User selecting game or MC suggesting
+    SUGGESTION_PHASE = "suggestion_phase"  # TEXT MODE: Collecting audience suggestion
+    MC_PHASE = "mc_phase"  # LEGACY: Deprecated, kept for backwards compatibility
+    ACTIVE = "active"  # Scene work in progress (both TEXT and AUDIO modes)
+    SCENE_COMPLETE = "scene_complete"  # TEXT MODE: Scene ended, awaiting coach feedback
+    COACH_PHASE = "coach_phase"  # TEXT MODE: Coach providing feedback
+    CLOSED = "closed"  # Terminal status: Session completed normally
+    TIMEOUT = "timeout"  # Terminal status: Session expired due to timeout
 
 
 class SessionCreate(BaseModel):

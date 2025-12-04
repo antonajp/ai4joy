@@ -3,11 +3,13 @@
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 import asyncio
+import re
 
 from google.adk.runners import Runner
 from google.genai import types
 
 from app.agents.mc_agent import create_mc_agent
+from app.agents.room_agent import create_room_agent_for_suggestions
 from app.models.session import Session, SessionStatus
 from app.services.session_manager import SessionManager
 from app.services.adk_session_service import get_adk_session_service
@@ -91,8 +93,58 @@ class MCWelcomeOrchestrator:
             raise ValueError(f"Invalid status for MC welcome phase: {status.value}")
 
     async def _handle_initial_welcome(self, session: Session) -> Dict[str, Any]:
-        """Handle initial MC welcome message."""
-        prompt = """Welcome a new user to Improv Olympics!
+        """Handle initial MC welcome message.
+
+        If a game is pre-selected (from the landing page modal), we provide a
+        shorter welcome that acknowledges the game choice and asks the audience
+        for a suggestion. Otherwise, we do the full welcome with game selection.
+        """
+        # Check if game was pre-selected
+        has_preselected_game = session.selected_game_id and session.selected_game_name
+
+        if has_preselected_game:
+            # Game pre-selected: Shorter welcome, acknowledge game, ask for suggestion
+            game_name = session.selected_game_name
+            prompt = f"""Welcome a new user to Improv Olympics who has ALREADY chosen to play "{game_name}"!
+
+Be enthusiastic and energetic! They've picked their game and are ready to go.
+
+1. Introduce yourself briefly as the MC
+2. Acknowledge their excellent game choice: "{game_name}"
+3. Build excitement for the game they chose
+4. Ask THE AUDIENCE (not the player) for a suggestion appropriate for this game
+   - For example: "Audience, give me a location!" or "Shout out a relationship!"
+
+Keep it concise - about 2-3 sentences max.
+End by asking the AUDIENCE for a suggestion (not the player)."""
+
+            mc_response = await self._run_mc_agent(
+                prompt=prompt,
+                user_id=session.user_id,
+                session_id=f"{session.session_id}_mc",
+            )
+
+            # Skip to GAME_SELECT status (ready for audience suggestion)
+            await self.session_manager.update_session_status(
+                session_id=session.session_id,
+                status=SessionStatus.GAME_SELECT,
+            )
+
+            return {
+                "mc_response": mc_response,
+                "selected_game": {
+                    "id": session.selected_game_id,
+                    "name": session.selected_game_name,
+                },
+                "audience_suggestion": None,
+                "next_status": SessionStatus.GAME_SELECT.value,
+                "phase": "awaiting_suggestion",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+
+        else:
+            # No game pre-selected: Full welcome with game selection flow
+            prompt = """Welcome a new user to Improv Olympics!
 
 Be enthusiastic and energetic! This is their first time here.
 
@@ -104,32 +156,32 @@ Be enthusiastic and energetic! This is their first time here.
 Keep it concise but exciting - about 3-4 sentences max.
 End with a question about how they're feeling or what kind of experience they want."""
 
-        mc_response = await self._run_mc_agent(
-            prompt=prompt,
-            user_id=session.user_id,
-            session_id=f"{session.session_id}_mc",
-        )
+            mc_response = await self._run_mc_agent(
+                prompt=prompt,
+                user_id=session.user_id,
+                session_id=f"{session.session_id}_mc",
+            )
 
-        # Get available games for the next phase
-        games = await get_all_games()
-        game_options = [
-            {"id": g["id"], "name": g["name"], "difficulty": g["difficulty"]}
-            for g in games
-        ]
+            # Get available games for the next phase
+            games = await get_all_games()
+            game_options = [
+                {"id": g["id"], "name": g["name"], "difficulty": g["difficulty"]}
+                for g in games
+            ]
 
-        # Update session status
-        await self.session_manager.update_session_status(
-            session_id=session.session_id,
-            status=SessionStatus.MC_WELCOME,
-        )
+            # Update session status
+            await self.session_manager.update_session_status(
+                session_id=session.session_id,
+                status=SessionStatus.MC_WELCOME,
+            )
 
-        return {
-            "mc_response": mc_response,
-            "available_games": game_options,
-            "next_status": SessionStatus.MC_WELCOME.value,
-            "phase": "welcome",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
+            return {
+                "mc_response": mc_response,
+                "available_games": game_options,
+                "next_status": SessionStatus.MC_WELCOME.value,
+                "phase": "welcome",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
 
     async def _handle_game_selection(
         self, session: Session, user_input: Optional[str]
@@ -184,7 +236,8 @@ Be brief but enthusiastic! 2-3 sentences max."""
                 game_name=suggested_game["name"],
             )
 
-        # Update session status
+        # Move to GAME_SELECT status - the MC has asked for a suggestion
+        # The next call will auto-generate the audience suggestion
         await self.session_manager.update_session_status(
             session_id=session.session_id,
             status=SessionStatus.GAME_SELECT,
@@ -193,8 +246,9 @@ Be brief but enthusiastic! 2-3 sentences max."""
         return {
             "mc_response": mc_response,
             "selected_game": suggested_game,
+            "audience_suggestion": None,
             "next_status": SessionStatus.GAME_SELECT.value,
-            "phase": "game_selection",
+            "phase": "awaiting_suggestion",
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
@@ -227,55 +281,55 @@ Be brief but enthusiastic! 2-3 sentences max."""
             rules_text = "\n".join(f"• {rule}" for rule in game_rules[:3])
             rules_text = f"\n\nHere are the rules to explain:\n{rules_text}"
 
-        if user_input:
-            prompt = f"""The AUDIENCE shouted out a suggestion: "{user_input}"
-
-Accept the audience's suggestion with enthusiasm!
-Repeat what you heard: "I heard '{user_input}' from the audience - great choice!"
-
-Then explain the rules of {game_name} clearly.{rules_text}
-
-End by building excitement for the scene that's about to start.
-
-Keep it high-energy but concise! About 3-4 sentences."""
-
+        # If no user_input, auto-generate suggestion using Room Agent
+        if not user_input:
             logger.info(
-                "Accepting audience suggestion",
-                session_id=session.session_id,
-                suggestion=user_input,
-            )
-
-            # Save the audience suggestion
-            await self.session_manager.update_session_suggestion(
-                session_id=session.session_id,
-                audience_suggestion=user_input,
-            )
-        else:
-            prompt = f"""The audience hasn't given a suggestion yet.
-
-Turn to THE AUDIENCE and ask for a suggestion for {game_name}!
-Be playful about it - "Come on audience, don't be shy! Who's got a [location/relationship/etc] for us?"
-
-Remember: You're asking THE AUDIENCE (the crowd), not the player.
-Keep it brief and fun."""
-
-            logger.info(
-                "Awaiting audience suggestion",
+                "Auto-generating audience suggestion",
                 session_id=session.session_id,
                 game_name=game_name,
             )
+            user_input = await self._generate_audience_suggestion(
+                game_name=game_name,
+                session=session,
+            )
+            if not user_input:
+                # Fallback if Room Agent fails - use a generic suggestion
+                user_input = "an unexpected reunion"
+                logger.warning(
+                    "Room Agent suggestion failed, using fallback",
+                    session_id=session.session_id,
+                    fallback_suggestion=user_input,
+                )
 
-            # Don't advance status if no suggestion
-            return {
-                "mc_response": await self._run_mc_agent(
-                    prompt=prompt,
-                    user_id=session.user_id,
-                    session_id=f"{session.session_id}_mc",
-                ),
-                "next_status": SessionStatus.GAME_SELECT.value,
-                "phase": "awaiting_suggestion",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
+        prompt = f"""The AUDIENCE has given us a suggestion for {game_name}: {user_input}
+
+Accept this suggestion with enthusiasm! Acknowledge what the audience provided in a natural way.
+For example:
+- For a location: "I heard 'a coffee shop' - love it!"
+- For opening/closing lines: "Great lines from the audience! We're starting with '...' and ending with '...'"
+
+Then explain the key rules of {game_name} briefly.{rules_text}
+
+End by building excitement for the scene that's about to start.
+
+IMPORTANT:
+- Be natural and conversational
+- Don't literally repeat formatted text like "Opening line: '...' | Closing line: '...'"
+- Instead, rephrase it naturally: "Our opening line is '...' and we need to get to '...'"
+
+Keep it high-energy but concise! About 3-4 sentences."""
+
+        logger.info(
+            "Accepting audience suggestion",
+            session_id=session.session_id,
+            suggestion=user_input,
+        )
+
+        # Save the audience suggestion
+        await self.session_manager.update_session_suggestion(
+            session_id=session.session_id,
+            audience_suggestion=user_input,
+        )
 
         mc_response = await self._run_mc_agent(
             prompt=prompt,
@@ -425,6 +479,216 @@ This is the transition to scene work, so make it feel like a big moment!"""
                 "MC Agent execution timed out",
                 timeout=timeout,
                 prompt_length=len(prompt),
+            )
+            raise
+
+    async def _generate_audience_suggestion(
+        self, game_name: str, session: Session, timeout: int = 30
+    ) -> str:
+        """Generate an audience suggestion using the Room Agent.
+
+        The suggestion format is determined dynamically based on the game's
+        description and rules. For example:
+        - "First Line / Last Line" needs two complete sentences
+        - "Freeze Tag" needs a location
+        - "Expert Interview" needs a topic
+
+        Args:
+            game_name: Name of the game to generate a suggestion for
+            session: Current session state
+            timeout: Timeout in seconds for agent execution
+
+        Returns:
+            A string containing the audience suggestion(s)
+        """
+        logger.info(
+            "Generating audience suggestion via Room Agent",
+            session_id=session.session_id,
+            game_name=game_name,
+        )
+
+        # Fetch game data to understand what suggestions are needed
+        game_id = session.selected_game_id
+        game_data = None
+        game_description = ""
+        game_rules = []
+        suggestion_prompt = None
+
+        example_suggestions = []
+
+        if game_id:
+            game_data = await get_game_by_id(game_id)
+            if game_data:
+                game_description = game_data.get("description", "")
+                game_rules = game_data.get("rules", [])
+                # Check if game has explicit suggestion_prompt field
+                suggestion_prompt = game_data.get("suggestion_prompt")
+                # Check if game has example suggestions
+                example_suggestions = game_data.get("example_suggestions", [])
+
+        logger.info(
+            "Fetched game data for suggestion generation",
+            game_id=game_id,
+            has_description=bool(game_description),
+            rules_count=len(game_rules),
+            has_suggestion_prompt=bool(suggestion_prompt),
+            example_count=len(example_suggestions),
+        )
+
+        # Build context about the game for the Room Agent
+        game_context = f"Game: {game_name}\n"
+        if game_description:
+            game_context += f"Description: {game_description}\n"
+        if game_rules:
+            game_context += "Rules:\n" + "\n".join(f"- {rule}" for rule in game_rules)
+        if example_suggestions:
+            game_context += "\n\nExample suggestions for this game:\n"
+            game_context += "\n".join(f"- {ex}" for ex in example_suggestions)
+
+        # Build prompt for Room Agent
+        if suggestion_prompt:
+            # Use explicit suggestion_prompt from game data if available
+            prompt = f"""{game_context}
+
+The game has specific suggestion requirements:
+{suggestion_prompt}
+
+Generate the suggestion(s) that the audience would shout out.
+Respond with ONLY the suggestion text - no extra commentary."""
+        else:
+            # Dynamic prompt based on game description and rules
+            prompt = f"""{game_context}
+
+Based on the game description and rules above, determine:
+1. What type of suggestion(s) does this game need? (e.g., location, relationship, topic, opening line, closing line, word, etc.)
+2. How many suggestions are needed?
+3. What format should the suggestions be in? (single word, phrase, complete sentence, etc.)
+
+Then generate appropriate suggestion(s) that the audience would shout out.
+
+IMPORTANT:
+- Read the rules carefully to understand what the audience provides
+- If the game needs multiple suggestions (like opening AND closing lines), provide ALL of them
+- Format multiple suggestions clearly (e.g., "Opening line: '...' | Closing line: '...'")
+- Make suggestions fun, creative, and appropriate for improv comedy
+- Respond with ONLY the suggestion text - no extra commentary or explanation"""
+
+        # Create Room Agent runner for suggestion generation
+        room_agent = create_room_agent_for_suggestions()
+        room_runner = Runner(
+            agent=room_agent,
+            app_name=f"{settings.app_name}_room",
+            artifact_service=None,
+            session_service=get_adk_session_service(),
+            memory_service=get_adk_memory_service(),
+        )
+
+        # Create session ID for Room Agent
+        room_session_id = f"{session.session_id}_room_suggestions"
+
+        # Ensure Room session exists
+        session_service = get_adk_session_service()
+        room_app_name = f"{settings.app_name}_room"
+        existing_room_session = await session_service.get_session(
+            app_name=room_app_name, user_id=session.user_id, session_id=room_session_id
+        )
+        if not existing_room_session:
+            logger.info(
+                "Creating Room Agent session for suggestions",
+                session_id=room_session_id,
+                user_id=session.user_id,
+            )
+            await session_service.create_session(
+                app_name=room_app_name,
+                user_id=session.user_id,
+                session_id=room_session_id,
+                state={},
+            )
+
+        try:
+            new_message = types.Content(
+                role="user", parts=[types.Part.from_text(text=prompt)]
+            )
+
+            response_parts = []
+
+            async def run_with_timeout():
+                async for event in room_runner.run_async(
+                    user_id=session.user_id,
+                    session_id=room_session_id,
+                    new_message=new_message,
+                ):
+                    # Skip function call events
+                    if (
+                        hasattr(event, "get_function_calls")
+                        and event.get_function_calls()
+                    ):
+                        continue
+
+                    if hasattr(event, "content") and event.content:
+                        if hasattr(event.content, "parts"):
+                            for part in event.content.parts:
+                                # Skip function call parts
+                                if (
+                                    hasattr(part, "function_call")
+                                    and part.function_call
+                                ):
+                                    continue
+                                if hasattr(part, "text") and part.text:
+                                    response_parts.append(part.text)
+
+            await asyncio.wait_for(run_with_timeout(), timeout=timeout)
+
+            # Extract just the suggestion text
+            full_response = "".join(response_parts).strip()
+
+            # Clean up any remaining formatting artifacts
+            # Remove wrapper phrases that might slip through
+            wrapper_patterns = [
+                "Someone from the crowd shouts:",
+                "Someone shouts:",
+                "An audience member yells:",
+                "A voice from the back yells:",
+                "From the crowd:",
+                "The audience suggests:",
+                "Someone yells from the crowd:",
+            ]
+            for pattern in wrapper_patterns:
+                if pattern.lower() in full_response.lower():
+                    # Find and remove the pattern (case-insensitive)
+                    full_response = re.sub(
+                        re.escape(pattern), "", full_response, flags=re.IGNORECASE
+                    ).strip()
+
+            # Remove outer quotes if present
+            if full_response.startswith('"') and full_response.endswith('"'):
+                full_response = full_response[1:-1]
+            if full_response.startswith("'") and full_response.endswith("'"):
+                full_response = full_response[1:-1]
+
+            # Clean up any leading/trailing punctuation artifacts
+            full_response = full_response.strip(" '\"!")
+
+            logger.info(
+                "Room Agent suggestion generated",
+                session_id=session.session_id,
+                suggestion=full_response,
+            )
+
+            return full_response
+
+        except asyncio.TimeoutError:
+            logger.error(
+                "Room Agent execution timed out",
+                timeout=timeout,
+                game_name=game_name,
+            )
+            raise
+        except Exception as e:
+            logger.error(
+                "Room Agent execution failed",
+                game_name=game_name,
+                error=str(e),
             )
             raise
 
