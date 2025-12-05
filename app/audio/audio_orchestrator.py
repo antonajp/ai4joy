@@ -222,14 +222,16 @@ class AudioStreamOrchestrator:
         user_email: str,
         game_name: Optional[str] = None,
         starting_turn_count: int = 0,
+        is_reconnect: bool = False,
     ) -> None:
-        """Start a new audio session.
+        """Start a new audio session or resume an existing one.
 
         Ensures the ADK session exists in the DatabaseSessionService before
         audio streaming begins. This is required because run_live() expects
         the session to exist.
 
-        After setup, sends an initial greeting prompt to trigger the MC to speak.
+        For new sessions, sends an initial greeting prompt to trigger the MC to speak.
+        For reconnections (IQS-81), sends a resume prompt instead to continue the scene.
 
         Args:
             session_id: Unique session identifier
@@ -237,6 +239,7 @@ class AudioStreamOrchestrator:
             user_email: User's email for tracking
             game_name: Selected game name for scene context
             starting_turn_count: Starting turn count (for resuming sessions)
+            is_reconnect: Whether this is a reconnection to an existing session
         """
         # Ensure ADK session exists (create if not found)
         await self._ensure_adk_session(session_id, user_id, user_email)
@@ -261,9 +264,14 @@ class AudioStreamOrchestrator:
             mc_agent=mc_agent,
         )
 
-        # Send initial greeting prompt to trigger MC to speak first
-        # The Live API requires us to send something to get a response
-        self._send_initial_greeting(queue, game_name)
+        # IQS-81: For reconnections, send a resume prompt instead of initial greeting
+        # This prevents the MC from starting over and losing scene context
+        if is_reconnect:
+            self._send_resume_prompt(queue, game_name, starting_turn_count)
+        else:
+            # Send initial greeting prompt to trigger MC to speak first
+            # The Live API requires us to send something to get a response
+            self._send_initial_greeting(queue, game_name)
 
         logger.info(
             "Audio session started with MC agent",
@@ -272,6 +280,7 @@ class AudioStreamOrchestrator:
             user_email=user_email,
             game=game_name,
             starting_turn_count=starting_turn_count,
+            is_reconnect=is_reconnect,
             mc_agent_name=mc_agent.name,
         )
 
@@ -305,6 +314,49 @@ class AudioStreamOrchestrator:
         logger.debug(
             "Sent initial greeting prompt to trigger MC response",
             game=game_name,
+        )
+
+    def _send_resume_prompt(
+        self, queue: Any, game_name: Optional[str] = None, turn_count: int = 0
+    ) -> None:
+        """Send resume prompt after reconnection to continue the scene.
+
+        IQS-81: When a WebSocket reconnects, we don't want to start over
+        with a greeting. Instead, send a resume prompt that acknowledges
+        the reconnection and continues the scene from where it left off.
+
+        Args:
+            queue: LiveRequestQueue for the session
+            game_name: Selected game name for scene context
+            turn_count: Current turn count to resume from
+        """
+        # Calculate phase based on turn count
+        from app.agents.stage_manager import determine_partner_phase
+
+        phase = determine_partner_phase(turn_count)
+        phase_name = "Phase 1 (Supportive)" if phase == 1 else "Phase 2 (Fallible)"
+
+        if game_name:
+            resume_text = (
+                f"[Connection restored. We were playing '{game_name}' and were on turn {turn_count} in {phase_name}. "
+                f"Please briefly acknowledge the technical hiccup and seamlessly continue where we left off. "
+                f"Don't restart the scene or re-introduce the game - just pick up the action naturally.]"
+            )
+        else:
+            resume_text = (
+                f"[Connection restored. We were on turn {turn_count} in {phase_name}. "
+                f"Please briefly acknowledge the reconnection and continue where we left off naturally.]"
+            )
+
+        resume_prompt = types.Content(
+            role="user", parts=[types.Part.from_text(text=resume_text)]
+        )
+        queue.send_content(resume_prompt)
+        logger.info(
+            "Sent resume prompt after reconnection",
+            game=game_name,
+            turn_count=turn_count,
+            phase=phase,
         )
 
     async def _ensure_adk_session(

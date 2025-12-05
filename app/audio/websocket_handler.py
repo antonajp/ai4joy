@@ -101,9 +101,41 @@ class AudioWebSocketHandler:
         self.active_connections[session_id] = websocket
         self.active_user_emails[session_id] = user_profile.email
 
+        # IQS-81: Check for existing session state in Firestore to support reconnection
+        # If session exists with turn_count > 0, this is a reconnection
+        starting_turn_count = 0
+        is_reconnect = False
+
+        try:
+            from app.services.session_manager import get_session_manager
+
+            session_manager = get_session_manager()
+            existing_session = await session_manager.get_session(session_id)
+
+            if existing_session and existing_session.turn_count > 0:
+                starting_turn_count = existing_session.turn_count
+                is_reconnect = True
+                logger.info(
+                    "Resuming audio session from Firestore state",
+                    session_id=session_id,
+                    turn_count=starting_turn_count,
+                    is_reconnect=is_reconnect,
+                )
+        except Exception as e:
+            logger.warning(
+                "Could not retrieve existing session state, starting fresh",
+                session_id=session_id,
+                error=str(e),
+            )
+
         # Start audio session with user_id for ADK run_live
         await self.orchestrator.start_session(
-            session_id, user_profile.user_id, user_profile.email, game_name
+            session_id,
+            user_profile.user_id,
+            user_profile.email,
+            game_name,
+            starting_turn_count=starting_turn_count,
+            is_reconnect=is_reconnect,
         )
 
         logger.info(
