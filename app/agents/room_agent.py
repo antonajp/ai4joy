@@ -193,9 +193,9 @@ WHAT MAKES A GOOD SUGGESTION:
 - Fun and creative
 
 TOOLS YOU HAVE:
-- _get_suggestion_for_game: Get a game-appropriate suggestion based on audience
-- _generate_audience_suggestion: Generate a suggestion for a specific type (location, relationship, topic, etc.)
-- _generate_audience_sample: Understand who's in the audience
+- get_suggestion_for_game: Get a game-appropriate suggestion based on audience
+- generate_audience_suggestion: Generate a suggestion for a specific type (location, relationship, topic, etc.)
+- generate_audience_sample: Understand who's in the audience
 
 Remember: Return ONLY the suggestion content. The MC handles the presentation."""
 

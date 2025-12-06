@@ -74,12 +74,12 @@ class AudienceArchetypesToolset(BaseToolset):
         """
         if self._tools is None:
             self._tools = [
-                FunctionTool(self._generate_audience_sample),
-                FunctionTool(self._get_all_archetypes),
-                FunctionTool(self._analyze_audience_traits),
-                FunctionTool(self._get_vibe_check),
-                FunctionTool(self._generate_audience_suggestion),
-                FunctionTool(self._get_suggestion_for_game),
+                FunctionTool(self.generate_audience_sample),
+                FunctionTool(self.get_all_archetypes),
+                FunctionTool(self.analyze_audience_traits),
+                FunctionTool(self.get_vibe_check),
+                FunctionTool(self.generate_audience_suggestion),
+                FunctionTool(self.get_suggestion_for_game),
             ]
             logger.debug("Archetype tools created", tool_count=len(self._tools))
 
@@ -93,7 +93,7 @@ class AudienceArchetypesToolset(BaseToolset):
 
         return self._tools
 
-    async def _generate_audience_sample(self, size: int = 5) -> List[Dict[str, Any]]:
+    async def generate_audience_sample(self, size: int = 5) -> List[Dict[str, Any]]:
         """Generate diverse audience sample with multiple archetypes.
 
         Args:
@@ -122,7 +122,7 @@ class AudienceArchetypesToolset(BaseToolset):
         logger.info("Audience sample generated", size=size)
         return audience
 
-    async def _get_all_archetypes(self) -> List[Dict[str, Any]]:
+    async def get_all_archetypes(self) -> List[Dict[str, Any]]:
         """Get complete list of all available audience archetypes.
 
         Returns:
@@ -130,7 +130,7 @@ class AudienceArchetypesToolset(BaseToolset):
         """
         return await data_service.get_all_archetypes()
 
-    async def _analyze_audience_traits(
+    async def analyze_audience_traits(
         self, audience: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """Analyze audience sample for dominant traits and preferences.
@@ -233,7 +233,7 @@ class AudienceArchetypesToolset(BaseToolset):
         logger.info("Audience traits analyzed", **traits)
         return traits
 
-    async def _get_vibe_check(self, audience: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def get_vibe_check(self, audience: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Generate quick vibe check for Room Agent to assess mood.
 
         Args:
@@ -242,7 +242,7 @@ class AudienceArchetypesToolset(BaseToolset):
         Returns:
             Dictionary with vibe indicators and recommendations.
         """
-        traits = await self._analyze_audience_traits(audience)
+        traits = await self.analyze_audience_traits(audience)
 
         vibe_indicators = []
 
@@ -270,7 +270,7 @@ class AudienceArchetypesToolset(BaseToolset):
         logger.info("Vibe check generated", mood=vibe_check["overall_mood"])
         return vibe_check
 
-    async def _generate_audience_suggestion(
+    async def generate_audience_suggestion(
         self,
         suggestion_type: str,
         audience_sample: Optional[List[Dict[str, Any]]] = None,
@@ -292,7 +292,7 @@ class AudienceArchetypesToolset(BaseToolset):
 
         # Get or generate audience sample
         if not audience_sample:
-            audience_sample = await self._generate_audience_sample(size=5)
+            audience_sample = await self.generate_audience_sample(size=5)
 
         # Extract dominant demographics from audience
         dominant_demographics = []
@@ -541,7 +541,7 @@ class AudienceArchetypesToolset(BaseToolset):
 
         return suggestion
 
-    async def _get_suggestion_for_game(
+    async def get_suggestion_for_game(
         self,
         game_name: str,
         audience_sample: Optional[List[Dict[str, Any]]] = None,
@@ -607,7 +607,7 @@ class AudienceArchetypesToolset(BaseToolset):
         )
 
         # Generate the suggestion
-        suggestion = await self._generate_audience_suggestion(
+        suggestion = await self.generate_audience_suggestion(
             suggestion_type, audience_sample
         )
 

@@ -26,13 +26,13 @@ async def test_tc_060_011_suggestions_reflect_demographics():
     toolset = AudienceArchetypesToolset()
 
     # Generate a diverse audience sample
-    audience = await toolset._generate_audience_sample(size=5)
+    audience = await toolset.generate_audience_sample(size=5)
 
     assert len(audience) == 5
     assert all("id" in member for member in audience)
 
     # Analyze the audience traits
-    traits = await toolset._analyze_audience_traits(audience)
+    traits = await toolset.analyze_audience_traits(audience)
 
     assert "energy_profile" in traits
     assert "experience_profile" in traits
@@ -79,7 +79,7 @@ async def test_tc_060_012_tech_audience_tech_suggestions():
     ]
 
     # Analyze this tech-heavy audience
-    traits = await toolset._analyze_audience_traits(tech_audience)
+    traits = await toolset.analyze_audience_traits(tech_audience)
 
     # Should recognize high engagement and mixed experience
     assert traits["energy_profile"] in ["high_energy", "mixed"]
@@ -146,8 +146,8 @@ async def test_tc_060_014_suggestion_type_matches_game():
         ]
 
         # Generate audience and get vibe check
-        audience = await toolset._generate_audience_sample(size=2)
-        vibe = await toolset._get_vibe_check(audience)
+        audience = await toolset.generate_audience_sample(size=2)
+        vibe = await toolset.get_vibe_check(audience)
 
         assert "overall_mood" in vibe
         assert "experience_level" in vibe
@@ -192,7 +192,7 @@ async def test_tc_060_015_multiple_archetypes_influence():
         },
     ]
 
-    traits = await toolset._analyze_audience_traits(mixed_audience)
+    traits = await toolset.analyze_audience_traits(mixed_audience)
 
     # Should recognize mixed energy and experience
     assert traits["energy_profile"] in ["high_energy", "mixed", "reserved"]
@@ -250,7 +250,7 @@ async def test_tc_060_017_get_all_archetypes():
             {"archetype_name": "Student", "preferences": "learning, discovery"},
         ]
 
-        archetypes = await toolset._get_all_archetypes()
+        archetypes = await toolset.get_all_archetypes()
 
         assert len(archetypes) == 3
         assert all("archetype_name" in a for a in archetypes)
@@ -283,7 +283,7 @@ async def test_tc_060_018_vibe_check_provides_indicators():
         },
     ]
 
-    vibe = await toolset._get_vibe_check(energetic_audience)
+    vibe = await toolset.get_vibe_check(energetic_audience)
 
     assert vibe["overall_mood"] == "high_energy"
     assert vibe["experience_level"] == "experienced"
@@ -322,7 +322,7 @@ async def test_tc_060_019_reserved_audience_different_vibe():
         },
     ]
 
-    vibe = await toolset._get_vibe_check(reserved_audience)
+    vibe = await toolset.get_vibe_check(reserved_audience)
 
     assert vibe["overall_mood"] in ["reserved", "mixed"]
     assert vibe["experience_level"] in ["beginner_friendly", "mixed"]
@@ -362,13 +362,13 @@ async def test_tc_060_020_audience_sample_respects_size():
         mock_get.return_value = mock_archetypes
 
         # Request 3
-        sample_3 = await toolset._generate_audience_sample(size=3)
+        sample_3 = await toolset.generate_audience_sample(size=3)
         assert len(sample_3) == 3
 
         # Request 7
-        sample_7 = await toolset._generate_audience_sample(size=7)
+        sample_7 = await toolset.generate_audience_sample(size=7)
         assert len(sample_7) == 7
 
         # Request more than available (should return all 10)
-        sample_15 = await toolset._generate_audience_sample(size=15)
+        sample_15 = await toolset.generate_audience_sample(size=15)
         assert len(sample_15) == 10
