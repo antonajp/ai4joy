@@ -170,6 +170,7 @@ class AudioUIController {
         this.isPremium = isPremium;
         this.isGameSelected = false;  // Voice mode disabled until game is selected
         this.selectedGame = null;
+        this.hasAutoActivated = false;  // Track if we've already auto-activated voice mode
         this.createModeSelector();
         this.createPushToTalkButton();
         this.createMicrophoneModal();
@@ -180,16 +181,34 @@ class AudioUIController {
     /**
      * Enable voice mode after game selection is complete.
      * Called by app.js when MC welcome phase completes.
+     * For premium users, automatically activates voice mode.
+     * @param {Object} selectedGame - The selected game object
+     * @param {boolean} autoActivate - Whether to auto-activate voice mode (default: true for premium)
      */
-    enableVoiceModeButton(selectedGame) {
+    enableVoiceModeButton(selectedGame, autoActivate = true) {
         this.isGameSelected = true;
         this.selectedGame = selectedGame;
 
         if (this.elements.voiceModeBtn && this.isPremium) {
             this.elements.voiceModeBtn.disabled = false;
             this.elements.voiceModeBtn.classList.remove('mode-btn-disabled');
+            // Remove the setup badge since game is now selected
+            const setupBadge = this.elements.voiceModeBtn.querySelector('.setup-badge');
+            if (setupBadge) {
+                setupBadge.remove();
+            }
             this.elements.voiceModeBtn.setAttribute('aria-label', 'Voice mode - Ready to start scene');
-            this.logger.info('Voice mode button enabled', { game: selectedGame?.name });
+            this.logger.info('Voice mode button enabled', { game: selectedGame?.name, autoActivate });
+
+            // Auto-activate voice mode for premium users (only once)
+            if (autoActivate && !this.isVoiceMode && !this.hasAutoActivated) {
+                this.hasAutoActivated = true;
+                this.logger.info('Auto-activating voice mode for premium user');
+                // Small delay to ensure UI is ready and user sees the transition
+                setTimeout(() => {
+                    this.enableVoiceMode();
+                }, 500);
+            }
         }
     }
 

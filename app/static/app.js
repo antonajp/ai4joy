@@ -772,7 +772,8 @@ async function initializeChatInterface() {
         } else {
             AppState.mcWelcomeComplete = true;
             if (session.turn_count === 0) {
-                displaySystemMessage('Scene work is ready to begin! Enter your first line to start the improv scene, or enable Voice Mode for real-time audio.');
+                const voiceHint = AppState.currentUser?.tier === 'premium' ? '' : ' Enable Voice Mode (Premium) for real-time audio.';
+                displaySystemMessage(`Scene work is ready to begin! Enter your first line to start the improv scene.${voiceHint}`);
             }
         }
     } catch (error) {
@@ -828,7 +829,8 @@ async function startMCWelcomePhase(sessionId) {
         // If MC welcome is complete, transition to scene work
         if (response.mc_welcome_complete) {
             AppState.mcWelcomeComplete = true;
-            displaySystemMessage('MC welcome complete! The scene is about to begin. Enter your first line when ready, or enable Voice Mode.');
+            const voiceHintWelcome = AppState.currentUser?.tier === 'premium' ? ' Voice Mode is activating...' : ' Enable Voice Mode (Premium) for real-time audio.';
+            displaySystemMessage(`MC welcome complete! The scene is about to begin. Enter your first line when ready.${voiceHintWelcome}`);
 
             // Enable voice mode button now that game is selected
             if (AppState.audioUI && AppState.selectedGame) {
@@ -899,7 +901,8 @@ async function handleMCWelcomeInput(userInput) {
         // Check if MC welcome is complete
         if (response.mc_welcome_complete) {
             AppState.mcWelcomeComplete = true;
-            displaySystemMessage('🎭 The stage is set! Enter your first line to begin the scene, or enable Voice Mode for a real-time audio experience.');
+            const voiceHintStage = AppState.currentUser?.tier === 'premium' ? ' Voice Mode is activating...' : ' Enable Voice Mode (Premium) for real-time audio.';
+            displaySystemMessage(`🎭 The stage is set! Enter your first line to begin the scene.${voiceHintStage}`);
 
             // Enable voice mode button now that game is selected
             if (AppState.audioUI && AppState.selectedGame) {
