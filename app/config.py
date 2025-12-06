@@ -66,6 +66,20 @@ class Settings(BaseSettings):
     )
     firestore_users_collection: str = "users"
 
+    # Firebase Authentication Configuration (Phase 1 - IQS-65)
+    # When enabled, supports Firebase Auth alongside existing Google OAuth
+    firebase_auth_enabled: bool = (
+        os.getenv("FIREBASE_AUTH_ENABLED", "false").lower() == "true"
+    )
+    # Enforce email verification before allowing access (AC-AUTH-03)
+    firebase_require_email_verification: bool = (
+        os.getenv("FIREBASE_REQUIRE_EMAIL_VERIFICATION", "true").lower() == "true"
+    )
+    # Firebase project configuration (uses existing GCP project)
+    # Firebase Admin SDK uses Application Default Credentials (ADC) in production
+    # For local development, set GOOGLE_APPLICATION_CREDENTIALS env var
+    firebase_project_id: str = os.getenv("FIREBASE_PROJECT_ID", gcp_project_id)
+
     @property
     def allowed_users_list(self) -> list[str]:
         """Parse comma-separated allowed users into a list"""
@@ -84,11 +98,13 @@ class Settings(BaseSettings):
         "/auth/logout",
         "/auth/user",
         "/auth/ws-token",
+        "/auth/firebase/token",  # Firebase token verification (IQS-65)
         "/",
         "/static/index.html",
         "/static/chat.html",
         "/static/styles.css",
         "/static/app.js",
+        "/static/firebase-auth.js",  # Firebase auth module (IQS-65)
     ]
 
     # IAP Header Configuration
@@ -144,6 +160,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env.local"  # Use .env.local for local dev
         case_sensitive = False
+        extra = "ignore"  # Allow extra env vars like GOOGLE_APPLICATION_CREDENTIALS
 
 
 @lru_cache()

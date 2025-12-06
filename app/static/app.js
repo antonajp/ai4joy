@@ -2,7 +2,8 @@
  * Improv Olympics - Frontend Application
  *
  * This JavaScript file handles:
- * - OAuth authentication flow
+ * - Firebase Authentication integration (IQS-65)
+ * - OAuth authentication flow (legacy)
  * - Session creation and management
  * - Real-time message updates
  * - Error handling and retry logic
@@ -18,6 +19,9 @@ const AUTH_BASE = '/auth';
 const POLLING_INTERVAL = 2000; // 2 seconds
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
+
+// Firebase Auth Module (imported as ES6 module in HTML)
+let firebaseAuth = null;
 
 // ============================================
 // State Management
@@ -389,14 +393,57 @@ async function executeMCWelcome(sessionId, userInput = null) {
 // ============================================
 
 /**
- * Initialize authentication state
+ * Initialize authentication state with Firebase
  */
 async function initializeAuth() {
+    // Initialize Firebase Auth if available
+    if (window.FIREBASE_CONFIG && typeof firebase !== 'undefined') {
+        try {
+            // Wait for firebase-auth.js module to load
+            await waitForFirebaseAuthModule();
+
+            // Initialize Firebase Auth with config and WAIT for initial auth state
+            // This ensures onAuthStateChanged has fired and verified any existing session
+            const firebaseAuthResult = await firebaseAuth.initializeFirebaseAuth(window.FIREBASE_CONFIG);
+
+            console.log('[App] Firebase Auth initialized successfully', firebaseAuthResult);
+
+            // If Firebase says user is authenticated, wait a moment for cookie to be set
+            if (firebaseAuthResult && firebaseAuthResult.authenticated) {
+                console.log('[App] Firebase user authenticated, waiting for session cookie...');
+                // Small delay to ensure cookie is set before checking backend
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        } catch (error) {
+            console.error('[App] Firebase Auth initialization failed:', error);
+            // Fall back to checking backend auth status
+        }
+    }
+
+    // Check backend authentication status (session cookie)
     const authData = await checkAuthStatus();
     AppState.isAuthenticated = authData.authenticated;
     AppState.currentUser = authData.user;
 
+    console.log('[App] Auth status from backend:', authData);
+
     updateAuthUI();
+}
+
+/**
+ * Wait for Firebase Auth module to load (ES6 module loaded asynchronously)
+ */
+async function waitForFirebaseAuthModule(timeout = 5000) {
+    const startTime = Date.now();
+
+    while (!window.firebaseAuthModule) {
+        if (Date.now() - startTime > timeout) {
+            throw new Error('Firebase Auth module load timeout');
+        }
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    firebaseAuth = window.firebaseAuthModule;
 }
 
 /**
@@ -422,19 +469,355 @@ function updateAuthUI() {
 }
 
 /**
- * Handle login button click
+ * Handle login button click - show Firebase auth modal
  */
 function handleLogin() {
-    // Redirect to OAuth login endpoint
-    window.location.href = `${AUTH_BASE}/login?next=${encodeURIComponent(window.location.pathname)}`;
+    showModal('auth-modal');
 }
 
 /**
- * Handle logout button click
+ * Handle logout button click - use Firebase signOut
  */
-function handleLogout() {
-    // Redirect to logout endpoint
-    window.location.href = `${AUTH_BASE}/logout`;
+async function handleLogout() {
+    try {
+        showLoading('Signing out...');
+        // Sign out from Firebase
+        if (window.firebaseAuthModule) {
+            await window.firebaseAuthModule.signOut();
+        }
+        // Clear backend session
+        await fetch(`${AUTH_BASE}/logout`, { credentials: 'include' });
+        hideLoading();
+        showToast('Signed out successfully', 'success');
+        // Reload to update UI
+        setTimeout(() => window.location.reload(), 500);
+    } catch (error) {
+        hideLoading();
+        console.error('Logout error:', error);
+        window.location.href = `${AUTH_BASE}/logout`;
+    }
+}
+
+/**
+ * Handle Firebase email sign-in form submission
+ */
+async function handleEmailSignIn(event) {
+    event.preventDefault();
+
+    const emailInput = document.getElementById('signin-email');
+    const passwordInput = document.getElementById('signin-password');
+    const emailErrorDiv = document.getElementById('signin-email-error');
+    const passwordErrorDiv = document.getElementById('signin-password-error');
+
+    // Clear previous errors
+    if (emailErrorDiv) emailErrorDiv.textContent = '';
+    if (passwordErrorDiv) passwordErrorDiv.textContent = '';
+
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+
+    // Basic validation
+    if (!email) {
+        if (emailErrorDiv) emailErrorDiv.textContent = 'Email is required';
+        return;
+    }
+    if (!password) {
+        if (passwordErrorDiv) passwordErrorDiv.textContent = 'Password is required';
+        return;
+    }
+
+    try {
+        showLoading('Signing in...');
+
+        if (!firebaseAuth) {
+            throw new Error('Firebase Auth not initialized');
+        }
+
+        const user = await firebaseAuth.signInWithEmail(email, password);
+
+        // Check email verification (AC-AUTH-03)
+        if (!user.emailVerified) {
+            hideLoading();
+            // Show verification notice
+            const verificationNotice = document.getElementById('email-verification-notice');
+            const verificationEmailDisplay = document.getElementById('verification-email-display');
+            if (verificationNotice && verificationEmailDisplay) {
+                verificationEmailDisplay.textContent = email;
+                document.getElementById('panel-signin').hidden = true;
+                verificationNotice.hidden = false;
+            } else {
+                if (passwordErrorDiv) passwordErrorDiv.textContent = 'Please verify your email address before signing in.';
+            }
+            await firebaseAuth.signOut();
+            return;
+        }
+
+        // Verify token with backend and create session (wait for this!)
+        showLoading('Verifying session...');
+        const idToken = await user.getIdToken();
+        const response = await fetch(`${AUTH_BASE}/firebase/token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ id_token: idToken }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Session verification failed');
+        }
+
+        hideLoading();
+        hideModal('auth-modal');
+        showToast('Signed in successfully!', 'success');
+
+        // Reload to update UI (session cookie is now set)
+        setTimeout(() => window.location.reload(), 300);
+
+    } catch (error) {
+        hideLoading();
+        console.error('[App] Email sign-in failed:', error);
+        if (passwordErrorDiv) passwordErrorDiv.textContent = error.message;
+    }
+}
+
+/**
+ * Handle Firebase email sign-up form submission
+ */
+async function handleEmailSignUp(event) {
+    event.preventDefault();
+
+    const emailInput = document.getElementById('signup-email');
+    const passwordInput = document.getElementById('signup-password');
+    const confirmInput = document.getElementById('signup-password-confirm');
+    const emailErrorDiv = document.getElementById('signup-email-error');
+    const passwordErrorDiv = document.getElementById('signup-password-error');
+    const confirmErrorDiv = document.getElementById('signup-confirm-error');
+
+    // Clear previous errors
+    if (emailErrorDiv) emailErrorDiv.textContent = '';
+    if (passwordErrorDiv) passwordErrorDiv.textContent = '';
+    if (confirmErrorDiv) confirmErrorDiv.textContent = '';
+
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+    const confirmPassword = confirmInput ? confirmInput.value : password;
+
+    // Basic validation
+    if (!email) {
+        if (emailErrorDiv) emailErrorDiv.textContent = 'Email is required';
+        return;
+    }
+    if (!password) {
+        if (passwordErrorDiv) passwordErrorDiv.textContent = 'Password is required';
+        return;
+    }
+    if (password.length < 6) {
+        if (passwordErrorDiv) passwordErrorDiv.textContent = 'Password must be at least 6 characters';
+        return;
+    }
+    if (password !== confirmPassword) {
+        if (confirmErrorDiv) confirmErrorDiv.textContent = 'Passwords do not match';
+        return;
+    }
+
+    try {
+        showLoading('Creating account...');
+
+        if (!firebaseAuth) {
+            throw new Error('Firebase Auth not initialized');
+        }
+
+        await firebaseAuth.signUpWithEmail(email, password);
+
+        hideLoading();
+
+        // Show verification notice
+        const verificationNotice = document.getElementById('email-verification-notice');
+        const verificationEmailDisplay = document.getElementById('verification-email-display');
+        if (verificationNotice && verificationEmailDisplay) {
+            verificationEmailDisplay.textContent = email;
+            document.getElementById('panel-signup').hidden = true;
+            verificationNotice.hidden = false;
+        }
+
+        // Clear form
+        emailInput.value = '';
+        passwordInput.value = '';
+        if (confirmInput) confirmInput.value = '';
+
+        showToast('Account created! Please check your email to verify your address.', 'success');
+
+    } catch (error) {
+        hideLoading();
+        console.error('[App] Email sign-up failed:', error);
+        if (emailErrorDiv) emailErrorDiv.textContent = error.message;
+    }
+}
+
+/**
+ * Handle Google Sign-In
+ */
+async function handleGoogleSignIn() {
+    try {
+        showLoading('Signing in with Google...');
+
+        if (!firebaseAuth) {
+            throw new Error('Firebase Auth not initialized');
+        }
+
+        const user = await firebaseAuth.signInWithGoogle();
+
+        // Verify token with backend and create session (wait for this!)
+        showLoading('Verifying session...');
+        const idToken = await user.getIdToken();
+        const response = await fetch(`${AUTH_BASE}/firebase/token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ id_token: idToken }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Session verification failed');
+        }
+
+        hideLoading();
+        hideModal('auth-modal');
+        showToast('Signed in successfully!', 'success');
+
+        // Reload to update UI (session cookie is now set)
+        setTimeout(() => window.location.reload(), 300);
+
+    } catch (error) {
+        hideLoading();
+        console.error('[App] Google sign-in failed:', error);
+
+        if (error.message.includes('popup')) {
+            showToast('Sign-in popup was blocked. Please allow popups for this site.', 'error');
+        } else {
+            showToast(error.message, 'error');
+        }
+    }
+}
+
+/**
+ * Handle resend verification email
+ */
+async function handleResendVerification() {
+    try {
+        showLoading('Sending verification email...');
+
+        if (!firebaseAuth) {
+            throw new Error('Firebase Auth not initialized');
+        }
+
+        await firebaseAuth.sendEmailVerification();
+        hideLoading();
+        showToast('Verification email sent! Please check your inbox.', 'success');
+
+    } catch (error) {
+        hideLoading();
+        console.error('[App] Resend verification failed:', error);
+        showToast(error.message, 'error');
+    }
+}
+
+/**
+ * Handle forgot password
+ */
+async function handleForgotPassword() {
+    const emailInput = document.getElementById('signin-email');
+    const email = emailInput ? emailInput.value.trim() : '';
+
+    if (!email) {
+        showToast('Please enter your email address first', 'error');
+        return;
+    }
+
+    try {
+        showLoading('Sending password reset email...');
+
+        if (!firebaseAuth) {
+            throw new Error('Firebase Auth not initialized');
+        }
+
+        await firebaseAuth.sendPasswordResetEmail(email);
+        hideLoading();
+        showToast('Password reset email sent! Please check your inbox.', 'success');
+
+    } catch (error) {
+        hideLoading();
+        console.error('[App] Password reset failed:', error);
+        showToast(error.message, 'error');
+    }
+}
+
+/**
+ * Show sign-in form (hide sign-up)
+ */
+function showSignInForm() {
+    // Update panels
+    const signinPanel = document.getElementById('panel-signin');
+    const signupPanel = document.getElementById('panel-signup');
+    if (signinPanel) {
+        signinPanel.hidden = false;
+    }
+    if (signupPanel) {
+        signupPanel.hidden = true;
+    }
+
+    // Update tabs
+    const signinTab = document.getElementById('tab-signin');
+    const signupTab = document.getElementById('tab-signup');
+    if (signinTab) {
+        signinTab.classList.add('auth-tab-active');
+        signinTab.setAttribute('aria-selected', 'true');
+    }
+    if (signupTab) {
+        signupTab.classList.remove('auth-tab-active');
+        signupTab.setAttribute('aria-selected', 'false');
+    }
+
+    // Hide verification notice if shown
+    const verificationNotice = document.getElementById('email-verification-notice');
+    if (verificationNotice) {
+        verificationNotice.hidden = true;
+    }
+}
+
+/**
+ * Show sign-up form (hide sign-in)
+ */
+function showSignUpForm() {
+    // Update panels
+    const signinPanel = document.getElementById('panel-signin');
+    const signupPanel = document.getElementById('panel-signup');
+    if (signinPanel) {
+        signinPanel.hidden = true;
+    }
+    if (signupPanel) {
+        signupPanel.hidden = false;
+    }
+
+    // Update tabs
+    const signinTab = document.getElementById('tab-signin');
+    const signupTab = document.getElementById('tab-signup');
+    if (signinTab) {
+        signinTab.classList.remove('auth-tab-active');
+        signinTab.setAttribute('aria-selected', 'false');
+    }
+    if (signupTab) {
+        signupTab.classList.add('auth-tab-active');
+        signupTab.setAttribute('aria-selected', 'true');
+    }
+
+    // Hide verification notice if shown
+    const verificationNotice = document.getElementById('email-verification-notice');
+    if (verificationNotice) {
+        verificationNotice.hidden = true;
+    }
 }
 
 // ============================================
@@ -708,11 +1091,12 @@ async function initializeAudioFeatures() {
         console.warn('[App] Audio modules not loaded');
         return;
     }
-    const isPremium = AppState.currentUser?.tier === 'premium';
+    // Voice mode is available for both freemium and premium users
+    const hasVoiceAccess = ['premium', 'freemium'].includes(AppState.currentUser?.tier);
     AppState.audioManager = new AudioStreamManager();
     AppState.audioUI = new AudioUIController(AppState.audioManager);
-    await AppState.audioUI.initialize(isPremium);
-    console.log('[App] Audio features initialized', { isPremium });
+    await AppState.audioUI.initialize(hasVoiceAccess);
+    console.log('[App] Audio features initialized', { hasVoiceAccess, tier: AppState.currentUser?.tier });
 }
 
 async function initializeChatInterface() {
@@ -1441,6 +1825,74 @@ function setupLandingPageListeners() {
     if (loginBtn) loginBtn.addEventListener('click', handleLogin);
     if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
 
+    // Auth modal controls
+    const closeAuthModal = document.getElementById('close-auth-modal');
+    if (closeAuthModal) {
+        closeAuthModal.addEventListener('click', () => hideModal('auth-modal'));
+    }
+
+    // Auth form submissions (new IDs from IQS-65 implementation)
+    const signinForm = document.getElementById('signin-form');
+    const signupForm = document.getElementById('signup-form');
+
+    if (signinForm) {
+        signinForm.addEventListener('submit', handleEmailSignIn);
+    }
+
+    if (signupForm) {
+        signupForm.addEventListener('submit', handleEmailSignUp);
+    }
+
+    // Google sign-in/sign-up buttons
+    const googleSignInBtn = document.getElementById('google-signin-btn');
+    const googleSignUpBtn = document.getElementById('google-signup-btn');
+
+    if (googleSignInBtn) {
+        googleSignInBtn.addEventListener('click', handleGoogleSignIn);
+    }
+
+    if (googleSignUpBtn) {
+        googleSignUpBtn.addEventListener('click', handleGoogleSignIn);
+    }
+
+    // Auth tab switching (IQS-65)
+    const tabSignin = document.getElementById('tab-signin');
+    const tabSignup = document.getElementById('tab-signup');
+
+    if (tabSignin) {
+        tabSignin.addEventListener('click', () => {
+            showSignInForm();
+        });
+    }
+
+    if (tabSignup) {
+        tabSignup.addEventListener('click', () => {
+            showSignUpForm();
+        });
+    }
+
+    // Resend verification email button
+    const resendVerificationBtn = document.getElementById('resend-verification-btn');
+    if (resendVerificationBtn) {
+        resendVerificationBtn.addEventListener('click', handleResendVerification);
+    }
+
+    // Forgot password link
+    const forgotPasswordLink = document.getElementById('forgot-password-link');
+    if (forgotPasswordLink) {
+        forgotPasswordLink.addEventListener('click', handleForgotPassword);
+    }
+
+    // Close auth modal on overlay click
+    const authModal = document.getElementById('auth-modal');
+    if (authModal) {
+        authModal.addEventListener('click', (e) => {
+            if (e.target === authModal) {
+                hideModal('auth-modal');
+            }
+        });
+    }
+
     // Start session
     const startSessionBtn = document.getElementById('start-session-btn');
     if (startSessionBtn) {
@@ -1475,6 +1927,7 @@ function setupLandingPageListeners() {
         // Escape key closes modals
         if (e.key === 'Escape') {
             hideModal('setup-modal');
+            hideModal('auth-modal');
         }
     });
 }
@@ -1559,6 +2012,16 @@ async function initializeApp() {
     } else {
         setupLandingPageListeners();
         await initializeAuth();
+
+        // Initialize Firebase Auth (IQS-65)
+        if (window.FIREBASE_CONFIG && window.firebaseAuthModule) {
+            try {
+                await window.firebaseAuthModule.initializeFirebaseAuth(window.FIREBASE_CONFIG);
+                console.log('[App] Firebase Auth initialized');
+            } catch (error) {
+                console.error('[App] Firebase init failed:', error);
+            }
+        }
     }
 }
 
