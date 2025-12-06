@@ -569,155 +569,240 @@ async def _stream_responses_to_client(
 ) -> None:
     """Background task to stream ADK responses back to the client.
 
+    IQS-81: This task now automatically restarts the run_live() loop when it
+    completes (which can happen due to Gemini Live API timeouts or errors).
+    This ensures continuous audio streaming without losing session context.
+
     Args:
         websocket: WebSocket connection
         session_id: Session identifier
         orchestrator: Audio orchestrator instance
     """
-    try:
-        async for response in orchestrator.stream_responses(session_id):
-            response_type = response.get("type")
+    restart_count = 0
+    max_restarts = 10  # Prevent infinite restart loops
+    restart_delay = 1.0  # Seconds to wait between restarts
 
-            if response_type == "audio":
-                # Encode audio bytes to base64 for transmission
-                audio_data = response.get("data")
-                if audio_data:
-                    if isinstance(audio_data, bytes):
-                        encoded_audio = base64.b64encode(audio_data).decode("utf-8")
-                    else:
-                        encoded_audio = audio_data
+    while restart_count < max_restarts:
+        try:
+            stream_ended_normally = False
 
+            async for response in orchestrator.stream_responses(session_id):
+                response_type = response.get("type")
+
+                if response_type == "audio":
+                    # Encode audio bytes to base64 for transmission
+                    audio_data = response.get("data")
+                    if audio_data:
+                        if isinstance(audio_data, bytes):
+                            encoded_audio = base64.b64encode(audio_data).decode("utf-8")
+                        else:
+                            encoded_audio = audio_data
+
+                        await websocket.send_json(
+                            {
+                                "type": "audio",
+                                "data": encoded_audio,
+                                "sample_rate": 24000,
+                            }
+                        )
+
+                elif response_type == "transcription":
                     await websocket.send_json(
                         {
-                            "type": "audio",
-                            "data": encoded_audio,
-                            "sample_rate": 24000,
+                            "type": "transcription",
+                            "text": response.get("text", ""),
+                            "role": response.get("role", "agent"),
+                            "agent": response.get("agent", "mc"),  # Include agent type
+                            "is_final": response.get("is_final", True),
                         }
                     )
 
-            elif response_type == "transcription":
-                await websocket.send_json(
-                    {
-                        "type": "transcription",
-                        "text": response.get("text", ""),
-                        "role": response.get("role", "agent"),
-                        "agent": response.get("agent", "mc"),  # Include agent type
-                        "is_final": response.get("is_final", True),
-                    }
-                )
+                elif response_type == "error":
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "code": "STREAM_ERROR",
+                            "message": response.get("message", "Unknown error"),
+                        }
+                    )
 
-            elif response_type == "error":
-                await websocket.send_json(
-                    {
-                        "type": "error",
-                        "code": "STREAM_ERROR",
-                        "message": response.get("message", "Unknown error"),
-                    }
-                )
+                elif response_type == "tool_call":
+                    logger.debug(
+                        "Tool call in response stream",
+                        session_id=session_id,
+                        tool_name=response.get("name"),
+                    )
 
-            elif response_type == "tool_call":
-                logger.debug(
-                    "Tool call in response stream",
-                    session_id=session_id,
-                    tool_name=response.get("name"),
-                )
+                elif response_type == "tool_result":
+                    logger.debug(
+                        "Tool result in response stream",
+                        session_id=session_id,
+                    )
 
-            elif response_type == "tool_result":
-                logger.debug(
-                    "Tool result in response stream",
-                    session_id=session_id,
-                )
+                elif response_type == "room_vibe":
+                    # Forward audience reaction to frontend for visual display
+                    await websocket.send_json(
+                        {
+                            "type": "room_vibe",
+                            "analysis": response.get("analysis", ""),
+                            "mood_metrics": response.get("mood_metrics", {}),
+                            "timestamp": response.get("timestamp"),
+                        }
+                    )
 
-            elif response_type == "room_vibe":
-                # Forward audience reaction to frontend for visual display
-                await websocket.send_json(
-                    {
-                        "type": "room_vibe",
-                        "analysis": response.get("analysis", ""),
-                        "mood_metrics": response.get("mood_metrics", {}),
-                        "timestamp": response.get("timestamp"),
-                    }
-                )
+                    logger.info(
+                        "Room vibe sent to client",
+                        session_id=session_id,
+                        analysis_preview=response.get("analysis", "")[:50],
+                    )
 
-                logger.info(
-                    "Room vibe sent to client",
-                    session_id=session_id,
-                    analysis_preview=response.get("analysis", "")[:50],
-                )
-
-            elif response_type == "turn_complete":
-                # Forward turn completion to client for UI updates
-                turn_data = {
-                    "type": "turn_complete",
-                    "turn_count": response.get("turn_count", 0),
-                    "phase": response.get("phase", 1),
-                    "agent": response.get("agent", "mc"),
-                }
-
-                # Include phase change notification if applicable
-                if response.get("phase_changed"):
-                    turn_data["phase_changed"] = True
-
-                await websocket.send_json(turn_data)
-
-                logger.info(
-                    "Turn complete sent to client",
-                    session_id=session_id,
-                    turn_count=response.get("turn_count"),
-                    phase=response.get("phase"),
-                    phase_changed=response.get("phase_changed", False),
-                    agent=response.get("agent"),
-                )
-
-            elif response_type == "agent_switch":
-                # Agent has switched (MC -> Partner or Partner -> MC)
-                await websocket.send_json(
-                    {
-                        "type": "agent_switch",
-                        "from_agent": response.get("from_agent"),
-                        "to_agent": response.get("to_agent"),
+                elif response_type == "turn_complete":
+                    # Forward turn completion to client for UI updates
+                    turn_data = {
+                        "type": "turn_complete",
+                        "turn_count": response.get("turn_count", 0),
                         "phase": response.get("phase", 1),
+                        "agent": response.get("agent", "mc"),
                     }
-                )
 
+                    # Include phase change notification if applicable
+                    if response.get("phase_changed"):
+                        turn_data["phase_changed"] = True
+
+                    await websocket.send_json(turn_data)
+
+                    logger.info(
+                        "Turn complete sent to client",
+                        session_id=session_id,
+                        turn_count=response.get("turn_count"),
+                        phase=response.get("phase"),
+                        phase_changed=response.get("phase_changed", False),
+                        agent=response.get("agent"),
+                    )
+
+                elif response_type == "agent_switch":
+                    # Agent has switched (MC -> Partner or Partner -> MC)
+                    await websocket.send_json(
+                        {
+                            "type": "agent_switch",
+                            "from_agent": response.get("from_agent"),
+                            "to_agent": response.get("to_agent"),
+                            "phase": response.get("phase", 1),
+                        }
+                    )
+
+                    logger.info(
+                        "Agent switch sent to client",
+                        session_id=session_id,
+                        from_agent=response.get("from_agent"),
+                        to_agent=response.get("to_agent"),
+                        phase=response.get("phase"),
+                    )
+
+                elif response_type == "agent_switch_pending":
+                    # Agent switch is pending (tool call detected)
+                    await websocket.send_json(
+                        {
+                            "type": "agent_switch_pending",
+                            "from_agent": response.get("from_agent"),
+                            "to_agent": response.get("to_agent"),
+                            "game_name": response.get("game_name"),
+                            "scene_premise": response.get("scene_premise"),
+                            "reason": response.get("reason"),
+                        }
+                    )
+
+                    logger.info(
+                        "Agent switch pending sent to client",
+                        session_id=session_id,
+                        from_agent=response.get("from_agent"),
+                        to_agent=response.get("to_agent"),
+                    )
+
+            # Stream ended normally (run_live completed)
+            stream_ended_normally = True
+
+            # IQS-81: Check if session is still active before restarting
+            if not orchestrator.is_session_active(session_id):
                 logger.info(
-                    "Agent switch sent to client",
+                    "Session no longer active, stopping stream restart loop",
                     session_id=session_id,
-                    from_agent=response.get("from_agent"),
-                    to_agent=response.get("to_agent"),
-                    phase=response.get("phase"),
+                    restart_count=restart_count,
                 )
+                break
 
-            elif response_type == "agent_switch_pending":
-                # Agent switch is pending (tool call detected)
-                await websocket.send_json(
-                    {
-                        "type": "agent_switch_pending",
-                        "from_agent": response.get("from_agent"),
-                        "to_agent": response.get("to_agent"),
-                        "game_name": response.get("game_name"),
-                        "scene_premise": response.get("scene_premise"),
-                        "reason": response.get("reason"),
-                    }
-                )
+            # IQS-81: run_live() completed - restart to maintain continuous streaming
+            restart_count += 1
+            logger.warning(
+                "run_live stream ended, restarting to maintain session",
+                session_id=session_id,
+                restart_count=restart_count,
+                max_restarts=max_restarts,
+            )
 
+            # Notify client about the stream restart
+            await websocket.send_json(
+                {
+                    "type": "stream_restart",
+                    "message": "Audio stream restarting - session continues",
+                    "restart_count": restart_count,
+                }
+            )
+
+            # Brief delay before restart to prevent tight loops
+            await asyncio.sleep(restart_delay)
+
+            # Reinitialize the session queue to get a fresh run_live instance
+            await orchestrator.reinitialize_session_for_restart(session_id)
+
+        except asyncio.CancelledError:
+            logger.debug("Response streaming cancelled", session_id=session_id)
+            raise
+
+        except Exception as e:
+            logger.error(
+                "Error streaming responses to client",
+                session_id=session_id,
+                error=str(e),
+                error_type=type(e).__name__,
+                restart_count=restart_count,
+            )
+
+            # Check if we should retry
+            restart_count += 1
+            if restart_count < max_restarts:
                 logger.info(
-                    "Agent switch pending sent to client",
+                    "Retrying stream after error",
                     session_id=session_id,
-                    from_agent=response.get("from_agent"),
-                    to_agent=response.get("to_agent"),
+                    restart_count=restart_count,
                 )
+                await asyncio.sleep(restart_delay)
 
-    except asyncio.CancelledError:
-        logger.debug("Response streaming cancelled", session_id=session_id)
-        raise
+                # Try to reinitialize session
+                try:
+                    await orchestrator.reinitialize_session_for_restart(session_id)
+                except Exception as reinit_error:
+                    logger.error(
+                        "Failed to reinitialize session for restart",
+                        session_id=session_id,
+                        error=str(reinit_error),
+                    )
+                    break
+            else:
+                break
 
-    except Exception as e:
+    if restart_count >= max_restarts:
         logger.error(
-            "Error streaming responses to client",
+            "Max stream restarts reached, stopping",
             session_id=session_id,
-            error=str(e),
-            error_type=type(e).__name__,
+            restart_count=restart_count,
+        )
+        await websocket.send_json(
+            {
+                "type": "error",
+                "code": "MAX_RESTARTS_REACHED",
+                "message": "Audio stream has been restarted too many times. Please refresh the page.",
+            }
         )
 
 

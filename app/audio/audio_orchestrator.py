@@ -296,16 +296,26 @@ class AudioStreamOrchestrator:
             queue: LiveRequestQueue for the session
             game_name: Selected game name for scene context
         """
-        # Create a prompt that triggers the MC to introduce themselves
-        # Include game context if a game was selected
+        # Create a prompt that triggers the MC to follow proper game setup flow
+        # Include game context and explicit instructions to use tools
         if game_name:
             greeting_text = (
                 f"[Voice mode activated. The player has selected '{game_name}' as their improv game. "
-                f"Please greet them as the MC, acknowledge their game choice, and get them ready to play. "
-                f"Ask how they're feeling and help them warm up for the scene.]"
+                f"Follow these steps in order:\n"
+                f"1. Greet them warmly as the MC and acknowledge their game choice\n"
+                f"2. CALL get_game_by_id to look up the official rules for '{game_name}'\n"
+                f"3. Explain the game rules clearly and enthusiastically\n"
+                f"4. CALL get_suggestion_for_game with game_name='{game_name}' to get a suggestion from the audience\n"
+                f"5. Relay what the audience shouted and use it to set up the scene\n"
+                f"6. Start the scene when ready!\n"
+                f"Remember: NEVER ask the player for suggestions - always use get_suggestion_for_game to get them from the audience.]"
             )
         else:
-            greeting_text = "[Voice mode activated. Please greet me as the MC and ask how I'm feeling today.]"
+            greeting_text = (
+                "[Voice mode activated. Greet the player warmly as the MC. "
+                "Ask what kind of improv experience they're looking for today, "
+                "then help them choose a game using get_all_games or search_games.]"
+            )
 
         greeting_prompt = types.Content(
             role="user", parts=[types.Part.from_text(text=greeting_text)]
@@ -680,6 +690,17 @@ class AudioStreamOrchestrator:
 
                 # Check for turn completion to track turns
                 if hasattr(event, "turn_complete") and event.turn_complete:
+                    # IQS-81: Detect empty turns (turn_complete with no content)
+                    has_content = any(
+                        r.get("type") in ("audio", "transcription")
+                        for r in responses
+                    )
+                    if not has_content:
+                        logger.warning(
+                            "Empty turn detected - turn completed with no audio/content",
+                            session_id=session_id,
+                            turn_count=session.turn_count + 1,  # Will be incremented below
+                        )
                     # Use turn manager to handle completion
                     if session.turn_manager:
                         turn_result = session.turn_manager.on_turn_complete()
@@ -807,10 +828,12 @@ class AudioStreamOrchestrator:
         # ADK returns Transcription objects with .text and .finished properties
         if hasattr(event, "input_transcription") and event.input_transcription:
             transcription = event.input_transcription
-            # Extract text from Transcription object or use as string
-            text = getattr(transcription, "text", None) or str(transcription)
+            # Extract text from Transcription object
+            # IQS-81: Don't fall back to str(transcription) - skip empty transcriptions
+            text = getattr(transcription, "text", None)
             is_final = getattr(transcription, "finished", True)
-            if text:
+            # Skip empty or None text
+            if text and text.strip():
                 logger.info(
                     "User transcription received",
                     text=text[:100] if len(text) > 100 else text,
@@ -829,10 +852,12 @@ class AudioStreamOrchestrator:
         # ADK returns Transcription objects with .text and .finished properties
         if hasattr(event, "output_transcription") and event.output_transcription:
             transcription = event.output_transcription
-            # Extract text from Transcription object or use as string
-            text = getattr(transcription, "text", None) or str(transcription)
+            # Extract text from Transcription object
+            # IQS-81: Don't fall back to str(transcription) - skip empty transcriptions
+            text = getattr(transcription, "text", None)
             is_final = getattr(transcription, "finished", True)
-            if text:
+            # Skip empty or None text - don't display "text='' finished=True"
+            if text and text.strip():
                 logger.info(
                     "Agent transcription received",
                     agent_type="mc",
@@ -1316,3 +1341,54 @@ class AudioStreamOrchestrator:
             24000 Hz (ADK Live API output format)
         """
         return 24000
+
+    async def reinitialize_session_for_restart(self, session_id: str) -> None:
+        """Reinitialize session for run_live restart without losing context.
+
+        IQS-81: When run_live() completes (due to timeout or error), we need to
+        restart it while preserving the session state. This method:
+        1. Creates a new LiveRequestQueue
+        2. Sends a resume prompt (not initial greeting) to continue the scene
+        3. Updates the session with the new queue
+
+        Args:
+            session_id: Session identifier
+        """
+        session = self._sessions.get(session_id)
+        if not session:
+            logger.error(
+                "reinitialize_session_for_restart: Session not found",
+                session_id=session_id,
+            )
+            return
+
+        # Close old queue if it exists
+        if session.queue:
+            try:
+                session.queue.close()
+            except Exception as e:
+                logger.warning(
+                    "Error closing old queue during restart",
+                    session_id=session_id,
+                    error=str(e),
+                )
+
+        # Create new queue
+        new_queue = self.create_session_queue(session_id)
+        session.queue = new_queue
+
+        # Send resume prompt to continue the scene (NOT initial greeting)
+        # This is critical - we must not send _send_initial_greeting as it would
+        # make the MC start over and ask "would you like to play a game"
+        self._send_resume_prompt(
+            new_queue,
+            session.game_name,
+            session.turn_count,
+        )
+
+        logger.info(
+            "Session reinitialized for run_live restart",
+            session_id=session_id,
+            turn_count=session.turn_count,
+            game_name=session.game_name,
+        )

@@ -548,89 +548,205 @@ class AudienceArchetypesToolset(BaseToolset):
     ) -> str:
         """Generate audience suggestion appropriate for a specific game.
 
-        This tool simulates an audience member shouting out a suggestion.
-        The MC should relay this suggestion to the player.
+        This tool retrieves game data from Firestore and uses the game's
+        suggestion_prompt and example_suggestions fields to generate
+        contextually appropriate suggestions. The MC should relay
+        this suggestion to the player.
 
         Args:
             game_name: Name of the improv game
             audience_sample: Optional audience sample. If not provided, generates a new sample.
 
         Returns:
-            A string describing who shouted the suggestion and what they said.
-            Example: "Someone from the crowd shouts: 'A coffee shop!'"
+            A string with the suggestion(s) appropriate for the game.
+            Format varies by game (e.g., single word, relationship, opening/closing lines).
         """
         logger.info("Generating game-specific suggestion", game_name=game_name)
 
-        # Map common games to their typical suggestion types
-        game_suggestion_types = {
-            "long form": "relationship",
-            "long_form": "relationship",
-            "questions only": "location",
-            "questions_only": "location",
-            "alphabet scene": "location",
-            "alphabet_game": "location",
-            "last word, first word": "relationship",
-            "last_word_first_word": "relationship",
-            "expert interview": "topic",
-            "expert_interview": "topic",
-            "emotional rollercoaster": "relationship",
-            "emotional_rollercoaster": "relationship",
-            "genre replay": "location",
-            "genre_replay": "location",
-            "one word story": "topic",
-            "one_word_story": "topic",
-            "character swap": "relationship",
-            "character_swap": "relationship",
-            "status shift": "location",
-            "status_shift": "location",
-            "party quirks": "location",
-            "party_quirks": "location",
-            # Yes And - relationship-based
-            "yes and": "relationship",
-            "yes_and": "relationship",
-            # Freeze Tag - location-based
-            "freeze tag": "location",
-            "freeze_tag": "location",
-            # Note: Games with complex suggestion requirements (like First Line / Last Line)
-            # are handled dynamically by mc_welcome_orchestrator using game data
-            # (description, rules, suggestion_prompt, example_suggestions fields)
-        }
+        # Fetch game data from Firestore to get suggestion requirements
+        game_data = await data_service.get_game_by_name(game_name)
 
-        # Determine suggestion type for this game (default to location)
-        game_key = game_name.lower().strip()
-        suggestion_type = game_suggestion_types.get(game_key, "location")
+        if game_data:
+            suggestion_prompt = game_data.get("suggestion_prompt")
+            example_suggestions = game_data.get("example_suggestions", [])
+            suggestion_count = game_data.get("suggestion_count", 1)
+            game_description = game_data.get("description", "")
+            game_rules = game_data.get("rules", [])
 
-        logger.debug(
-            "Determined suggestion type for game",
+            logger.info(
+                "Fetched game data for suggestion generation",
+                game_name=game_name,
+                has_suggestion_prompt=bool(suggestion_prompt),
+                example_count=len(example_suggestions),
+                suggestion_count=suggestion_count,
+            )
+
+            # If game has explicit suggestion requirements, use them
+            if suggestion_prompt or example_suggestions:
+                # Build context for intelligent suggestion generation
+                context_parts = []
+
+                if suggestion_prompt:
+                    context_parts.append(f"Suggestion requirements: {suggestion_prompt}")
+
+                if example_suggestions:
+                    examples_str = ", ".join(
+                        f'"{ex}"' for ex in example_suggestions[:3]
+                    )
+                    context_parts.append(f"Example suggestions: {examples_str}")
+
+                if game_description:
+                    context_parts.append(f"Game: {game_description}")
+
+                # Generate suggestion based on context
+                suggestion = await self._generate_contextual_suggestion(
+                    game_name=game_name,
+                    suggestion_prompt=suggestion_prompt,
+                    example_suggestions=example_suggestions,
+                    suggestion_count=suggestion_count,
+                    audience_sample=audience_sample,
+                )
+
+                logger.info(
+                    "Generated suggestion using Firestore game data",
+                    game_name=game_name,
+                    suggestion=suggestion,
+                )
+
+                return suggestion
+
+        # Fallback: No Firestore data found for this game
+        # Generate a generic suggestion instead of using hardcoded mappings
+        logger.warning(
+            "No Firestore game data found, using generic fallback",
             game_name=game_name,
-            suggestion_type=suggestion_type,
         )
 
-        # Generate the suggestion
+        # Use a generic relationship suggestion as fallback
+        # since many improv games involve character relationships
         suggestion = await self.generate_audience_suggestion(
-            suggestion_type, audience_sample
+            "relationship", audience_sample
         )
-
-        # Create audience shout-out with variety
-        shout_phrases = [
-            f"Someone from the crowd shouts: '{suggestion}!'",
-            f"An audience member yells: '{suggestion}!'",
-            f"From the back row, someone calls out: '{suggestion}!'",
-            f"A voice from the audience suggests: '{suggestion}!'",
-            f"Someone in the front row shouts: '{suggestion}!'",
-        ]
-
-        result = random.choice(shout_phrases)
 
         logger.info(
-            "Game suggestion generated",
+            "Game suggestion generated (generic fallback)",
             game_name=game_name,
-            suggestion_type=suggestion_type,
             suggestion=suggestion,
-            result=result,
         )
 
-        return result
+        return suggestion
+
+    async def _generate_contextual_suggestion(
+        self,
+        game_name: str,
+        suggestion_prompt: Optional[str],
+        example_suggestions: List[str],
+        suggestion_count: int,
+        audience_sample: Optional[List[Dict[str, Any]]] = None,
+    ) -> str:
+        """Generate suggestion based on game-specific requirements from Firestore.
+
+        Uses the suggestion_prompt and example_suggestions to create
+        contextually appropriate suggestions for the game.
+
+        Args:
+            game_name: Name of the game
+            suggestion_prompt: Game's specific suggestion requirements
+            example_suggestions: List of example suggestions for this game
+            suggestion_count: Number of suggestions needed
+            audience_sample: Optional audience demographics for context
+
+        Returns:
+            Formatted suggestion string appropriate for the game.
+        """
+        # If we have example suggestions, use them as a template
+        if example_suggestions:
+            # Pick a random example and adapt it
+            base_example = random.choice(example_suggestions)
+
+            # For simple games, just return a varied example
+            if suggestion_count == 1 and not suggestion_prompt:
+                return base_example
+
+            # For complex games (like First Line/Last Line), generate similar format
+            if suggestion_count == 2 and "|" in base_example:
+                # Two-part suggestion (opening/closing lines format)
+                return self._generate_two_part_suggestion(
+                    suggestion_prompt, example_suggestions
+                )
+
+        # If we have a suggestion prompt, parse it to understand requirements
+        if suggestion_prompt:
+            prompt_lower = suggestion_prompt.lower()
+
+            # Detect what type of suggestion is needed
+            if "relationship" in prompt_lower:
+                suggestion = await self.generate_audience_suggestion(
+                    "relationship", audience_sample
+                )
+                return suggestion
+
+            elif "location" in prompt_lower or "place" in prompt_lower:
+                suggestion = await self.generate_audience_suggestion(
+                    "location", audience_sample
+                )
+                return suggestion
+
+            elif "topic" in prompt_lower or "subject" in prompt_lower:
+                suggestion = await self.generate_audience_suggestion(
+                    "topic", audience_sample
+                )
+                return suggestion
+
+            elif "occupation" in prompt_lower or "job" in prompt_lower:
+                suggestion = await self.generate_audience_suggestion(
+                    "occupation", audience_sample
+                )
+                return suggestion
+
+            elif "object" in prompt_lower or "item" in prompt_lower:
+                suggestion = await self.generate_audience_suggestion(
+                    "object", audience_sample
+                )
+                return suggestion
+
+            elif "line" in prompt_lower or "sentence" in prompt_lower:
+                # Opening/closing line type games
+                if example_suggestions:
+                    return random.choice(example_suggestions)
+                return "Let's start this adventure!"
+
+        # Default fallback
+        suggestion = await self.generate_audience_suggestion(
+            "relationship", audience_sample
+        )
+        return suggestion
+
+    def _generate_two_part_suggestion(
+        self,
+        suggestion_prompt: Optional[str],
+        example_suggestions: List[str],
+    ) -> str:
+        """Generate a two-part suggestion (like opening/closing lines).
+
+        Args:
+            suggestion_prompt: The game's suggestion requirements
+            example_suggestions: Example two-part suggestions
+
+        Returns:
+            Formatted two-part suggestion string.
+        """
+        if example_suggestions:
+            # Use examples as templates
+            return random.choice(example_suggestions)
+
+        # Fallback two-part suggestions
+        fallback_pairs = [
+            "Opening line: 'I never thought it would end like this.' | Closing line: 'And that's why I don't eat sushi anymore.'",
+            "Opening line: 'This is the happiest day of my life!' | Closing line: 'Well, there goes the neighborhood.'",
+            "Opening line: 'I've been waiting for this moment.' | Closing line: 'Some things are better left unsaid.'",
+        ]
+        return random.choice(fallback_pairs)
 
     async def close(self) -> None:
         """Cleanup resources when toolset is no longer needed."""

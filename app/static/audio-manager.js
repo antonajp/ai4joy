@@ -244,6 +244,10 @@ class AudioStreamManager {
                 case 'room_vibe':
                     this.handleRoomVibe(message);
                     break;
+                case 'stream_restart':
+                    // IQS-81: Handle run_live stream restart notification
+                    this.handleStreamRestart(message);
+                    break;
                 default:
                     this.logger.warn('Unknown message type:', message.type);
             }
@@ -298,6 +302,14 @@ class AudioStreamManager {
     handleTurnComplete(message) {
         const { turn_count, phase, phase_changed, agent } = message;
         this.logger.info('Turn complete:', turn_count, 'Phase:', phase, 'Agent:', agent);
+
+        // IQS-81: When turn completes and we're still in 'processing' state,
+        // it means no audio was received. Transition to 'connected' to unfreeze.
+        if (this.state === 'processing') {
+            this.logger.warn('Turn completed with no audio response - transitioning to connected');
+            this.setState('connected');
+        }
+
         if (this.onTurnComplete) {
             this.onTurnComplete({
                 turnCount: turn_count,
@@ -352,6 +364,25 @@ class AudioStreamManager {
                 moodMetrics: mood_metrics,
                 timestamp: timestamp
             });
+        }
+    }
+
+    handleStreamRestart(message) {
+        // IQS-81: Handle notification that the run_live stream is restarting
+        // This happens when the Gemini Live API session times out or has an error
+        // The session context is preserved - this is just informational
+        const { restart_count } = message;
+        this.logger.warn('Audio stream restarting, attempt:', restart_count);
+
+        // If we were in a processing state, transition back to connected
+        // since we might need to wait for the restart to complete
+        if (this.state === 'processing') {
+            this.setState('connected');
+        }
+
+        // Notify listeners if callback is registered
+        if (this.onStreamRestart) {
+            this.onStreamRestart({ restartCount: restart_count });
         }
     }
 

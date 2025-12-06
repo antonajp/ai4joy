@@ -144,6 +144,37 @@ async def get_game_by_id(game_id: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+async def get_game_by_name(game_name: str) -> Optional[Dict[str, Any]]:
+    """Get a specific game by name (case-insensitive).
+
+    Args:
+        game_name: The game name to search for
+
+    Returns:
+        Game dictionary if found, None otherwise.
+
+    Note:
+        Performs case-insensitive matching by comparing lowercase names.
+        Firestore doesn't support case-insensitive queries natively.
+    """
+    client = get_firestore_client()
+    collection_ref = client.collection(settings.firestore_games_collection)
+
+    game_name_lower = game_name.lower().strip()
+
+    async for doc in collection_ref.stream():
+        game = doc.to_dict()
+        if game is not None:
+            stored_name = game.get("name", "")
+            if stored_name.lower().strip() == game_name_lower:
+                game["id"] = doc.id
+                logger.debug("Game found by name", game_name=game_name)
+                return game
+
+    logger.warning("Game not found by name", game_name=game_name)
+    return None
+
+
 async def search_games(
     energy_level: Optional[str] = None,
     player_count: Optional[int] = None,

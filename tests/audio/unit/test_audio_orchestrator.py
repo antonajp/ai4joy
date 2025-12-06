@@ -304,3 +304,114 @@ class TestAudioStreamOrchestratorTranscription:
         # Verify it's a valid RunConfig object
         from google.adk.runners import RunConfig
         assert isinstance(run_config, RunConfig)
+
+
+class TestAudioStreamOrchestratorRestart:
+    """Tests for run_live restart functionality - IQS-81."""
+
+    @pytest.mark.asyncio
+    async def test_reinitialize_session_preserves_turn_count(self):
+        """IQS-81: Session reinitialization should preserve turn count."""
+        from app.audio.audio_orchestrator import AudioStreamOrchestrator
+
+        orchestrator = AudioStreamOrchestrator()
+        session_id = "test-session-restart"
+
+        # Start session and simulate turn progress
+        await orchestrator.start_session(
+            session_id,
+            user_id="test-user-123",
+            user_email="test@example.com",
+            game_name="Character Swap",
+        )
+
+        session = await orchestrator.get_session(session_id)
+        original_turn_count = 8  # Simulate being at turn 8 (phase transition)
+        session.turn_count = original_turn_count
+
+        # Reinitialize session for restart
+        await orchestrator.reinitialize_session_for_restart(session_id)
+
+        # Turn count should be preserved
+        session = await orchestrator.get_session(session_id)
+        assert session.turn_count == original_turn_count
+
+    @pytest.mark.asyncio
+    async def test_reinitialize_session_preserves_game_name(self):
+        """IQS-81: Session reinitialization should preserve game name."""
+        from app.audio.audio_orchestrator import AudioStreamOrchestrator
+
+        orchestrator = AudioStreamOrchestrator()
+        session_id = "test-session-game"
+        game_name = "Character Swap"
+
+        await orchestrator.start_session(
+            session_id,
+            user_id="test-user-123",
+            user_email="test@example.com",
+            game_name=game_name,
+        )
+
+        session = await orchestrator.get_session(session_id)
+        session.turn_count = 5
+
+        # Reinitialize
+        await orchestrator.reinitialize_session_for_restart(session_id)
+
+        # Game name should be preserved
+        session = await orchestrator.get_session(session_id)
+        assert session.game_name == game_name
+
+    @pytest.mark.asyncio
+    async def test_reinitialize_session_creates_new_queue(self):
+        """IQS-81: Session reinitialization should create a new queue."""
+        from app.audio.audio_orchestrator import AudioStreamOrchestrator
+
+        orchestrator = AudioStreamOrchestrator()
+        session_id = "test-session-queue"
+
+        await orchestrator.start_session(
+            session_id,
+            user_id="test-user-123",
+            user_email="test@example.com",
+        )
+
+        session = await orchestrator.get_session(session_id)
+        original_queue = session.queue
+
+        # Reinitialize
+        await orchestrator.reinitialize_session_for_restart(session_id)
+
+        # Queue should be different (new instance)
+        session = await orchestrator.get_session(session_id)
+        assert session.queue is not original_queue
+
+    @pytest.mark.asyncio
+    async def test_reinitialize_session_not_found(self):
+        """IQS-81: Reinitialize should handle missing session gracefully."""
+        from app.audio.audio_orchestrator import AudioStreamOrchestrator
+
+        orchestrator = AudioStreamOrchestrator()
+
+        # Should not raise for missing session
+        await orchestrator.reinitialize_session_for_restart("nonexistent-session")
+
+    @pytest.mark.asyncio
+    async def test_session_remains_active_after_reinitialize(self):
+        """IQS-81: Session should remain active after reinitialization."""
+        from app.audio.audio_orchestrator import AudioStreamOrchestrator
+
+        orchestrator = AudioStreamOrchestrator()
+        session_id = "test-session-active"
+
+        await orchestrator.start_session(
+            session_id,
+            user_id="test-user-123",
+            user_email="test@example.com",
+        )
+
+        # Reinitialize
+        await orchestrator.reinitialize_session_for_restart(session_id)
+
+        # Session should still be active
+        assert orchestrator.is_session_active(session_id)

@@ -105,6 +105,26 @@ class MCWelcomeOrchestrator:
         if has_preselected_game:
             # Game pre-selected: Shorter welcome, acknowledge game, ask for suggestion
             game_name = session.selected_game_name
+            game_id = session.selected_game_id
+
+            # Look up game data to get the correct suggestion type
+            suggestion_guidance = ""
+            if game_id:
+                game_data = await get_game_by_id(game_id)
+                if game_data:
+                    suggestion_prompt = game_data.get("suggestion_prompt", "")
+                    if suggestion_prompt:
+                        suggestion_guidance = f"\n   - This game needs: {suggestion_prompt}"
+                    else:
+                        # Fallback to description if no suggestion_prompt
+                        description = game_data.get("description", "")
+                        if description:
+                            suggestion_guidance = f"\n   - Based on the game, ask for something relevant to: {description[:100]}"
+
+            # Default guidance if nothing found
+            if not suggestion_guidance:
+                suggestion_guidance = "\n   - Ask for something appropriate for the game (location, relationship, topic, etc.)"
+
             prompt = f"""Welcome a new user to Improv Olympics who has ALREADY chosen to play "{game_name}"!
 
 Be enthusiastic and energetic! They've picked their game and are ready to go.
@@ -112,8 +132,7 @@ Be enthusiastic and energetic! They've picked their game and are ready to go.
 1. Introduce yourself briefly as the MC
 2. Acknowledge their excellent game choice: "{game_name}"
 3. Build excitement for the game they chose
-4. Ask THE AUDIENCE (not the player) for a suggestion appropriate for this game
-   - For example: "Audience, give me a location!" or "Shout out a relationship!"
+4. Ask THE AUDIENCE (not the player) for a suggestion appropriate for this game{suggestion_guidance}
 
 Keep it concise - about 2-3 sentences max.
 End by asking the AUDIENCE for a suggestion (not the player)."""
@@ -194,7 +213,7 @@ End with a question about how they're feeling or what kind of experience they wa
             prompt = f"""The user responded: "{user_input}"
 
 Based on their response, suggest a perfect improv game for them!
-Use your game database tools to find the best match.
+Use your game database tools (get_game_by_id or search_games) to find the best match.
 
 If they mentioned:
 - Wanting something fun/silly: suggest a high-energy beginner game
@@ -202,9 +221,16 @@ If they mentioned:
 - Wanting a challenge: suggest an intermediate or advanced game
 - A specific game name: acknowledge their choice and get excited about it
 
-After suggesting, turn to THE AUDIENCE and ask for a suggestion appropriate for that game.
-For example: "Audience, give me a location!" or "Who's got a relationship for us?" or "Shout out an occupation!"
+IMPORTANT: After suggesting a game, look up that game's data to see what kind of suggestion it needs.
+The game's 'suggestion_prompt' field tells you what to ask the audience for.
+Different games need different suggestions:
+- Some games need a location
+- Some games need a relationship
+- Some games need emotions
+- Some games need opening/closing lines
+- Check the game data to be sure!
 
+Then turn to THE AUDIENCE and ask for the correct type of suggestion for that specific game.
 Remember: You're asking THE AUDIENCE (the crowd), not the player directly.
 Be brief but enthusiastic! 2-3 sentences max."""
         else:
@@ -213,9 +239,11 @@ Be brief but enthusiastic! 2-3 sentences max."""
 Suggest a fun beginner-friendly game to get them started!
 Pick something like Freeze Tag or 185 that's high energy and easy to learn.
 
-After suggesting, turn to THE AUDIENCE and ask for a suggestion appropriate for that game.
-For example: "Audience, give me a location!" or "Who's got a relationship for us?"
+IMPORTANT: After suggesting a game, look up that game's data to see what kind of suggestion it needs.
+The game's 'suggestion_prompt' field tells you what to ask the audience for.
+Different games need different suggestions - check the game data to be sure!
 
+Then turn to THE AUDIENCE and ask for the correct type of suggestion for that specific game.
 Remember: You're asking THE AUDIENCE (the crowd), not the player directly.
 Be brief but enthusiastic! 2-3 sentences max."""
 
