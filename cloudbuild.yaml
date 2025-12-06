@@ -111,7 +111,7 @@ steps:
       - '--concurrency=${_CONCURRENCY}'
       - '--vpc-connector=${_VPC_CONNECTOR}'
       - '--vpc-egress=private-ranges-only'
-      - '--set-env-vars=PROJECT_ID=${PROJECT_ID},REGION=${_REGION},ENVIRONMENT=production,BUILD_ID=${BUILD_ID}'
+      - '--set-env-vars=PROJECT_ID=${PROJECT_ID},REGION=${_REGION},ENVIRONMENT=production,BUILD_ID=${BUILD_ID},USE_FIRESTORE_AUTH=true,FIREBASE_AUTH_ENABLED=true'
       - '--set-secrets=SESSION_ENCRYPTION_KEY=session-encryption-key:latest'
       - '--labels=app=improv-olympics,environment=production,managed-by=cloud-build'
       - '--revision-suffix=${SHORT_SHA}'

@@ -585,6 +585,15 @@ class AudienceArchetypesToolset(BaseToolset):
             "status_shift": "location",
             "party quirks": "location",
             "party_quirks": "location",
+            # Yes And - relationship-based
+            "yes and": "relationship",
+            "yes_and": "relationship",
+            # Freeze Tag - location-based
+            "freeze tag": "location",
+            "freeze_tag": "location",
+            # Note: Games with complex suggestion requirements (like First Line / Last Line)
+            # are handled dynamically by mc_welcome_orchestrator using game data
+            # (description, rules, suggestion_prompt, example_suggestions fields)
         }
 
         # Determine suggestion type for this game (default to location)

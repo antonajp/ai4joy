@@ -76,12 +76,10 @@ class SessionManager:
 
         session_id = f"sess_{uuid.uuid4().hex[:16]}"
 
-        # Determine initial status based on whether game is pre-selected
-        # If game is pre-selected, skip game selection phases
+        # Always start at INITIALIZED status so MC welcome phase runs
+        # The MC welcome orchestrator will detect pre-selected games and adjust the flow
+        # (e.g., shorter welcome that acknowledges the game choice)
         initial_status = SessionStatus.INITIALIZED
-        if session_data.selected_game_id and session_data.selected_game_name:
-            # Game pre-selected: start at suggestion phase (skip MC welcome & game select)
-            initial_status = SessionStatus.GAME_SELECT
 
         session = Session(
             session_id=session_id,
