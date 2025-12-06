@@ -47,16 +47,19 @@ settings = get_settings()
 
 class MFAError(Exception):
     """Base exception for MFA errors."""
+
     pass
 
 
 class InvalidTOTPCodeError(MFAError):
     """Raised when TOTP code is invalid."""
+
     pass
 
 
 class InvalidRecoveryCodeError(MFAError):
     """Raised when recovery code is invalid."""
+
     pass
 
 
@@ -79,9 +82,7 @@ def generate_totp_secret() -> str:
 
 
 def generate_totp_qr_code(
-    secret: str,
-    user_email: str,
-    issuer_name: str = "Improv Olympics"
+    secret: str, user_email: str, issuer_name: str = "Improv Olympics"
 ) -> bytes:
     """Generate QR code image for TOTP enrollment.
 
@@ -104,10 +105,7 @@ def generate_totp_qr_code(
 
     # Generate provisioning URI
     # Format: otpauth://totp/{issuer}:{email}?secret={secret}&issuer={issuer}
-    provisioning_uri = totp.provisioning_uri(
-        name=user_email,
-        issuer_name=issuer_name
-    )
+    provisioning_uri = totp.provisioning_uri(name=user_email, issuer_name=issuer_name)
 
     # Generate QR code (256x256px, exceeds 200x200px requirement)
     qr = qrcode.QRCode(
@@ -124,13 +122,11 @@ def generate_totp_qr_code(
 
     # Convert to PNG bytes
     buffer = io.BytesIO()
-    img.save(buffer, format='PNG')
+    img.save(buffer, format="PNG")
     png_bytes = buffer.getvalue()
 
     logger.info(
-        "Generated TOTP QR code",
-        user_email=user_email,
-        size_bytes=len(png_bytes)
+        "Generated TOTP QR code", user_email=user_email, size_bytes=len(png_bytes)
     )
 
     return png_bytes
@@ -191,7 +187,7 @@ def generate_recovery_codes(count: int = 8) -> List[str]:
 
     for _ in range(count):
         # Generate 8 random characters
-        code_chars = ''.join(secrets.choice(charset) for _ in range(8))
+        code_chars = "".join(secrets.choice(charset) for _ in range(8))
 
         # Format as XXXX-XXXX for readability
         formatted_code = f"{code_chars[:4]}-{code_chars[4:]}"
@@ -224,11 +220,10 @@ def hash_recovery_code(code: str) -> str:
     # bcrypt generates unique salt per hash automatically
     # Work factor of 12 provides ~250ms hashing time (secure but not too slow)
     code_hash = bcrypt.hashpw(
-        normalized_code.encode('utf-8'),
-        bcrypt.gensalt(rounds=12)
+        normalized_code.encode("utf-8"), bcrypt.gensalt(rounds=12)
     )
 
-    return code_hash.decode('utf-8')
+    return code_hash.decode("utf-8")
 
 
 def hash_recovery_codes(codes: List[str]) -> List[str]:
@@ -243,10 +238,7 @@ def hash_recovery_codes(codes: List[str]) -> List[str]:
     return [hash_recovery_code(code) for code in codes]
 
 
-def verify_recovery_code(
-    code: str,
-    hashed_codes: List[str]
-) -> bool:
+def verify_recovery_code(code: str, hashed_codes: List[str]) -> bool:
     """Verify recovery code against stored hashes using constant-time comparison.
 
     Uses bcrypt.checkpw which is constant-time to prevent timing attacks.
@@ -278,7 +270,9 @@ def verify_recovery_code(
     is_valid = False
     for stored_hash in hashed_codes:
         try:
-            if bcrypt.checkpw(normalized_code.encode('utf-8'), stored_hash.encode('utf-8')):
+            if bcrypt.checkpw(
+                normalized_code.encode("utf-8"), stored_hash.encode("utf-8")
+            ):
                 is_valid = True
                 # Don't break - continue checking to prevent timing attacks
         except (ValueError, TypeError):
@@ -293,10 +287,7 @@ def verify_recovery_code(
     return is_valid
 
 
-def consume_recovery_code(
-    code: str,
-    hashed_codes: List[str]
-) -> Optional[List[str]]:
+def consume_recovery_code(code: str, hashed_codes: List[str]) -> Optional[List[str]]:
     """Consume (remove) a recovery code after use.
 
     Recovery codes are single-use. After verification, the code
@@ -319,7 +310,9 @@ def consume_recovery_code(
     matched_hash = None
     for stored_hash in hashed_codes:
         try:
-            if bcrypt.checkpw(normalized_code.encode('utf-8'), stored_hash.encode('utf-8')):
+            if bcrypt.checkpw(
+                normalized_code.encode("utf-8"), stored_hash.encode("utf-8")
+            ):
                 matched_hash = stored_hash
                 break  # OK to break here since we're consuming, not just verifying
         except (ValueError, TypeError):
@@ -332,17 +325,13 @@ def consume_recovery_code(
     # Remove the matched hash from the list
     updated_codes = [h for h in hashed_codes if h != matched_hash]
 
-    logger.info(
-        "Recovery code consumed",
-        remaining_codes=len(updated_codes)
-    )
+    logger.info("Recovery code consumed", remaining_codes=len(updated_codes))
 
     return updated_codes
 
 
 def create_mfa_enrollment_session(
-    user_id: str,
-    user_email: str
+    user_id: str, user_email: str
 ) -> Tuple[str, List[str], bytes]:
     """Create complete MFA enrollment session.
 
@@ -371,9 +360,7 @@ def create_mfa_enrollment_session(
     qr_code_png = generate_totp_qr_code(secret, user_email)
 
     logger.info(
-        "Created MFA enrollment session",
-        user_id=user_id,
-        user_email=user_email
+        "Created MFA enrollment session", user_id=user_id, user_email=user_email
     )
 
     return secret, recovery_codes, qr_code_png

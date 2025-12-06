@@ -31,21 +31,25 @@ settings = get_settings()
 
 class FirebaseAuthError(Exception):
     """Base exception for Firebase authentication errors."""
+
     pass
 
 
 class FirebaseTokenExpiredError(FirebaseAuthError):
     """Raised when Firebase ID token has expired."""
+
     pass
 
 
 class FirebaseTokenInvalidError(FirebaseAuthError):
     """Raised when Firebase ID token is invalid."""
+
     pass
 
 
 class FirebaseUserNotVerifiedError(FirebaseAuthError):
     """Raised when user's email is not verified."""
+
     pass
 
 
@@ -195,12 +199,14 @@ async def get_or_create_user_from_firebase_token(
         query = collection.where("email", "==", email)
 
         async for doc in query.stream():
-            await collection.document(doc.id).update({
-                "user_id": firebase_uid,
-                "firebase_migrated_at": datetime.now(timezone.utc),
-                "firebase_sign_in_provider": sign_in_provider,
-                "last_login_at": datetime.now(timezone.utc),
-            })
+            await collection.document(doc.id).update(
+                {
+                    "user_id": firebase_uid,
+                    "firebase_migrated_at": datetime.now(timezone.utc),
+                    "firebase_sign_in_provider": sign_in_provider,
+                    "last_login_at": datetime.now(timezone.utc),
+                }
+            )
 
             logger.info(
                 "User migration complete",
@@ -263,7 +269,9 @@ def create_session_data_from_firebase_token(
         "email_verified": decoded_token.get("email_verified", False),
         # Additional metadata for debugging
         "auth_provider": "firebase",
-        "firebase_sign_in_provider": decoded_token.get("firebase", {}).get("sign_in_provider"),
+        "firebase_sign_in_provider": decoded_token.get("firebase", {}).get(
+            "sign_in_provider"
+        ),
         "created_at": int(datetime.now(timezone.utc).timestamp()),
     }
 

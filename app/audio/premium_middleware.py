@@ -11,7 +11,10 @@ from typing import Optional
 
 from app.models.user import UserProfile, UserTier, AUDIO_USAGE_LIMITS
 from app.services import user_service
-from app.services.freemium_session_limiter import check_session_limit, SessionLimitStatus
+from app.services.freemium_session_limiter import (
+    check_session_limit,
+    SessionLimitStatus,
+)
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)

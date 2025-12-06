@@ -40,7 +40,9 @@ class AudioWebSocketHandler:
     def __init__(self):
         """Initialize the handler."""
         self.active_connections: Dict[str, WebSocket] = {}
-        self.active_user_emails: Dict[str, str] = {}  # session_id -> email mapping for cleanup
+        self.active_user_emails: Dict[str, str] = (
+            {}
+        )  # session_id -> email mapping for cleanup
         self.orchestrator = AudioStreamOrchestrator()
 
         logger.info("AudioWebSocketHandler initialized")
@@ -161,7 +163,9 @@ class AudioWebSocketHandler:
         user_email = self.active_user_emails.get(session_id)
         if user_email:
             try:
-                from app.services.freemium_session_limiter import increment_session_count
+                from app.services.freemium_session_limiter import (
+                    increment_session_count,
+                )
 
                 # Increment session count (only applies to freemium users)
                 success = await increment_session_count(user_email)

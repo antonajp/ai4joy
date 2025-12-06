@@ -8,6 +8,7 @@ from enum import Enum
 
 class InteractionMode(str, Enum):
     """Interaction mode for the session."""
+
     TEXT = "text"
     AUDIO = "audio"
 
@@ -56,7 +57,7 @@ class SessionCreate(BaseModel):
     )
     interaction_mode: Optional[InteractionMode] = Field(
         default=InteractionMode.TEXT,
-        description="Interaction mode: 'text' for HTTP-based or 'audio' for WebSocket-based"
+        description="Interaction mode: 'text' for HTTP-based or 'audio' for WebSocket-based",
     )
 
 

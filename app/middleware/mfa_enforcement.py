@@ -28,8 +28,8 @@ settings = get_settings()
 # Endpoints that require MFA verification (if user has MFA enabled)
 MFA_PROTECTED_ENDPOINTS = [
     "/api/v1/sessions",  # Creating new improv sessions
-    "/api/v1/user/me",   # Viewing user profile
-    "/api/v1/turn",      # Executing turns
+    "/api/v1/user/me",  # Viewing user profile
+    "/api/v1/turn",  # Executing turns
 ]
 
 # Endpoints that bypass MFA check (public, auth, and MFA enrollment)
@@ -42,9 +42,9 @@ MFA_BYPASS_ENDPOINTS = [
     "/auth/user",
     "/auth/ws-token",
     "/auth/firebase/token",
-    "/auth/mfa/enroll",          # MFA enrollment endpoints
-    "/auth/mfa/verify",          # MFA verification endpoints
-    "/auth/mfa/recovery",        # Recovery code endpoints
+    "/auth/mfa/enroll",  # MFA enrollment endpoints
+    "/auth/mfa/verify",  # MFA verification endpoints
+    "/auth/mfa/recovery",  # Recovery code endpoints
     "/auth/mfa/generate-recovery",
     "/auth/mfa/status",
     "/",
@@ -81,7 +81,9 @@ async def check_mfa_status(request: Request) -> bool:
         user_profile = await get_user_by_email(user_email)
 
         if not user_profile:
-            logger.warning("User profile not found for MFA check", user_email=user_email)
+            logger.warning(
+                "User profile not found for MFA check", user_email=user_email
+            )
             return True  # Let other middleware handle missing profile
 
         # If user has MFA enabled, check if they've verified in this session
@@ -99,8 +101,7 @@ async def check_mfa_status(request: Request) -> bool:
             try:
                 # Validate and deserialize session cookie
                 session_data = session_middleware.serializer.loads(
-                    session_cookie,
-                    max_age=session_middleware.max_age
+                    session_cookie, max_age=session_middleware.max_age
                 )
 
                 # Check if MFA was verified in this session
@@ -109,7 +110,7 @@ async def check_mfa_status(request: Request) -> bool:
                 if not mfa_verified:
                     logger.warning(
                         "User has MFA enabled but not verified in session",
-                        user_email=user_email
+                        user_email=user_email,
                     )
                     return False
 
@@ -164,6 +165,7 @@ def require_mfa(func):
         async def protected_route(request: Request):
             return {"data": "sensitive"}
     """
+
     @wraps(func)
     async def wrapper(*args, **kwargs):
         # Find Request object in args or kwargs
@@ -193,7 +195,7 @@ def require_mfa(func):
             logger.warning(
                 "MFA verification required",
                 endpoint=func.__name__,
-                user_email=getattr(request.state, "user_email", "unknown")
+                user_email=getattr(request.state, "user_email", "unknown"),
             )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -238,7 +240,7 @@ class MFAEnforcementMiddleware:
                 logger.warning(
                     "MFA verification required for protected endpoint",
                     path=path,
-                    user_email=getattr(request.state, "user_email", "unknown")
+                    user_email=getattr(request.state, "user_email", "unknown"),
                 )
 
                 from fastapi.responses import JSONResponse
@@ -248,8 +250,8 @@ class MFAEnforcementMiddleware:
                     content={
                         "detail": "Multi-factor authentication verification required",
                         "mfa_required": True,
-                        "redirect_to": "/auth/mfa/verify"
-                    }
+                        "redirect_to": "/auth/mfa/verify",
+                    },
                 )
 
                 await response(scope, receive, send)

@@ -20,6 +20,7 @@ from pathlib import Path
 env_local = Path(__file__).parent.parent / ".env.local"
 if env_local.exists():
     from dotenv import load_dotenv
+
     load_dotenv(env_local, override=False)
 
 # Configure google-genai for Vertex AI BEFORE any ADK imports

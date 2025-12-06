@@ -30,6 +30,7 @@ class SessionLimitStatus:
         upgrade_required: Whether upgrade is needed for access
         message: User-facing message about limit status
     """
+
     has_access: bool
     sessions_used: int
     sessions_limit: int
@@ -175,9 +176,11 @@ async def increment_session_count(email: str) -> bool:
 
             # Use Firestore's atomic Increment to prevent race conditions
             # This ensures concurrent session completions don't bypass the limit
-            await collection.document(doc.id).update({
-                "premium_sessions_used": Increment(1),
-            })
+            await collection.document(doc.id).update(
+                {
+                    "premium_sessions_used": Increment(1),
+                }
+            )
 
             logger.info(
                 "Freemium session count incremented atomically",
@@ -202,7 +205,9 @@ async def increment_session_count(email: str) -> bool:
         return False
 
 
-async def get_session_counter_display(user_profile: Optional[UserProfile]) -> Optional[str]:
+async def get_session_counter_display(
+    user_profile: Optional[UserProfile],
+) -> Optional[str]:
     """Get session counter display string for UI header.
 
     Format: "🎤 1/2 [Upgrade]" for freemium users with sessions remaining.

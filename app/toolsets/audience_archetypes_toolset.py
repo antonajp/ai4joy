@@ -587,7 +587,9 @@ class AudienceArchetypesToolset(BaseToolset):
                 context_parts = []
 
                 if suggestion_prompt:
-                    context_parts.append(f"Suggestion requirements: {suggestion_prompt}")
+                    context_parts.append(
+                        f"Suggestion requirements: {suggestion_prompt}"
+                    )
 
                 if example_suggestions:
                     examples_str = ", ".join(

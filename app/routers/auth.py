@@ -289,7 +289,11 @@ async def get_current_user(request: Request):
                     user_profile = await get_user_by_email(user_email)
                     if user_profile:
                         user_tier = user_profile.tier.value
-                        logger.debug("User tier fetched from Firestore", email=user_email, tier=user_tier)
+                        logger.debug(
+                            "User tier fetched from Firestore",
+                            email=user_email,
+                            tier=user_tier,
+                        )
                 except Exception as tier_err:
                     logger.warning("Failed to fetch user tier", error=str(tier_err))
 
@@ -525,6 +529,7 @@ async def verify_firebase_token_endpoint(request: Request):
 
     except Exception as e:
         import traceback
+
         logger.error(
             "Unexpected error in Firebase token verification",
             error=str(e),
@@ -619,7 +624,7 @@ async def mfa_enroll(request: Request):
         )
 
         # Convert QR code PNG to base64 data URI
-        qr_code_b64 = base64.b64encode(qr_code_png).decode('utf-8')
+        qr_code_b64 = base64.b64encode(qr_code_png).decode("utf-8")
         qr_code_data_uri = f"data:image/png;base64,{qr_code_b64}"
 
         # Store secret temporarily in session for verification
@@ -737,7 +742,9 @@ async def mfa_verify_enrollment(request: Request):
 
         # Get pending enrollment
         client = get_firestore_client()
-        enrollment_doc = await client.collection("mfa_enrollments").document(user_id).get()
+        enrollment_doc = (
+            await client.collection("mfa_enrollments").document(user_id).get()
+        )
 
         if not enrollment_doc.exists:
             raise HTTPException(
@@ -776,12 +783,16 @@ async def mfa_verify_enrollment(request: Request):
         query = users_collection.where("email", "==", user_email)
 
         async for doc in query.stream():
-            await users_collection.document(doc.id).update({
-                "mfa_enabled": True,
-                "mfa_secret": secret,
-                "mfa_enrolled_at": datetime.now(timezone.utc),
-                "recovery_codes_hash": enrollment_data.get("recovery_codes_hash", []),
-            })
+            await users_collection.document(doc.id).update(
+                {
+                    "mfa_enabled": True,
+                    "mfa_secret": secret,
+                    "mfa_enrolled_at": datetime.now(timezone.utc),
+                    "recovery_codes_hash": enrollment_data.get(
+                        "recovery_codes_hash", []
+                    ),
+                }
+            )
 
             logger.info(
                 "MFA enrollment completed",
@@ -1044,9 +1055,11 @@ async def mfa_verify_recovery(request: Request):
         query = users_collection.where("email", "==", user_email)
 
         async for doc in query.stream():
-            await users_collection.document(doc.id).update({
-                "recovery_codes_hash": updated_codes,
-            })
+            await users_collection.document(doc.id).update(
+                {
+                    "recovery_codes_hash": updated_codes,
+                }
+            )
 
         # Update session to mark MFA as verified
         session_data["mfa_verified"] = True
@@ -1193,8 +1206,7 @@ async def get_session_limit_status(request: Request):
     session_cookie = request.cookies.get("session")
     if not session_cookie:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
         )
 
     try:
@@ -1205,22 +1217,19 @@ async def get_session_limit_status(request: Request):
     except Exception as e:
         logger.warning("Invalid session cookie", error=str(e))
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid session"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session"
         )
 
     email = session_data.get("email")
     if not email:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="No email in session"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="No email in session"
         )
 
     user_profile = await get_user_by_email(email)
     if not user_profile:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
 
     # Check if premium user
@@ -1235,7 +1244,7 @@ async def get_session_limit_status(request: Request):
             "sessions_remaining": -1,  # Unlimited
             "is_at_limit": False,
             "upgrade_required": False,
-            "message": "You have unlimited audio sessions."
+            "message": "You have unlimited audio sessions.",
         }
 
     # Get freemium limit status
@@ -1249,7 +1258,7 @@ async def get_session_limit_status(request: Request):
         "sessions_remaining": limit_status.sessions_remaining,
         "is_at_limit": limit_status.is_at_limit,
         "upgrade_required": limit_status.upgrade_required,
-        "message": limit_status.message
+        "message": limit_status.message,
     }
 
 
@@ -1271,8 +1280,7 @@ async def complete_audio_session(request: Request):
     session_cookie = request.cookies.get("session")
     if not session_cookie:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
         )
 
     try:
@@ -1283,23 +1291,20 @@ async def complete_audio_session(request: Request):
     except Exception as e:
         logger.warning("Invalid session cookie", error=str(e))
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid session"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session"
         )
 
     email = session_data.get("email")
     if not email:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="No email in session"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="No email in session"
         )
 
     # Get user profile
     user_profile = await get_user_by_email(email)
     if not user_profile:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
 
     # Premium users don't need to track sessions
@@ -1308,7 +1313,7 @@ async def complete_audio_session(request: Request):
             "success": True,
             "is_premium": True,
             "sessions_used": 0,
-            "message": "Premium user - unlimited sessions"
+            "message": "Premium user - unlimited sessions",
         }
 
     # Increment session count for freemium users
@@ -1318,7 +1323,7 @@ async def complete_audio_session(request: Request):
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to increment session count"
+                detail="Failed to increment session count",
             )
 
         # Get updated count
@@ -1332,12 +1337,12 @@ async def complete_audio_session(request: Request):
             "sessions_used": new_count,
             "sessions_limit": limit,
             "sessions_remaining": max(0, limit - new_count),
-            "message": f"Session recorded. {max(0, limit - new_count)} sessions remaining."
+            "message": f"Session recorded. {max(0, limit - new_count)} sessions remaining.",
         }
 
     except Exception as e:
         logger.error("Failed to complete session", email=email, error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to record session completion"
+            detail="Failed to record session completion",
         )

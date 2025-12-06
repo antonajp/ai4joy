@@ -114,7 +114,9 @@ class MCWelcomeOrchestrator:
                 if game_data:
                     suggestion_prompt = game_data.get("suggestion_prompt", "")
                     if suggestion_prompt:
-                        suggestion_guidance = f"\n   - This game needs: {suggestion_prompt}"
+                        suggestion_guidance = (
+                            f"\n   - This game needs: {suggestion_prompt}"
+                        )
                     else:
                         # Fallback to description if no suggestion_prompt
                         description = game_data.get("description", "")

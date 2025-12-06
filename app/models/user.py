@@ -73,7 +73,9 @@ class UserProfile:
     mfa_enabled: bool = False
     mfa_secret: Optional[str] = None  # TOTP secret (base32 encoded)
     mfa_enrolled_at: Optional[datetime] = None
-    recovery_codes_hash: Optional[List[str]] = field(default_factory=list)  # Hashed recovery codes
+    recovery_codes_hash: Optional[List[str]] = field(
+        default_factory=list
+    )  # Hashed recovery codes
 
     # Freemium session tracking (Phase 3 - IQS-65)
     premium_sessions_used: int = 0  # Number of audio sessions completed

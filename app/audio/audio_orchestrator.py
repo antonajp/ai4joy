@@ -692,14 +692,14 @@ class AudioStreamOrchestrator:
                 if hasattr(event, "turn_complete") and event.turn_complete:
                     # IQS-81: Detect empty turns (turn_complete with no content)
                     has_content = any(
-                        r.get("type") in ("audio", "transcription")
-                        for r in responses
+                        r.get("type") in ("audio", "transcription") for r in responses
                     )
                     if not has_content:
                         logger.warning(
                             "Empty turn detected - turn completed with no audio/content",
                             session_id=session_id,
-                            turn_count=session.turn_count + 1,  # Will be incremented below
+                            turn_count=session.turn_count
+                            + 1,  # Will be incremented below
                         )
                     # Use turn manager to handle completion
                     if session.turn_manager:
