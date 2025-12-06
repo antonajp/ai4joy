@@ -122,6 +122,14 @@ Remember: You're the atmosphere, not the action. Your voice adds richness withou
 def create_room_agent_for_audio() -> Agent:
     """Create Room Agent for real-time audio using ADK Live API.
 
+    NOTE: This function is NOT currently used in audio orchestration.
+
+    Per IQS-63, audio orchestration was consolidated so MC Agent handles all audio streaming.
+    This factory was created for future Phase 3 multi-agent audio architecture where
+    MC would invoke Partner/Room agents and vocalize their responses.
+
+    See IQS-67 "MC-as-Voice Architecture" section for planned usage.
+
     Uses the Live API model which supports bidirectional audio streaming
     for premium voice interactions. The Room Agent provides ambient
     commentary about audience sentiment and energy.
@@ -152,52 +160,55 @@ def create_room_agent_for_audio() -> Agent:
 
 # Suggestion-specific system prompt for Room Agent
 # This is optimized for providing audience suggestions that feel organic
-ROOM_SUGGESTION_SYSTEM_PROMPT = """You are the Room Agent for Improv Olympics - the VOICE OF THE AUDIENCE providing suggestions.
+ROOM_SUGGESTION_SYSTEM_PROMPT = """You are the Room Agent for Improv Olympics - generating audience suggestions.
 
 YOUR ROLE:
-You speak as "the audience" - shouting out suggestions when the MC asks for them.
-Your suggestions should feel like real audience members calling out ideas.
+Generate suggestions that feel like real audience members would shout out.
+The MC will relay your suggestions to the player.
 
 HOW TO PROVIDE SUGGESTIONS:
 - Use your audience archetype tools to understand the crowd demographics
 - Generate suggestions that reflect the audience's background and interests
-- Format suggestions as if someone is shouting from the crowd
-- Keep it brief and enthusiastic - this is improv, not a speech!
+- Return ONLY the suggestion content itself - no wrapper text
+- Keep it brief and creative!
 
-SUGGESTION FORMAT:
-"Someone from the crowd shouts: '[SUGGESTION]!'"
+OUTPUT FORMAT:
+Return ONLY the raw suggestion text. Do NOT include phrases like:
+- "Someone shouts..."
+- "An audience member yells..."
+- "From the crowd..."
 
-Examples:
-- "Someone from the crowd shouts: 'A coffee shop!'"
-- "A voice from the back yells: 'Roommates!'"
-- "An audience member calls out: 'The future of AI!'"
+For single suggestions, just return the suggestion:
+- "A coffee shop"
+- "Roommates"
+- "The future of AI"
+
+For multiple suggestions (like opening/closing lines), format clearly:
+- "Opening line: 'I never thought it would end like this.' | Closing line: 'And that's why I don't eat sushi anymore.'"
 
 WHAT MAKES A GOOD SUGGESTION:
 - Reflects the audience demographic (tech crowd = tech-related suggestions)
 - Specific enough to inspire a scene
 - Universal enough that everyone understands it
-- Delivered with energy and excitement
+- Fun and creative
 
 TOOLS YOU HAVE:
 - _get_suggestion_for_game: Get a game-appropriate suggestion based on audience
 - _generate_audience_suggestion: Generate a suggestion for a specific type (location, relationship, topic, etc.)
 - _generate_audience_sample: Understand who's in the audience
 
-COMMUNICATION STYLE:
-- Brief and punchy (1-2 sentences max)
-- Enthusiastic and supportive
-- Sound like a real audience member, not an AI
-- Match the energy of improv - fun and spontaneous!
-
-Remember: You ARE the audience. When the MC asks for a suggestion, YOU provide it as if called out from the crowd."""
+Remember: Return ONLY the suggestion content. The MC handles the presentation."""
 
 
 def create_room_agent_for_suggestions() -> Agent:
-    """Create Room Agent for providing audience suggestions using ADK Live API.
+    """Create Room Agent for providing audience suggestions via text generation.
 
     This specialized Room Agent is focused on generating demographically-appropriate
     audience suggestions when the MC asks for them. Uses audience archetypes to
     ensure suggestions feel authentic to the crowd composition.
+
+    NOTE: Uses Flash model for text generation, NOT Live API model.
+    The Live API model only supports audio streaming, not generateContent API.
 
     Returns:
         Configured ADK Agent for Room role with suggestion capabilities.
@@ -210,13 +221,13 @@ def create_room_agent_for_suggestions() -> Agent:
     agent = Agent(
         name="room_agent_suggestions",
         description="Room Agent - Provides audience suggestions based on crowd demographics",
-        model=settings.vertexai_live_model,  # Live API model for audio
+        model=settings.vertexai_flash_model,  # Flash model for text generation
         instruction=ROOM_SUGGESTION_SYSTEM_PROMPT,
         tools=[archetypes_toolset],
     )
 
     logger.info(
         "Room Agent (suggestions) created successfully",
-        model=settings.vertexai_live_model,
+        model=settings.vertexai_flash_model,
     )
     return agent

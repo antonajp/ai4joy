@@ -8,7 +8,7 @@ from google.adk.sessions.session import Session as ADKSession
 
 from app.config import get_settings
 from app.utils.logger import get_logger
-from app.models.session import Session, SessionStatus, SessionCreate
+from app.models.session import Session, SessionStatus, SessionCreate, InteractionMode
 from app.services.adk_session_service import get_adk_session_service
 
 logger = get_logger(__name__)
@@ -33,6 +33,7 @@ class SessionManager:
         "user_email": "user@example.com",
         "user_name": "Test User",
         "status": "active",
+        "interaction_mode": "text",
         "created_at": "2025-11-23T15:00:00Z",
         "updated_at": "2025-11-23T15:30:00Z",
         "expires_at": "2025-11-23T16:00:00Z",
@@ -76,12 +77,10 @@ class SessionManager:
 
         session_id = f"sess_{uuid.uuid4().hex[:16]}"
 
-        # Determine initial status based on whether game is pre-selected
-        # If game is pre-selected, skip game selection phases
+        # Always start at INITIALIZED status so MC welcome phase runs
+        # The MC welcome orchestrator will detect pre-selected games and adjust the flow
+        # (e.g., shorter welcome that acknowledges the game choice)
         initial_status = SessionStatus.INITIALIZED
-        if session_data.selected_game_id and session_data.selected_game_name:
-            # Game pre-selected: start at suggestion phase (skip MC welcome & game select)
-            initial_status = SessionStatus.GAME_SELECT
 
         session = Session(
             session_id=session_id,
@@ -89,6 +88,7 @@ class SessionManager:
             user_email=user_email,
             user_name=session_data.user_name,
             status=initial_status,
+            interaction_mode=session_data.interaction_mode or InteractionMode.TEXT,
             created_at=now,
             updated_at=now,
             expires_at=expires_at,
@@ -103,11 +103,19 @@ class SessionManager:
             doc_ref = self.collection.document(session_id)
             doc_ref.set(session.model_dump(mode="json"))
 
+            # Get interaction_mode value (may be enum or string due to use_enum_values)
+            interaction_mode_value = (
+                session.interaction_mode
+                if isinstance(session.interaction_mode, str)
+                else session.interaction_mode.value
+            )
+
             logger.info(
                 "Session created successfully",
                 session_id=session_id,
                 user_id=user_id,
                 user_email=user_email,
+                interaction_mode=interaction_mode_value,
             )
 
             # Create ADK session with DatabaseSessionService
@@ -127,6 +135,7 @@ class SessionManager:
                         "current_phase": session.current_phase or "PHASE_1",
                         "turn_count": session.turn_count,
                         "status": status_value,
+                        "interaction_mode": interaction_mode_value,
                     },
                 )
                 logger.info(
@@ -508,6 +517,11 @@ class SessionManager:
             if isinstance(firestore_session.status, str)
             else firestore_session.status.value
         )
+        interaction_mode_value = (
+            firestore_session.interaction_mode
+            if isinstance(firestore_session.interaction_mode, str)
+            else firestore_session.interaction_mode.value
+        )
         adk_session = await self.adk_session_service.create_session(
             app_name=settings.app_name,
             user_id=firestore_session.user_id,
@@ -518,6 +532,7 @@ class SessionManager:
                 "current_phase": firestore_session.current_phase or "PHASE_1",
                 "turn_count": firestore_session.turn_count,
                 "status": status_value,
+                "interaction_mode": interaction_mode_value,
             },
         )
 

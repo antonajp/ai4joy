@@ -138,7 +138,7 @@ class TurnOrchestrator:
             session_id=session.session_id,
             turn_number=turn_number,
             # NOTE: turn_number is 1-indexed (user-facing), but determine_partner_phase expects
-            # 0-indexed turn_count. User turns 1-4 map to Phase 1, turns 5+ map to Phase 2.
+            # 0-indexed turn_count. User turns 1-8 map to Phase 1, turns 9+ map to Phase 2.
             phase=determine_partner_phase(turn_number - 1),
         )
 
@@ -261,10 +261,10 @@ class TurnOrchestrator:
 
         # Determine if coach feedback should be included
         # Coach provides feedback at:
-        # - Turn 5 (phase transition point)
-        # - Every 5 turns after that (turns 10, 15, etc.)
-        # - Scene end (turn >= 15)
-        include_coach = turn_number == 5 or turn_number % 5 == 0 or turn_number >= 15
+        # - Turn 5 (mid-scene feedback)
+        # - Turn 10 (second feedback checkpoint)
+        # - Turn 15+ (scene end feedback - every turn once scene is complete)
+        include_coach = turn_number in [5, 10, 15] or turn_number >= 15
 
         # Build coach instruction based on context
         if turn_number == 5:
@@ -282,12 +282,14 @@ class TurnOrchestrator:
 
         prompt = f"""Scene Turn {turn_number} - {phase_name}
 
+SCENE CONTEXT:
 Game: {game_name}
-Suggestion: {suggestion}
+Audience Suggestion: {suggestion}
+
 User's contribution: {user_input}
 {memory_context}
 Coordinate the following:
-1. Partner Agent: Respond to user's scene contribution with appropriate phase behavior
+1. Partner Agent: Respond to user's scene contribution with appropriate phase behavior. Remember the game context and audience suggestion for this scene.
 2. Room Agent: Analyze scene energy and provide audience vibe
 {coach_instruction}
 
@@ -601,14 +603,14 @@ ROOM: [Audience vibe analysis]
                 },
             }
 
-        # Parse COACH section (optional, only expected at turn >= 15)
-        if turn_number >= 15:
+        # Parse COACH section (optional, expected at turns 5, 10, 15+)
+        if turn_number in [5, 10] or turn_number >= 15:
             coach_match = re.search(coach_pattern, response, re.IGNORECASE | re.DOTALL)
             if coach_match:
                 turn_response["coach_feedback"] = coach_match.group(1).strip()
             else:
                 logger.debug(
-                    "No COACH section found at turn >= 15", turn_number=turn_number
+                    "No COACH section found at expected turn", turn_number=turn_number
                 )
 
         return turn_response
