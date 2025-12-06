@@ -2,6 +2,8 @@
 
 This module provides the AudioWebSocketHandler for managing WebSocket
 connections for real-time audio conversations with the MC Agent.
+
+Phase 3 - IQS-65: Enhanced with freemium session tracking.
 """
 
 import asyncio
@@ -38,6 +40,7 @@ class AudioWebSocketHandler:
     def __init__(self):
         """Initialize the handler."""
         self.active_connections: Dict[str, WebSocket] = {}
+        self.active_user_emails: Dict[str, str] = {}  # session_id -> email mapping for cleanup
         self.orchestrator = AudioStreamOrchestrator()
 
         logger.info("AudioWebSocketHandler initialized")
@@ -94,8 +97,9 @@ class AudioWebSocketHandler:
             await websocket.close(code=4003, reason="Premium subscription required")
             return False
 
-        # Register connection
+        # Register connection and store user email for session tracking
         self.active_connections[session_id] = websocket
+        self.active_user_emails[session_id] = user_profile.email
 
         # Start audio session with user_id for ADK run_live
         await self.orchestrator.start_session(
@@ -116,9 +120,36 @@ class AudioWebSocketHandler:
     async def disconnect(self, session_id: str) -> None:
         """Disconnect and cleanup a session.
 
+        Phase 3 - IQS-65: Increments session counter for freemium users.
+
         Args:
             session_id: Session to disconnect
         """
+        # Track session completion for freemium users
+        user_email = self.active_user_emails.get(session_id)
+        if user_email:
+            try:
+                from app.services.freemium_session_limiter import increment_session_count
+
+                # Increment session count (only applies to freemium users)
+                success = await increment_session_count(user_email)
+                if success:
+                    logger.info(
+                        "Session completion tracked",
+                        session_id=session_id,
+                        email=user_email,
+                    )
+            except Exception as e:
+                logger.error(
+                    "Failed to track session completion",
+                    session_id=session_id,
+                    email=user_email,
+                    error=str(e),
+                )
+
+            # Cleanup email mapping
+            del self.active_user_emails[session_id]
+
         if session_id in self.active_connections:
             del self.active_connections[session_id]
 

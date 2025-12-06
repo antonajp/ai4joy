@@ -92,4 +92,6 @@ claude-flow
 hive-mind-prompt-*.txt
 
 #Firebase Auth connection
-improv-olympics-firebase-adminsdk-fbsvc-315dfda5aa.json
+improv-olympics-firebase-adminsdk.json
+gcloud_client_secret.json
+coherent-answer-479115-e1-75d6c6ac9d1d.json

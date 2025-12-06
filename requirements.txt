@@ -37,6 +37,15 @@ authlib>=1.5.1,<2.0.0
 itsdangerous==2.1.2
 starlette>=0.46.2,<1.0.0
 
+# Firebase Authentication (Phase 1 - IQS-65)
+firebase-admin>=6.5.0
+
+# Multi-Factor Authentication (Phase 2 - IQS-65)
+pyotp>=2.9.0  # TOTP implementation for MFA
+qrcode[pil]>=7.4.2  # QR code generation for authenticator app enrollment
+pillow>=10.2.0  # Image library for QR code generation
+bcrypt>=4.1.0  # Secure hashing for recovery codes (prevents timing attacks)
+
 # Load Testing
 locust>=2.15.0
 

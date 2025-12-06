@@ -2,7 +2,8 @@
  * Improv Olympics - Frontend Application
  *
  * This JavaScript file handles:
- * - OAuth authentication flow
+ * - Firebase Authentication integration (IQS-65)
+ * - OAuth authentication flow (legacy)
  * - Session creation and management
  * - Real-time message updates
  * - Error handling and retry logic
@@ -18,6 +19,9 @@ const AUTH_BASE = '/auth';
 const POLLING_INTERVAL = 2000; // 2 seconds
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
+
+// Firebase Auth Module (imported as ES6 module in HTML)
+let firebaseAuth = null;
 
 // ============================================
 // State Management
@@ -44,6 +48,40 @@ const AppState = {
 // ============================================
 // Utility Functions
 // ============================================
+
+/**
+ * Utility functions for safe sessionStorage operations (IQS-66 Issue #2)
+ * Handles exceptions in private browsing, disabled cookies, and quota exceeded scenarios
+ */
+function safeStorageGet(key, defaultValue = null) {
+    try {
+        return sessionStorage.getItem(key);
+    } catch (error) {
+        console.warn(`[Storage] Failed to read ${key}:`, error);
+        return defaultValue;
+    }
+}
+
+function safeStorageSet(key, value) {
+    try {
+        sessionStorage.setItem(key, value);
+        return true;
+    } catch (error) {
+        console.error(`[Storage] Failed to write ${key}:`, error);
+        showToast('Unable to save session preferences. Private browsing mode?', 'warning');
+        return false;
+    }
+}
+
+function safeStorageRemove(key) {
+    try {
+        sessionStorage.removeItem(key);
+        return true;
+    } catch (error) {
+        console.warn(`[Storage] Failed to remove ${key}:`, error);
+        return false;
+    }
+}
 
 /**
  * Show loading overlay with custom message
@@ -204,21 +242,21 @@ function formatTime(date) {
  * Store session ID in sessionStorage
  */
 function storeSessionId(sessionId) {
-    sessionStorage.setItem('improv_session_id', sessionId);
+    safeStorageSet('improv_session_id', sessionId);
 }
 
 /**
  * Get session ID from sessionStorage
  */
 function getStoredSessionId() {
-    return sessionStorage.getItem('improv_session_id');
+    return safeStorageGet('improv_session_id');
 }
 
 /**
  * Clear stored session ID
  */
 function clearStoredSessionId() {
-    sessionStorage.removeItem('improv_session_id');
+    safeStorageRemove('improv_session_id');
 }
 
 // ============================================
@@ -389,14 +427,57 @@ async function executeMCWelcome(sessionId, userInput = null) {
 // ============================================
 
 /**
- * Initialize authentication state
+ * Initialize authentication state with Firebase
  */
 async function initializeAuth() {
+    // Initialize Firebase Auth if available
+    if (window.FIREBASE_CONFIG && typeof firebase !== 'undefined') {
+        try {
+            // Wait for firebase-auth.js module to load
+            await waitForFirebaseAuthModule();
+
+            // Initialize Firebase Auth with config and WAIT for initial auth state
+            // This ensures onAuthStateChanged has fired and verified any existing session
+            const firebaseAuthResult = await firebaseAuth.initializeFirebaseAuth(window.FIREBASE_CONFIG);
+
+            console.log('[App] Firebase Auth initialized successfully', firebaseAuthResult);
+
+            // If Firebase says user is authenticated, wait a moment for cookie to be set
+            if (firebaseAuthResult && firebaseAuthResult.authenticated) {
+                console.log('[App] Firebase user authenticated, waiting for session cookie...');
+                // Small delay to ensure cookie is set before checking backend
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        } catch (error) {
+            console.error('[App] Firebase Auth initialization failed:', error);
+            // Fall back to checking backend auth status
+        }
+    }
+
+    // Check backend authentication status (session cookie)
     const authData = await checkAuthStatus();
     AppState.isAuthenticated = authData.authenticated;
     AppState.currentUser = authData.user;
 
+    console.log('[App] Auth status from backend:', authData);
+
     updateAuthUI();
+}
+
+/**
+ * Wait for Firebase Auth module to load (ES6 module loaded asynchronously)
+ */
+async function waitForFirebaseAuthModule(timeout = 5000) {
+    const startTime = Date.now();
+
+    while (!window.firebaseAuthModule) {
+        if (Date.now() - startTime > timeout) {
+            throw new Error('Firebase Auth module load timeout');
+        }
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    firebaseAuth = window.firebaseAuthModule;
 }
 
 /**
@@ -422,19 +503,355 @@ function updateAuthUI() {
 }
 
 /**
- * Handle login button click
+ * Handle login button click - show Firebase auth modal
  */
 function handleLogin() {
-    // Redirect to OAuth login endpoint
-    window.location.href = `${AUTH_BASE}/login?next=${encodeURIComponent(window.location.pathname)}`;
+    showModal('auth-modal');
 }
 
 /**
- * Handle logout button click
+ * Handle logout button click - use Firebase signOut
  */
-function handleLogout() {
-    // Redirect to logout endpoint
-    window.location.href = `${AUTH_BASE}/logout`;
+async function handleLogout() {
+    try {
+        showLoading('Signing out...');
+        // Sign out from Firebase
+        if (window.firebaseAuthModule) {
+            await window.firebaseAuthModule.signOut();
+        }
+        // Clear backend session
+        await fetch(`${AUTH_BASE}/logout`, { credentials: 'include' });
+        hideLoading();
+        showToast('Signed out successfully', 'success');
+        // Reload to update UI
+        setTimeout(() => window.location.reload(), 500);
+    } catch (error) {
+        hideLoading();
+        console.error('Logout error:', error);
+        window.location.href = `${AUTH_BASE}/logout`;
+    }
+}
+
+/**
+ * Handle Firebase email sign-in form submission
+ */
+async function handleEmailSignIn(event) {
+    event.preventDefault();
+
+    const emailInput = document.getElementById('signin-email');
+    const passwordInput = document.getElementById('signin-password');
+    const emailErrorDiv = document.getElementById('signin-email-error');
+    const passwordErrorDiv = document.getElementById('signin-password-error');
+
+    // Clear previous errors
+    if (emailErrorDiv) emailErrorDiv.textContent = '';
+    if (passwordErrorDiv) passwordErrorDiv.textContent = '';
+
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+
+    // Basic validation
+    if (!email) {
+        if (emailErrorDiv) emailErrorDiv.textContent = 'Email is required';
+        return;
+    }
+    if (!password) {
+        if (passwordErrorDiv) passwordErrorDiv.textContent = 'Password is required';
+        return;
+    }
+
+    try {
+        showLoading('Signing in...');
+
+        if (!firebaseAuth) {
+            throw new Error('Firebase Auth not initialized');
+        }
+
+        const user = await firebaseAuth.signInWithEmail(email, password);
+
+        // Check email verification (AC-AUTH-03)
+        if (!user.emailVerified) {
+            hideLoading();
+            // Show verification notice
+            const verificationNotice = document.getElementById('email-verification-notice');
+            const verificationEmailDisplay = document.getElementById('verification-email-display');
+            if (verificationNotice && verificationEmailDisplay) {
+                verificationEmailDisplay.textContent = email;
+                document.getElementById('panel-signin').hidden = true;
+                verificationNotice.hidden = false;
+            } else {
+                if (passwordErrorDiv) passwordErrorDiv.textContent = 'Please verify your email address before signing in.';
+            }
+            await firebaseAuth.signOut();
+            return;
+        }
+
+        // Verify token with backend and create session (wait for this!)
+        showLoading('Verifying session...');
+        const idToken = await user.getIdToken();
+        const response = await fetch(`${AUTH_BASE}/firebase/token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ id_token: idToken }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Session verification failed');
+        }
+
+        hideLoading();
+        hideModal('auth-modal');
+        showToast('Signed in successfully!', 'success');
+
+        // Reload to update UI (session cookie is now set)
+        setTimeout(() => window.location.reload(), 300);
+
+    } catch (error) {
+        hideLoading();
+        console.error('[App] Email sign-in failed:', error);
+        if (passwordErrorDiv) passwordErrorDiv.textContent = error.message;
+    }
+}
+
+/**
+ * Handle Firebase email sign-up form submission
+ */
+async function handleEmailSignUp(event) {
+    event.preventDefault();
+
+    const emailInput = document.getElementById('signup-email');
+    const passwordInput = document.getElementById('signup-password');
+    const confirmInput = document.getElementById('signup-password-confirm');
+    const emailErrorDiv = document.getElementById('signup-email-error');
+    const passwordErrorDiv = document.getElementById('signup-password-error');
+    const confirmErrorDiv = document.getElementById('signup-confirm-error');
+
+    // Clear previous errors
+    if (emailErrorDiv) emailErrorDiv.textContent = '';
+    if (passwordErrorDiv) passwordErrorDiv.textContent = '';
+    if (confirmErrorDiv) confirmErrorDiv.textContent = '';
+
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+    const confirmPassword = confirmInput ? confirmInput.value : password;
+
+    // Basic validation
+    if (!email) {
+        if (emailErrorDiv) emailErrorDiv.textContent = 'Email is required';
+        return;
+    }
+    if (!password) {
+        if (passwordErrorDiv) passwordErrorDiv.textContent = 'Password is required';
+        return;
+    }
+    if (password.length < 6) {
+        if (passwordErrorDiv) passwordErrorDiv.textContent = 'Password must be at least 6 characters';
+        return;
+    }
+    if (password !== confirmPassword) {
+        if (confirmErrorDiv) confirmErrorDiv.textContent = 'Passwords do not match';
+        return;
+    }
+
+    try {
+        showLoading('Creating account...');
+
+        if (!firebaseAuth) {
+            throw new Error('Firebase Auth not initialized');
+        }
+
+        await firebaseAuth.signUpWithEmail(email, password);
+
+        hideLoading();
+
+        // Show verification notice
+        const verificationNotice = document.getElementById('email-verification-notice');
+        const verificationEmailDisplay = document.getElementById('verification-email-display');
+        if (verificationNotice && verificationEmailDisplay) {
+            verificationEmailDisplay.textContent = email;
+            document.getElementById('panel-signup').hidden = true;
+            verificationNotice.hidden = false;
+        }
+
+        // Clear form
+        emailInput.value = '';
+        passwordInput.value = '';
+        if (confirmInput) confirmInput.value = '';
+
+        showToast('Account created! Please check your email to verify your address.', 'success');
+
+    } catch (error) {
+        hideLoading();
+        console.error('[App] Email sign-up failed:', error);
+        if (emailErrorDiv) emailErrorDiv.textContent = error.message;
+    }
+}
+
+/**
+ * Handle Google Sign-In
+ */
+async function handleGoogleSignIn() {
+    try {
+        showLoading('Signing in with Google...');
+
+        if (!firebaseAuth) {
+            throw new Error('Firebase Auth not initialized');
+        }
+
+        const user = await firebaseAuth.signInWithGoogle();
+
+        // Verify token with backend and create session (wait for this!)
+        showLoading('Verifying session...');
+        const idToken = await user.getIdToken();
+        const response = await fetch(`${AUTH_BASE}/firebase/token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ id_token: idToken }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Session verification failed');
+        }
+
+        hideLoading();
+        hideModal('auth-modal');
+        showToast('Signed in successfully!', 'success');
+
+        // Reload to update UI (session cookie is now set)
+        setTimeout(() => window.location.reload(), 300);
+
+    } catch (error) {
+        hideLoading();
+        console.error('[App] Google sign-in failed:', error);
+
+        if (error.message.includes('popup')) {
+            showToast('Sign-in popup was blocked. Please allow popups for this site.', 'error');
+        } else {
+            showToast(error.message, 'error');
+        }
+    }
+}
+
+/**
+ * Handle resend verification email
+ */
+async function handleResendVerification() {
+    try {
+        showLoading('Sending verification email...');
+
+        if (!firebaseAuth) {
+            throw new Error('Firebase Auth not initialized');
+        }
+
+        await firebaseAuth.sendEmailVerification();
+        hideLoading();
+        showToast('Verification email sent! Please check your inbox.', 'success');
+
+    } catch (error) {
+        hideLoading();
+        console.error('[App] Resend verification failed:', error);
+        showToast(error.message, 'error');
+    }
+}
+
+/**
+ * Handle forgot password
+ */
+async function handleForgotPassword() {
+    const emailInput = document.getElementById('signin-email');
+    const email = emailInput ? emailInput.value.trim() : '';
+
+    if (!email) {
+        showToast('Please enter your email address first', 'error');
+        return;
+    }
+
+    try {
+        showLoading('Sending password reset email...');
+
+        if (!firebaseAuth) {
+            throw new Error('Firebase Auth not initialized');
+        }
+
+        await firebaseAuth.sendPasswordResetEmail(email);
+        hideLoading();
+        showToast('Password reset email sent! Please check your inbox.', 'success');
+
+    } catch (error) {
+        hideLoading();
+        console.error('[App] Password reset failed:', error);
+        showToast(error.message, 'error');
+    }
+}
+
+/**
+ * Show sign-in form (hide sign-up)
+ */
+function showSignInForm() {
+    // Update panels
+    const signinPanel = document.getElementById('panel-signin');
+    const signupPanel = document.getElementById('panel-signup');
+    if (signinPanel) {
+        signinPanel.hidden = false;
+    }
+    if (signupPanel) {
+        signupPanel.hidden = true;
+    }
+
+    // Update tabs
+    const signinTab = document.getElementById('tab-signin');
+    const signupTab = document.getElementById('tab-signup');
+    if (signinTab) {
+        signinTab.classList.add('auth-tab-active');
+        signinTab.setAttribute('aria-selected', 'true');
+    }
+    if (signupTab) {
+        signupTab.classList.remove('auth-tab-active');
+        signupTab.setAttribute('aria-selected', 'false');
+    }
+
+    // Hide verification notice if shown
+    const verificationNotice = document.getElementById('email-verification-notice');
+    if (verificationNotice) {
+        verificationNotice.hidden = true;
+    }
+}
+
+/**
+ * Show sign-up form (hide sign-in)
+ */
+function showSignUpForm() {
+    // Update panels
+    const signinPanel = document.getElementById('panel-signin');
+    const signupPanel = document.getElementById('panel-signup');
+    if (signinPanel) {
+        signinPanel.hidden = true;
+    }
+    if (signupPanel) {
+        signupPanel.hidden = false;
+    }
+
+    // Update tabs
+    const signinTab = document.getElementById('tab-signin');
+    const signupTab = document.getElementById('tab-signup');
+    if (signinTab) {
+        signinTab.classList.remove('auth-tab-active');
+        signinTab.setAttribute('aria-selected', 'false');
+    }
+    if (signupTab) {
+        signupTab.classList.add('auth-tab-active');
+        signupTab.setAttribute('aria-selected', 'true');
+    }
+
+    // Hide verification notice if shown
+    const verificationNotice = document.getElementById('email-verification-notice');
+    if (verificationNotice) {
+        verificationNotice.hidden = true;
+    }
 }
 
 // ============================================
@@ -443,6 +860,7 @@ function handleLogout() {
 
 /**
  * Handle start session button click - fetch games and show selection
+ * IQS-66 FIX #3 & #4: Check for existing mode selection before applying tier defaults
  */
 async function handleStartSession() {
     if (!AppState.isAuthenticated) {
@@ -451,6 +869,25 @@ async function handleStartSession() {
     }
 
     showModal('setup-modal');
+
+    // IQS-66 Issue #4: Check for existing mode selection before applying tier defaults
+    const existingMode = safeStorageGet('improv_voice_mode')?.toLowerCase();
+
+    if (existingMode === 'true' || existingMode === 'false') {
+        // User has previous selection - restore it
+        console.log('[IQS-66] Restoring previous mode selection:', existingMode === 'true' ? 'voice' : 'text');
+        await handleModeSelection(existingMode === 'true' ? 'audio' : 'text');
+    } else {
+        // No previous selection - apply tier-based defaults
+        const userTier = AppState.currentUser?.tier || 'free';
+        if (userTier === 'premium' || userTier === 'freemium') {
+            console.log('[IQS-66] Applying tier-based default: voice mode for', userTier);
+            await handleModeSelection('audio');
+        } else {
+            console.log('[IQS-66] Applying tier-based default: text mode for', userTier);
+            await handleModeSelection('text');
+        }
+    }
 
     // Show loading state with spinner
     const grid = document.getElementById('game-selection-grid');
@@ -520,6 +957,7 @@ async function retryLoadGames() {
 
 /**
  * Display game selection grid in modal
+ * FIX: IQS-66 Issue #3 - Use event delegation instead of inline onclick to prevent XSS
  */
 function displayGameSelectionGrid(games) {
     const grid = document.getElementById('game-selection-grid');
@@ -530,6 +968,8 @@ function displayGameSelectionGrid(games) {
         return;
     }
 
+    // IQS-66 SECURITY FIX: Remove inline onclick handlers, use data-* attributes instead
+    // This prevents JavaScript injection even if game data is compromised
     const gameCards = games.map((game, index) => {
         const difficultyClass = `difficulty-${game.difficulty || 'beginner'}`;
         const fullDescription = game.description || '';
@@ -537,13 +977,14 @@ function displayGameSelectionGrid(games) {
 
         return `
             <button class="game-card ${difficultyClass}"
-                    onclick="handleGameSelection('${escapeHtml(game.id)}', '${escapeHtml(game.name)}', '${escapeHtml(game.difficulty || 'beginner')}')"
-                    onkeydown="handleGameCardKeyboard(event, '${escapeHtml(game.id)}', '${escapeHtml(game.name)}', '${escapeHtml(game.difficulty || 'beginner')}')"
                     role="option"
                     aria-selected="false"
                     data-game-id="${escapeHtml(game.id)}"
+                    data-game-name="${escapeHtml(game.name)}"
+                    data-game-difficulty="${escapeHtml(game.difficulty || 'beginner')}"
                     data-game-index="${index}"
-                    data-full-description="${escapeHtml(fullDescription)}">
+                    data-full-description="${escapeHtml(fullDescription)}"
+                    aria-label="Select ${escapeHtml(game.name)} - ${escapeHtml(game.difficulty || 'beginner')} difficulty">
                 <span class="game-card-name">${escapeHtml(game.name)}</span>
                 <span class="game-card-difficulty">${escapeHtml(game.difficulty || 'Beginner')}</span>
                 ${truncatedDesc ? `<span class="game-card-description">${escapeHtml(truncatedDesc)}</span>` : ''}
@@ -564,8 +1005,9 @@ function displayGameSelectionGrid(games) {
 
 /**
  * Handle keyboard navigation for game cards
+ * IQS-66 SECURITY FIX: Read data from data-* attributes instead of function parameters
  */
-function handleGameCardKeyboard(event, gameId, gameName, difficulty) {
+function handleGameCardKeyboard(event) {
     const cards = Array.from(document.querySelectorAll('.game-card'));
     const currentCard = event.target.closest('.game-card');
     const currentIndex = cards.indexOf(currentCard);
@@ -574,6 +1016,10 @@ function handleGameCardKeyboard(event, gameId, gameName, difficulty) {
         case 'Enter':
         case ' ':
             event.preventDefault();
+            // Read data from data-* attributes (secure against XSS)
+            const gameId = currentCard.dataset.gameId;
+            const gameName = currentCard.dataset.gameName;
+            const difficulty = currentCard.dataset.gameDifficulty;
             handleGameSelection(gameId, gameName, difficulty);
             break;
         case 'ArrowDown':
@@ -654,6 +1100,7 @@ function handleGameSelection(gameId, gameName, difficulty) {
 
 /**
  * Handle session creation with pre-selected game
+ * IQS-66: Now includes mode selection (text vs audio)
  */
 async function handleCreateSession() {
     if (!AppState.selectedGame) {
@@ -673,7 +1120,11 @@ async function handleCreateSession() {
         storeSessionId(session.session_id);
 
         // Store selected game in sessionStorage for chat page
-        sessionStorage.setItem('improv_selected_game', JSON.stringify(AppState.selectedGame));
+        safeStorageSet('improv_selected_game', JSON.stringify(AppState.selectedGame));
+
+        // Store selected mode in sessionStorage (IQS-66)
+        safeStorageSet('improv_voice_mode', AppState.isVoiceMode ? 'true' : 'false');
+        console.log(`[App] Session created with mode: ${AppState.isVoiceMode ? 'audio' : 'text'}`);
 
         // Redirect to chat interface
         window.location.href = `/static/chat.html?session=${session.session_id}`;
@@ -699,6 +1150,190 @@ function handleCancelSession() {
     hideModal('setup-modal');
 }
 
+/**
+ * Handle mode selection (text vs audio) - IQS-66
+ * FIX: IQS-66 Issue #1 - Check permissions BEFORE updating state to prevent race condition
+ * FIX: IQS-66 Issue #3 - Apply tier-based defaults on modal initialization
+ */
+async function handleModeSelection(mode) {
+    const textModeBtn = document.getElementById('text-mode-btn');
+    const voiceModeBtn = document.getElementById('voice-mode-btn');
+    const helperText = document.getElementById('mode-helper-text');
+    const micWarning = document.getElementById('mic-permission-warning');
+
+    // Update button states
+    if (mode === 'text') {
+        // Select text mode
+        textModeBtn?.classList.add('mode-btn-active');
+        textModeBtn?.setAttribute('aria-checked', 'true');
+        voiceModeBtn?.classList.remove('mode-btn-active');
+        voiceModeBtn?.setAttribute('aria-checked', 'false');
+
+        // Update helper text
+        if (helperText) {
+            helperText.textContent = "You'll type your responses and read your partner's replies";
+        }
+
+        // Hide microphone warning
+        if (micWarning) {
+            micWarning.style.display = 'none';
+        }
+
+        // Update app state
+        AppState.isVoiceMode = false;
+
+        // Announce to screen readers
+        const announcement = "Text mode selected. You'll type your responses.";
+        if (helperText) {
+            helperText.setAttribute('aria-live', 'polite');
+            helperText.textContent = announcement;
+        }
+
+    } else if (mode === 'audio') {
+        // IQS-66 SECURITY FIX: Check microphone permissions FIRST before updating state
+        // This prevents race condition where state shows voice mode but permissions are denied
+        const permissionResult = await checkMicrophonePermissions();
+
+        if (permissionResult.success) {
+            // Permissions granted - enable voice mode
+            voiceModeBtn?.classList.add('mode-btn-active');
+            voiceModeBtn?.setAttribute('aria-checked', 'true');
+            textModeBtn?.classList.remove('mode-btn-active');
+            textModeBtn?.setAttribute('aria-checked', 'false');
+
+            // Update helper text
+            if (helperText) {
+                helperText.textContent = "You'll speak and hear responses in real-time using your microphone";
+            }
+
+            // Hide microphone warning
+            if (micWarning) {
+                micWarning.style.display = 'none';
+            }
+
+            // Update app state ONLY after successful permission check
+            AppState.isVoiceMode = true;
+
+            // Announce to screen readers
+            const announcement = "Voice mode selected. You'll speak into your microphone.";
+            if (helperText) {
+                helperText.setAttribute('aria-live', 'polite');
+                helperText.textContent = announcement;
+            }
+        } else {
+            // Permissions denied - revert to text mode and show detailed error
+            AppState.isVoiceMode = false;
+
+            // Revert button states to text mode
+            voiceModeBtn?.classList.remove('mode-btn-active');
+            voiceModeBtn?.setAttribute('aria-checked', 'false');
+            textModeBtn?.classList.add('mode-btn-active');
+            textModeBtn?.classList.add('mode-btn-active');
+            textModeBtn?.setAttribute('aria-checked', 'true');
+
+            // Update helper text
+            if (helperText) {
+                helperText.textContent = "You'll type your responses and read your partner's replies";
+            }
+
+            // Show detailed error message in warning banner
+            if (micWarning) {
+                const warningText = micWarning.querySelector('p');
+                if (warningText) {
+                    warningText.textContent = permissionResult.message;
+                }
+                micWarning.style.display = 'flex';
+            }
+
+            // Announce error to screen readers
+            if (helperText) {
+                helperText.setAttribute('aria-live', 'assertive');
+                helperText.textContent = permissionResult.message;
+            }
+        }
+    }
+}
+
+/**
+ * Handle keyboard navigation for mode selection - IQS-66
+ */
+function handleModeKeyboard(event) {
+    const textModeBtn = document.getElementById('text-mode-btn');
+    const voiceModeBtn = document.getElementById('voice-mode-btn');
+
+    switch (event.key) {
+        case 'ArrowLeft':
+            event.preventDefault();
+            handleModeSelection('text');
+            textModeBtn?.focus();
+            break;
+        case 'ArrowRight':
+            event.preventDefault();
+            handleModeSelection('audio');
+            voiceModeBtn?.focus();
+            break;
+        case ' ':
+        case 'Enter':
+            event.preventDefault();
+            const mode = event.target.dataset.mode;
+            if (mode) {
+                handleModeSelection(mode);
+            }
+            break;
+    }
+}
+
+/**
+ * Check if microphone permissions are available - IQS-66
+ * FIX: IQS-66 Issue #2 - Enhanced error handling with detailed user feedback
+ * Returns an object with success status and user-friendly error messages
+ */
+async function checkMicrophonePermissions() {
+    try {
+        // Check if MediaDevices API is supported
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            console.warn('[App] MediaDevices API not available');
+            return {
+                success: false,
+                error: 'unsupported',
+                message: 'Your browser does not support voice mode. Please use a modern browser (Chrome, Firefox, Safari).'
+            };
+        }
+
+        // Try to get microphone access (this will prompt user if not already granted)
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        // Stop the stream immediately - we just wanted to check permissions
+        stream.getTracks().forEach(track => track.stop());
+
+        return { success: true };
+
+    } catch (error) {
+        console.warn('[App] Microphone permission issue:', error);
+
+        // Differentiate error types and provide specific user feedback
+        if (error.name === 'NotAllowedError') {
+            return {
+                success: false,
+                error: 'permission_denied',
+                message: 'Microphone access denied. Please enable microphone permissions in your browser settings.'
+            };
+        } else if (error.name === 'NotFoundError') {
+            return {
+                success: false,
+                error: 'no_microphone',
+                message: 'No microphone found. Please connect a microphone to use voice mode.'
+            };
+        } else {
+            return {
+                success: false,
+                error: 'unknown',
+                message: 'Unable to access microphone. Please try again or use text mode.'
+            };
+        }
+    }
+}
+
 // ============================================
 // Chat Interface Functions
 // ============================================
@@ -708,11 +1343,12 @@ async function initializeAudioFeatures() {
         console.warn('[App] Audio modules not loaded');
         return;
     }
-    const isPremium = AppState.currentUser?.tier === 'premium';
+    // Voice mode is available for both freemium and premium users
+    const hasVoiceAccess = ['premium', 'freemium'].includes(AppState.currentUser?.tier);
     AppState.audioManager = new AudioStreamManager();
     AppState.audioUI = new AudioUIController(AppState.audioManager);
-    await AppState.audioUI.initialize(isPremium);
-    console.log('[App] Audio features initialized', { isPremium });
+    await AppState.audioUI.initialize(hasVoiceAccess);
+    console.log('[App] Audio features initialized', { hasVoiceAccess, tier: AppState.currentUser?.tier });
 }
 
 async function initializeChatInterface() {
@@ -729,8 +1365,23 @@ async function initializeChatInterface() {
         return;
     }
 
+    // IQS-66 Issue #1 & #2: Case-insensitive mode check with safe storage
+    const preSelectedMode = safeStorageGet('improv_voice_mode')?.toLowerCase();
+    if (preSelectedMode === 'true') {
+        console.log('[IQS-66] User pre-selected voice mode, initializing audio');
+        AppState.isVoiceMode = true;
+    } else if (preSelectedMode === 'false') {
+        console.log('[IQS-66] User pre-selected text mode, initializing text interface');
+        AppState.isVoiceMode = false;
+    } else {
+        console.log('[IQS-66] No pre-selected mode, using tier default');
+        // Default based on tier if no explicit selection
+        const userTier = AppState.currentUser?.tier || 'free';
+        AppState.isVoiceMode = (userTier === 'premium' || userTier === 'freemium');
+    }
+
     // Check if we have a pre-selected game from the landing page
-    const storedGame = sessionStorage.getItem('improv_selected_game');
+    const storedGame = safeStorageGet('improv_selected_game');
     if (storedGame) {
         try {
             AppState.selectedGame = JSON.parse(storedGame);
@@ -746,6 +1397,9 @@ async function initializeChatInterface() {
         AppState.currentSession = session;
         AppState.currentTurn = session.turn_count;
 
+        // Store session ID in AppState for mode-lock check (IQS-66)
+        AppState.sessionId = sessionId;
+
         // If session has a game but AppState doesn't, sync from session
         if (session.selected_game_name && !AppState.selectedGame) {
             AppState.selectedGame = {
@@ -759,8 +1413,11 @@ async function initializeChatInterface() {
         await initializeAudioFeatures();
 
         // If game is pre-selected, enable voice mode button immediately for premium users
+        // IQS-66 CRITICAL FIX: Pass autoActivate=false to prevent override of user's text mode selection
+        // Only auto-activate if user explicitly selected voice mode
         if (AppState.selectedGame && AppState.audioUI) {
-            AppState.audioUI.enableVoiceModeButton(AppState.selectedGame);
+            const shouldAutoActivate = AppState.isVoiceMode; // Only if user pre-selected voice mode
+            AppState.audioUI.enableVoiceModeButton(AppState.selectedGame, shouldAutoActivate);
             updateGameDisplay(AppState.selectedGame.name);
         }
 
@@ -813,9 +1470,10 @@ async function startMCWelcomePhase(sessionId) {
             updateGameDisplay(response.selected_game.name);
 
             // Enable voice mode button as soon as game is selected (for premium users)
-            // User can switch to voice mode without completing full MC welcome phase
+            // IQS-66: Respect user's pre-selected mode
             if (AppState.audioUI) {
-                AppState.audioUI.enableVoiceModeButton(response.selected_game);
+                const shouldAutoActivate = AppState.isVoiceMode;
+                AppState.audioUI.enableVoiceModeButton(response.selected_game, shouldAutoActivate);
             }
         }
 
@@ -833,8 +1491,10 @@ async function startMCWelcomePhase(sessionId) {
             displaySystemMessage(`MC welcome complete! The scene is about to begin. Enter your first line when ready.${voiceHintWelcome}`);
 
             // Enable voice mode button now that game is selected
+            // IQS-66: Respect user's pre-selected mode
             if (AppState.audioUI && AppState.selectedGame) {
-                AppState.audioUI.enableVoiceModeButton(AppState.selectedGame);
+                const shouldAutoActivate = AppState.isVoiceMode;
+                AppState.audioUI.enableVoiceModeButton(AppState.selectedGame, shouldAutoActivate);
             }
         }
 
@@ -885,9 +1545,10 @@ async function handleMCWelcomeInput(userInput) {
             displaySystemMessage(`Game selected: ${response.selected_game.name}`);
 
             // Enable voice mode button as soon as game is selected (for premium users)
-            // User can switch to voice mode without completing full MC welcome phase
+            // IQS-66: Respect user's pre-selected mode
             if (AppState.audioUI) {
-                AppState.audioUI.enableVoiceModeButton(response.selected_game);
+                const shouldAutoActivate = AppState.isVoiceMode;
+                AppState.audioUI.enableVoiceModeButton(response.selected_game, shouldAutoActivate);
             }
         }
 
@@ -905,8 +1566,10 @@ async function handleMCWelcomeInput(userInput) {
             displaySystemMessage(`🎭 The stage is set! Enter your first line to begin the scene.${voiceHintStage}`);
 
             // Enable voice mode button now that game is selected
+            // IQS-66: Respect user's pre-selected mode
             if (AppState.audioUI && AppState.selectedGame) {
-                AppState.audioUI.enableVoiceModeButton(AppState.selectedGame);
+                const shouldAutoActivate = AppState.isVoiceMode;
+                AppState.audioUI.enableVoiceModeButton(AppState.selectedGame, shouldAutoActivate);
             }
         }
 
@@ -1396,6 +2059,7 @@ function handleEndSessionClick() {
 
 /**
  * Handle confirm end session
+ * IQS-66 Issue #3: Clear ALL session state including mode lock
  */
 async function handleConfirmEndSession() {
     try {
@@ -1405,7 +2069,16 @@ async function handleConfirmEndSession() {
             await closeSession(AppState.currentSession.session_id);
         }
 
+        // IQS-66 Issue #3: Clear ALL session state
         clearStoredSessionId();
+        AppState.sessionId = null;  // Clear mode lock
+        AppState.currentSession = null;
+        AppState.currentTurn = 0;
+
+        // Clear mode selection so user can choose fresh on next session
+        safeStorageRemove('improv_voice_mode');
+        safeStorageRemove('improv_selected_game');
+
         hideLoading();
 
         showToast('Scene ended successfully', 'success');
@@ -1434,12 +2107,105 @@ function handleCancelEndSession() {
  * Setup event listeners for landing page
  */
 function setupLandingPageListeners() {
+    // IQS-66 SECURITY FIX: Set up event delegation for game card clicks
+    // This is more secure than inline onclick handlers and prevents XSS injection
+    const gameGrid = document.getElementById('game-selection-grid');
+    if (gameGrid) {
+        // Click event delegation for game cards
+        gameGrid.addEventListener('click', (event) => {
+            const gameCard = event.target.closest('.game-card');
+            if (gameCard) {
+                const gameId = gameCard.dataset.gameId;
+                const gameName = gameCard.dataset.gameName;
+                const gameDifficulty = gameCard.dataset.gameDifficulty;
+
+                handleGameSelection(gameId, gameName, gameDifficulty);
+            }
+        });
+
+        // Keyboard event delegation for game cards
+        gameGrid.addEventListener('keydown', (event) => {
+            const gameCard = event.target.closest('.game-card');
+            if (gameCard) {
+                handleGameCardKeyboard(event);
+            }
+        });
+    }
+
     // Auth buttons
     const loginBtn = document.getElementById('login-btn');
     const logoutBtn = document.getElementById('logout-btn');
 
     if (loginBtn) loginBtn.addEventListener('click', handleLogin);
     if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+
+    // Auth modal controls
+    const closeAuthModal = document.getElementById('close-auth-modal');
+    if (closeAuthModal) {
+        closeAuthModal.addEventListener('click', () => hideModal('auth-modal'));
+    }
+
+    // Auth form submissions (new IDs from IQS-65 implementation)
+    const signinForm = document.getElementById('signin-form');
+    const signupForm = document.getElementById('signup-form');
+
+    if (signinForm) {
+        signinForm.addEventListener('submit', handleEmailSignIn);
+    }
+
+    if (signupForm) {
+        signupForm.addEventListener('submit', handleEmailSignUp);
+    }
+
+    // Google sign-in/sign-up buttons
+    const googleSignInBtn = document.getElementById('google-signin-btn');
+    const googleSignUpBtn = document.getElementById('google-signup-btn');
+
+    if (googleSignInBtn) {
+        googleSignInBtn.addEventListener('click', handleGoogleSignIn);
+    }
+
+    if (googleSignUpBtn) {
+        googleSignUpBtn.addEventListener('click', handleGoogleSignIn);
+    }
+
+    // Auth tab switching (IQS-65)
+    const tabSignin = document.getElementById('tab-signin');
+    const tabSignup = document.getElementById('tab-signup');
+
+    if (tabSignin) {
+        tabSignin.addEventListener('click', () => {
+            showSignInForm();
+        });
+    }
+
+    if (tabSignup) {
+        tabSignup.addEventListener('click', () => {
+            showSignUpForm();
+        });
+    }
+
+    // Resend verification email button
+    const resendVerificationBtn = document.getElementById('resend-verification-btn');
+    if (resendVerificationBtn) {
+        resendVerificationBtn.addEventListener('click', handleResendVerification);
+    }
+
+    // Forgot password link
+    const forgotPasswordLink = document.getElementById('forgot-password-link');
+    if (forgotPasswordLink) {
+        forgotPasswordLink.addEventListener('click', handleForgotPassword);
+    }
+
+    // Close auth modal on overlay click
+    const authModal = document.getElementById('auth-modal');
+    if (authModal) {
+        authModal.addEventListener('click', (e) => {
+            if (e.target === authModal) {
+                hideModal('auth-modal');
+            }
+        });
+    }
 
     // Start session
     const startSessionBtn = document.getElementById('start-session-btn');
@@ -1451,6 +2217,20 @@ function setupLandingPageListeners() {
     const createSessionBtn = document.getElementById('create-session-btn');
     if (createSessionBtn) {
         createSessionBtn.addEventListener('click', handleCreateSession);
+    }
+
+    // Mode selection buttons (IQS-66)
+    const textModeBtn = document.getElementById('text-mode-btn');
+    const voiceModeBtn = document.getElementById('voice-mode-btn');
+
+    if (textModeBtn) {
+        textModeBtn.addEventListener('click', () => handleModeSelection('text'));
+        textModeBtn.addEventListener('keydown', handleModeKeyboard);
+    }
+
+    if (voiceModeBtn) {
+        voiceModeBtn.addEventListener('click', () => handleModeSelection('audio'));
+        voiceModeBtn.addEventListener('keydown', handleModeKeyboard);
     }
 
     // Modal controls
@@ -1475,6 +2255,7 @@ function setupLandingPageListeners() {
         // Escape key closes modals
         if (e.key === 'Escape') {
             hideModal('setup-modal');
+            hideModal('auth-modal');
         }
     });
 }
@@ -1559,6 +2340,16 @@ async function initializeApp() {
     } else {
         setupLandingPageListeners();
         await initializeAuth();
+
+        // Initialize Firebase Auth (IQS-65)
+        if (window.FIREBASE_CONFIG && window.firebaseAuthModule) {
+            try {
+                await window.firebaseAuthModule.initializeFirebaseAuth(window.FIREBASE_CONFIG);
+                console.log('[App] Firebase Auth initialized');
+            } catch (error) {
+                console.error('[App] Firebase init failed:', error);
+            }
+        }
     }
 }
 

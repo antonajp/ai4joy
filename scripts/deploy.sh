@@ -109,7 +109,7 @@ if [ "$BUILD_ONLY" = false ]; then
         --image="${ARTIFACT_REGISTRY}/${IMAGE_NAME}:${TAG}" \
         --region="${REGION}" \
         --platform=managed \
-        --set-env-vars="GCP_PROJECT_ID=${PROJECT_ID},GCP_LOCATION=${REGION},USE_FIRESTORE_AUTH=true" \
+        --set-env-vars="GCP_PROJECT_ID=${PROJECT_ID},GCP_LOCATION=${REGION},USE_FIRESTORE_AUTH=true,FIREBASE_AUTH_ENABLED=true" \
         --quiet
 
     echo -e "${GREEN}✓ Deployed successfully${NC}"

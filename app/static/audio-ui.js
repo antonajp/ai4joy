@@ -1,7 +1,7 @@
 class AudioUIController {
     constructor(audioManager) {
         this.audioManager = audioManager;
-        this.isPremium = false;
+        this.hasVoiceAccess = false;  // Voice access for freemium and premium users
         this.isVoiceMode = false;
         this.isPushToTalkActive = false;
         this.isPttTransitioning = false;
@@ -166,8 +166,8 @@ class AudioUIController {
         return div.innerHTML;
     }
 
-    async initialize(isPremium) {
-        this.isPremium = isPremium;
+    async initialize(hasVoiceAccess) {
+        this.hasVoiceAccess = hasVoiceAccess;
         this.isGameSelected = false;  // Voice mode disabled until game is selected
         this.selectedGame = null;
         this.hasAutoActivated = false;  // Track if we've already auto-activated voice mode
@@ -175,13 +175,13 @@ class AudioUIController {
         this.createPushToTalkButton();
         this.createMicrophoneModal();
         this.setupKeyboardShortcuts();
-        this.logger.info('AudioUI initialized', { isPremium, voiceEnabled: false });
+        this.logger.info('AudioUI initialized', { hasVoiceAccess, voiceEnabled: false });
     }
 
     /**
      * Enable voice mode after game selection is complete.
      * Called by app.js when MC welcome phase completes.
-     * For premium users, automatically activates voice mode.
+     * IQS-66 FIX: Respect pre-selected mode from landing page - DO NOT auto-activate if user chose text mode
      * @param {Object} selectedGame - The selected game object
      * @param {boolean} autoActivate - Whether to auto-activate voice mode (default: true for premium)
      */
@@ -189,7 +189,7 @@ class AudioUIController {
         this.isGameSelected = true;
         this.selectedGame = selectedGame;
 
-        if (this.elements.voiceModeBtn && this.isPremium) {
+        if (this.elements.voiceModeBtn && this.hasVoiceAccess) {
             this.elements.voiceModeBtn.disabled = false;
             this.elements.voiceModeBtn.classList.remove('mode-btn-disabled');
             // Remove the setup badge since game is now selected
@@ -200,14 +200,43 @@ class AudioUIController {
             this.elements.voiceModeBtn.setAttribute('aria-label', 'Voice mode - Ready to start scene');
             this.logger.info('Voice mode button enabled', { game: selectedGame?.name, autoActivate });
 
-            // Auto-activate voice mode for premium users (only once)
-            if (autoActivate && !this.isVoiceMode && !this.hasAutoActivated) {
-                this.hasAutoActivated = true;
-                this.logger.info('Auto-activating voice mode for premium user');
-                // Small delay to ensure UI is ready and user sees the transition
-                setTimeout(() => {
-                    this.enableVoiceMode();
-                }, 500);
+            // IQS-66 Issue #1 & #2: Case-insensitive mode check with error handling
+            // Respect user's choice from game selection modal
+            try {
+                const preSelectedMode = sessionStorage.getItem('improv_voice_mode')?.toLowerCase();
+
+                if (preSelectedMode === 'true') {
+                    // User explicitly chose voice mode on landing page - activate it
+                    if (autoActivate && !this.isVoiceMode && !this.hasAutoActivated) {
+                        this.hasAutoActivated = true;
+                        this.logger.info('[IQS-66] User pre-selected voice mode, activating');
+                        setTimeout(() => {
+                            this.enableVoiceMode();
+                        }, 500);
+                    }
+                } else if (preSelectedMode === 'false') {
+                    // User explicitly chose text mode - RESPECT IT, do NOT activate voice
+                    this.logger.info('[IQS-66] User pre-selected text mode, skipping auto-activation');
+                    // No auto-activation - user stays in text mode
+                } else {
+                    // No pre-selection (legacy behavior) - apply tier defaults
+                    if (autoActivate && !this.isVoiceMode && !this.hasAutoActivated && this.hasVoiceAccess) {
+                        this.hasAutoActivated = true;
+                        this.logger.info('Auto-activating voice mode for user with voice access (legacy flow)');
+                        setTimeout(() => {
+                            this.enableVoiceMode();
+                        }, 500);
+                    }
+                }
+            } catch (error) {
+                this.logger.warn('[AudioUI] sessionStorage unavailable, using tier defaults:', error);
+                // Fall back to tier-based defaults if sessionStorage fails
+                if (autoActivate && !this.isVoiceMode && !this.hasAutoActivated && this.hasVoiceAccess) {
+                    this.hasAutoActivated = true;
+                    setTimeout(() => {
+                        this.enableVoiceMode();
+                    }, 500);
+                }
             }
         }
     }
@@ -228,9 +257,9 @@ class AudioUIController {
         const container = document.createElement('div');
         container.className = 'mode-selector-container';
         // Voice mode starts disabled - enabled after game selection
-        // Premium users see "Select game first", non-premium see "PRO" badge
-        const voiceDisabledReason = this.isPremium ? 'Select a game first' : 'Premium required';
-        const voiceBadge = this.isPremium
+        // Users with voice access see "Select game first", others see "PRO" badge
+        const voiceDisabledReason = this.hasVoiceAccess ? 'Select a game first' : 'Premium required';
+        const voiceBadge = this.hasVoiceAccess
             ? '<span class="setup-badge" title="Complete setup first">Setup</span>'
             : '<span class="premium-badge" title="Upgrade to Premium">PRO</span>';
 
@@ -400,7 +429,30 @@ class AudioUIController {
     }
 
     async enableVoiceMode() {
-        if (!this.isPremium) {
+        // IQS-66 CRITICAL FIX: DEFENSIVE GUARD - Respect user's explicit text mode selection
+        // This prevents ANY code path from auto-activating voice mode if user chose text
+        try {
+            const preSelectedMode = sessionStorage.getItem('improv_voice_mode')?.toLowerCase();
+            if (preSelectedMode === 'false') {
+                this.logger.info('[IQS-66] BLOCKED: User explicitly selected text mode, refusing voice activation');
+                return; // EXIT - do not activate voice mode
+            }
+        } catch (error) {
+            this.logger.warn('[IQS-66] Could not check pre-selected mode:', error);
+        }
+
+        // IQS-66 FIX #4: Prevent mode switching during active scene
+        if (AppState.sessionId && !this.isVoiceMode) {
+            this.logger.warn('[IQS-66] Cannot switch to voice mode during active scene');
+            if (typeof showToast === 'function') {
+                showToast('To switch modes, please end the current scene and return to game selection.', 'info');
+            } else {
+                alert('To switch modes, please end the current scene and return to game selection.');
+            }
+            return;
+        }
+
+        if (!this.hasVoiceAccess) {
             this.showUpgradePrompt();
             return;
         }
@@ -493,6 +545,17 @@ class AudioUIController {
     }
 
     setTextMode() {
+        // IQS-66 FIX #4: Prevent mode switching during active scene
+        if (AppState.sessionId && this.isVoiceMode) {
+            this.logger.warn('[IQS-66] Cannot switch to text mode during active scene');
+            if (typeof showToast === 'function') {
+                showToast('To switch modes, please end the current scene and return to game selection.', 'info');
+            } else {
+                alert('To switch modes, please end the current scene and return to game selection.');
+            }
+            return;
+        }
+
         if (!this.isVoiceMode) return;
         this.audioManager.disconnect();
         this.isVoiceMode = false;

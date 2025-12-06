@@ -1,9 +1,10 @@
 """OAuth Authentication Endpoints"""
 
 from fastapi import APIRouter, Request, HTTPException, status
-from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 from authlib.integrations.starlette_client import OAuth
 from starlette.config import Config as StarletteConfig
+from itsdangerous import URLSafeTimedSerializer
 
 from app.config import get_settings
 from app.utils.logger import get_logger
@@ -276,16 +277,19 @@ async def get_current_user(request: Request):
         user_tier = "free"  # Default tier
 
         # Look up user tier from Firestore if enabled
+        # Check both use_firestore_auth AND firebase_auth_enabled since
+        # Firebase auth users are also stored in Firestore
         if user_email:
             from app.middleware.oauth_auth import should_use_firestore_auth
 
-            if should_use_firestore_auth():
+            if should_use_firestore_auth() or settings.firebase_auth_enabled:
                 from app.services.user_service import get_user_by_email
 
                 try:
                     user_profile = await get_user_by_email(user_email)
                     if user_profile:
                         user_tier = user_profile.tier.value
+                        logger.debug("User tier fetched from Firestore", email=user_email, tier=user_tier)
                 except Exception as tier_err:
                     logger.warning("Failed to fetch user tier", error=str(tier_err))
 
@@ -361,3 +365,979 @@ async def check_user_authorization(email: str) -> bool:
     else:
         # Legacy: Check ALLOWED_USERS env var
         return validate_user_access_legacy(email)
+
+
+# =============================================================================
+# Firebase Authentication Endpoints (Phase 1 - IQS-65)
+# =============================================================================
+
+
+@router.post("/firebase/token")
+async def verify_firebase_token_endpoint(request: Request):
+    """Verify Firebase ID token and create session cookie (AC-AUTH-04).
+
+    This endpoint:
+    1. Verifies the Firebase ID token from the client
+    2. Checks email verification status (AC-AUTH-03)
+    3. Gets or creates user in Firestore
+    4. Creates a session cookie compatible with existing OAuth flow
+    5. Handles migration for existing OAuth users (AC-AUTH-05)
+
+    Request body:
+        {
+            "id_token": "eyJhbGc...",  // Firebase ID token from client
+        }
+
+    Returns:
+        {
+            "success": true,
+            "user": {
+                "email": "user@example.com",
+                "user_id": "firebase_uid",
+                "display_name": "User Name",
+                "tier": "free"
+            }
+        }
+
+    Sets session cookie in response (httponly, secure in production).
+
+    Error responses:
+        400: Invalid or expired token
+        403: Email not verified
+        500: Server error
+    """
+    from app.services.firebase_auth_service import (
+        verify_firebase_token,
+        get_or_create_user_from_firebase_token,
+        create_session_data_from_firebase_token,
+        FirebaseTokenExpiredError,
+        FirebaseTokenInvalidError,
+        FirebaseUserNotVerifiedError,
+        FirebaseAuthError,
+    )
+
+    # Check if Firebase auth is enabled
+    if not settings.firebase_auth_enabled:
+        logger.warning("Firebase auth endpoint called but Firebase auth is disabled")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Firebase authentication is not enabled",
+        )
+
+    try:
+        # Parse request body
+        body = await request.json()
+        id_token = body.get("id_token")
+
+        if not id_token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="id_token is required",
+            )
+
+        logger.info("Processing Firebase token verification request")
+
+        # Verify Firebase ID token
+        decoded_token = await verify_firebase_token(id_token)
+
+        # Get or create user (handles migration automatically)
+        user_profile = await get_or_create_user_from_firebase_token(
+            decoded_token,
+            require_email_verification=settings.firebase_require_email_verification,
+        )
+
+        logger.info(
+            "Firebase authentication successful",
+            user_email=user_profile.email,
+            user_id=user_profile.user_id,
+            tier=user_profile.tier.value,
+        )
+
+        # Create session data compatible with OAuth format
+        session_data = create_session_data_from_firebase_token(
+            decoded_token, user_profile
+        )
+
+        # Create session cookie using existing middleware
+        session_cookie = session_middleware.create_session_cookie(session_data)
+
+        # Determine cookie settings based on environment
+        is_production = request.url.hostname != "localhost"
+        cookie_domain = None
+        if request.url.hostname == "ai4joy.org" or request.url.hostname.endswith(
+            ".ai4joy.org"
+        ):
+            cookie_domain = "ai4joy.org"
+
+        # Create response with user info
+        response = JSONResponse(
+            content={
+                "success": True,
+                "user": {
+                    "email": user_profile.email,
+                    "user_id": user_profile.user_id,
+                    "display_name": user_profile.display_name or "",
+                    "tier": user_profile.tier.value,
+                },
+            }
+        )
+
+        # Set session cookie (matches OAuth flow)
+        response.set_cookie(
+            key="session",
+            value=session_cookie,
+            domain=cookie_domain,
+            path="/",
+            httponly=True,
+            secure=is_production,
+            samesite="lax",
+            max_age=86400,  # 24 hours
+        )
+
+        logger.info(
+            "Firebase session created successfully",
+            user_email=user_profile.email,
+            tier=user_profile.tier.value,
+        )
+
+        return response
+
+    except FirebaseUserNotVerifiedError as e:
+        logger.warning("Firebase user email not verified", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e),
+        )
+
+    except (FirebaseTokenExpiredError, FirebaseTokenInvalidError) as e:
+        logger.warning("Firebase token validation failed", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    except FirebaseAuthError as e:
+        logger.error("Firebase authentication error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Authentication failed: {str(e)}",
+        )
+
+    except Exception as e:
+        import traceback
+        logger.error(
+            "Unexpected error in Firebase token verification",
+            error=str(e),
+            error_type=type(e).__name__,
+            traceback=traceback.format_exc(),
+        )
+        # Print to stderr for visibility during development
+        print(f"FIREBASE AUTH ERROR: {type(e).__name__}: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred during authentication",
+        )
+
+
+# =============================================================================
+# Multi-Factor Authentication Endpoints (Phase 2 - IQS-65)
+# =============================================================================
+
+
+@router.post("/mfa/enroll")
+async def mfa_enroll(request: Request):
+    """Start MFA enrollment process (AC-MFA-01, AC-MFA-02, AC-MFA-03, AC-MFA-04).
+
+    This endpoint:
+    1. Generates TOTP secret for the user
+    2. Creates QR code for authenticator app scanning (min 200x200px)
+    3. Generates 8 recovery codes
+    4. Returns data for enrollment wizard
+
+    Must be called by authenticated user who hasn't enrolled in MFA yet.
+
+    Returns:
+        {
+            "secret": "JBSWY3DPEHPK3PXP",  // For manual entry if needed
+            "qr_code_data_uri": "data:image/png;base64,...",  // QR code as data URI
+            "recovery_codes": ["A3F9-K2H7", "B8D4-L9M3", ...],  // 8 codes to display
+            "enrollment_pending": true
+        }
+
+    Error responses:
+        401: Not authenticated
+        409: MFA already enabled
+        500: Server error
+    """
+    from app.services.mfa_service import (
+        create_mfa_enrollment_session,
+        hash_recovery_codes,
+    )
+    from app.services.user_service import get_user_by_email
+    import base64
+
+    # Check authentication
+    session_cookie = request.cookies.get("session")
+    if not session_cookie:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+        )
+
+    try:
+        # Get user from session
+        session_data = session_middleware.serializer.loads(
+            session_cookie, max_age=session_middleware.max_age
+        )
+        user_email = session_data.get("email")
+        user_id = session_data.get("sub")
+
+        if not user_email or not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid session",
+            )
+
+        # Check if user already has MFA enabled
+        user_profile = await get_user_by_email(user_email)
+        if not user_profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User profile not found",
+            )
+
+        if user_profile.mfa_enabled:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="MFA is already enabled for this account",
+            )
+
+        # Generate MFA enrollment data
+        secret, recovery_codes, qr_code_png = create_mfa_enrollment_session(
+            user_id, user_email
+        )
+
+        # Convert QR code PNG to base64 data URI
+        qr_code_b64 = base64.b64encode(qr_code_png).decode('utf-8')
+        qr_code_data_uri = f"data:image/png;base64,{qr_code_b64}"
+
+        # Store secret temporarily in session for verification
+        # (will be moved to user profile after successful verification)
+        from app.services.firestore_tool_data_service import get_firestore_client
+        from datetime import datetime, timezone, timedelta
+
+        client = get_firestore_client()
+        collection = client.collection("mfa_enrollments")
+
+        # Create temporary enrollment record (expires in 15 minutes)
+        enrollment_data = {
+            "user_id": user_id,
+            "user_email": user_email,
+            "secret": secret,
+            "recovery_codes_hash": hash_recovery_codes(recovery_codes),
+            "created_at": datetime.now(timezone.utc),
+            "expires_at": datetime.now(timezone.utc) + timedelta(minutes=15),
+            "verified": False,
+        }
+
+        await collection.document(user_id).set(enrollment_data)
+
+        logger.info(
+            "MFA enrollment initiated",
+            user_id=user_id,
+            user_email=user_email,
+        )
+
+        return {
+            "secret": secret,
+            "qr_code_data_uri": qr_code_data_uri,
+            "recovery_codes": recovery_codes,  # Display to user for saving
+            "enrollment_pending": True,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("MFA enrollment failed", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to initiate MFA enrollment",
+        )
+
+
+@router.post("/mfa/verify-enrollment")
+async def mfa_verify_enrollment(request: Request):
+    """Complete MFA enrollment by verifying TOTP code (AC-MFA-05).
+
+    After scanning QR code and saving recovery codes, user must:
+    1. Confirm they saved recovery codes (checkbox)
+    2. Enter TOTP code from authenticator app
+
+    Request body:
+        {
+            "totp_code": "123456",
+            "recovery_codes_confirmed": true
+        }
+
+    Returns:
+        {
+            "success": true,
+            "mfa_enabled": true
+        }
+
+    Error responses:
+        400: Invalid TOTP code or recovery codes not confirmed
+        401: Not authenticated
+        404: No pending enrollment found
+        500: Server error
+    """
+    from app.services.mfa_service import verify_totp_code, InvalidTOTPCodeError
+    from app.services.user_service import get_user_by_email
+    from app.services.firestore_tool_data_service import get_firestore_client
+
+    # Check authentication
+    session_cookie = request.cookies.get("session")
+    if not session_cookie:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+        )
+
+    try:
+        # Parse request body
+        body = await request.json()
+        totp_code = body.get("totp_code")
+        recovery_codes_confirmed = body.get("recovery_codes_confirmed", False)
+
+        if not totp_code:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="totp_code is required",
+            )
+
+        if not recovery_codes_confirmed:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You must confirm that you have saved your recovery codes",
+            )
+
+        # Get user from session
+        session_data = session_middleware.serializer.loads(
+            session_cookie, max_age=session_middleware.max_age
+        )
+        user_email = session_data.get("email")
+        user_id = session_data.get("sub")
+
+        if not user_email or not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid session",
+            )
+
+        # Get pending enrollment
+        client = get_firestore_client()
+        enrollment_doc = await client.collection("mfa_enrollments").document(user_id).get()
+
+        if not enrollment_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No pending MFA enrollment found. Please start enrollment again.",
+            )
+
+        enrollment_data = enrollment_doc.to_dict()
+
+        # Check expiration
+        expires_at = enrollment_data.get("expires_at")
+        if expires_at and datetime.now(timezone.utc) > expires_at:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="MFA enrollment session has expired. Please start again.",
+            )
+
+        # Verify TOTP code
+        secret = enrollment_data.get("secret")
+        try:
+            is_valid = verify_totp_code(secret, totp_code)
+        except InvalidTOTPCodeError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e),
+            )
+
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid TOTP code. Please try again.",
+            )
+
+        # TOTP code verified! Enable MFA for user
+        users_collection = client.collection(settings.firestore_users_collection)
+        query = users_collection.where("email", "==", user_email)
+
+        async for doc in query.stream():
+            await users_collection.document(doc.id).update({
+                "mfa_enabled": True,
+                "mfa_secret": secret,
+                "mfa_enrolled_at": datetime.now(timezone.utc),
+                "recovery_codes_hash": enrollment_data.get("recovery_codes_hash", []),
+            })
+
+            logger.info(
+                "MFA enrollment completed",
+                user_id=user_id,
+                user_email=user_email,
+            )
+
+        # Delete temporary enrollment record
+        await client.collection("mfa_enrollments").document(user_id).delete()
+
+        return {
+            "success": True,
+            "mfa_enabled": True,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("MFA verification failed", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to complete MFA enrollment",
+        )
+
+
+@router.post("/mfa/verify")
+async def mfa_verify(request: Request):
+    """Verify TOTP code during login (AC-MFA-06).
+
+    After user signs in with email/password or Google, if they have
+    MFA enabled, they must provide a TOTP code to complete authentication.
+
+    Request body:
+        {
+            "totp_code": "123456"
+        }
+
+    Returns:
+        {
+            "success": true,
+            "mfa_verified": true
+        }
+
+    Sets mfa_verified=true in session cookie.
+
+    Error responses:
+        400: Invalid TOTP code
+        401: Not authenticated
+        404: User not found or MFA not enabled
+        500: Server error
+    """
+    from app.services.mfa_service import verify_totp_code, InvalidTOTPCodeError
+    from app.services.user_service import get_user_by_email
+
+    # Check authentication
+    session_cookie = request.cookies.get("session")
+    if not session_cookie:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+        )
+
+    try:
+        # Parse request body
+        body = await request.json()
+        totp_code = body.get("totp_code")
+
+        if not totp_code:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="totp_code is required",
+            )
+
+        # Get user from session
+        session_data = session_middleware.serializer.loads(
+            session_cookie, max_age=session_middleware.max_age
+        )
+        user_email = session_data.get("email")
+
+        if not user_email:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid session",
+            )
+
+        # Get user profile
+        user_profile = await get_user_by_email(user_email)
+        if not user_profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User profile not found",
+            )
+
+        if not user_profile.mfa_enabled:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="MFA is not enabled for this account",
+            )
+
+        # Verify TOTP code
+        try:
+            is_valid = verify_totp_code(user_profile.mfa_secret, totp_code)
+        except InvalidTOTPCodeError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e),
+            )
+
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid TOTP code. Please try again.",
+            )
+
+        # TOTP verified! Update session to mark MFA as verified
+        session_data["mfa_verified"] = True
+        updated_session_cookie = session_middleware.create_session_cookie(session_data)
+
+        # Create response
+        response = JSONResponse(
+            content={
+                "success": True,
+                "mfa_verified": True,
+            }
+        )
+
+        # Update session cookie
+        is_production = request.url.hostname != "localhost"
+        cookie_domain = None
+        if request.url.hostname == "ai4joy.org" or request.url.hostname.endswith(
+            ".ai4joy.org"
+        ):
+            cookie_domain = "ai4joy.org"
+
+        response.set_cookie(
+            key="session",
+            value=updated_session_cookie,
+            domain=cookie_domain,
+            path="/",
+            httponly=True,
+            secure=is_production,
+            samesite="lax",
+            max_age=86400,
+        )
+
+        logger.info(
+            "MFA verification successful",
+            user_email=user_email,
+        )
+
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("MFA verification failed", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to verify MFA code",
+        )
+
+
+@router.post("/mfa/verify-recovery")
+async def mfa_verify_recovery(request: Request):
+    """Verify recovery code for MFA bypass (AC-MFA-07).
+
+    If user loses access to authenticator app, they can use a recovery code.
+    Recovery codes are single-use and will be consumed after successful verification.
+
+    Request body:
+        {
+            "recovery_code": "A3F9-K2H7"
+        }
+
+    Returns:
+        {
+            "success": true,
+            "mfa_verified": true,
+            "remaining_recovery_codes": 7
+        }
+
+    Error responses:
+        400: Invalid recovery code
+        401: Not authenticated
+        404: User not found or MFA not enabled
+        500: Server error
+    """
+    from app.services.mfa_service import (
+        consume_recovery_code,
+        InvalidRecoveryCodeError,
+    )
+    from app.services.user_service import get_user_by_email
+    from app.services.firestore_tool_data_service import get_firestore_client
+
+    # Check authentication
+    session_cookie = request.cookies.get("session")
+    if not session_cookie:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+        )
+
+    try:
+        # Parse request body
+        body = await request.json()
+        recovery_code = body.get("recovery_code")
+
+        if not recovery_code:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="recovery_code is required",
+            )
+
+        # Get user from session
+        session_data = session_middleware.serializer.loads(
+            session_cookie, max_age=session_middleware.max_age
+        )
+        user_email = session_data.get("email")
+
+        if not user_email:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid session",
+            )
+
+        # Get user profile
+        user_profile = await get_user_by_email(user_email)
+        if not user_profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User profile not found",
+            )
+
+        if not user_profile.mfa_enabled:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="MFA is not enabled for this account",
+            )
+
+        # Verify and consume recovery code
+        try:
+            updated_codes = consume_recovery_code(
+                recovery_code, user_profile.recovery_codes_hash
+            )
+        except InvalidRecoveryCodeError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e),
+            )
+
+        if updated_codes is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid recovery code. Please try again or use your authenticator app.",
+            )
+
+        # Recovery code verified! Update user's recovery codes (remove used one)
+        client = get_firestore_client()
+        users_collection = client.collection(settings.firestore_users_collection)
+        query = users_collection.where("email", "==", user_email)
+
+        async for doc in query.stream():
+            await users_collection.document(doc.id).update({
+                "recovery_codes_hash": updated_codes,
+            })
+
+        # Update session to mark MFA as verified
+        session_data["mfa_verified"] = True
+        updated_session_cookie = session_middleware.create_session_cookie(session_data)
+
+        # Create response
+        response = JSONResponse(
+            content={
+                "success": True,
+                "mfa_verified": True,
+                "remaining_recovery_codes": len(updated_codes),
+            }
+        )
+
+        # Update session cookie
+        is_production = request.url.hostname != "localhost"
+        cookie_domain = None
+        if request.url.hostname == "ai4joy.org" or request.url.hostname.endswith(
+            ".ai4joy.org"
+        ):
+            cookie_domain = "ai4joy.org"
+
+        response.set_cookie(
+            key="session",
+            value=updated_session_cookie,
+            domain=cookie_domain,
+            path="/",
+            httponly=True,
+            secure=is_production,
+            samesite="lax",
+            max_age=86400,
+        )
+
+        logger.info(
+            "MFA recovery code verification successful",
+            user_email=user_email,
+            remaining_codes=len(updated_codes),
+        )
+
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Recovery code verification failed", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to verify recovery code",
+        )
+
+
+@router.get("/mfa/status")
+async def mfa_status(request: Request):
+    """Get MFA status for current user.
+
+    Returns:
+        {
+            "mfa_enabled": true,
+            "mfa_enrolled_at": "2025-01-15T12:00:00Z",
+            "recovery_codes_count": 7,
+            "mfa_verified_in_session": true
+        }
+
+    Error responses:
+        401: Not authenticated
+        404: User not found
+        500: Server error
+    """
+    from app.services.user_service import get_user_by_email
+
+    # Check authentication
+    session_cookie = request.cookies.get("session")
+    if not session_cookie:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+        )
+
+    try:
+        # Get user from session
+        session_data = session_middleware.serializer.loads(
+            session_cookie, max_age=session_middleware.max_age
+        )
+        user_email = session_data.get("email")
+
+        if not user_email:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid session",
+            )
+
+        # Get user profile
+        user_profile = await get_user_by_email(user_email)
+        if not user_profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User profile not found",
+            )
+
+        # Check if MFA is verified in current session
+        mfa_verified_in_session = session_data.get("mfa_verified", False)
+
+        return {
+            "mfa_enabled": user_profile.mfa_enabled,
+            "mfa_enrolled_at": (
+                user_profile.mfa_enrolled_at.isoformat()
+                if user_profile.mfa_enrolled_at
+                else None
+            ),
+            "recovery_codes_count": len(user_profile.recovery_codes_hash or []),
+            "mfa_verified_in_session": mfa_verified_in_session,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to get MFA status", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get MFA status",
+        )
+
+
+# ============================================
+# Freemium Session Limit Endpoints (IQS-65)
+# ============================================
+
+
+@router.get("/user/session-limit")
+async def get_session_limit_status(request: Request):
+    """Get freemium session limit status for the current user.
+
+    Returns session usage and limit information for freemium users.
+    Premium users will have has_access=True and is_premium=True.
+
+    Returns:
+        SessionLimitStatus with access status, usage counts, and messaging
+    """
+    from app.services.freemium_session_limiter import check_session_limit
+    from app.services.user_service import get_user_by_email
+    from app.models.user import UserTier
+
+    # Validate session
+    session_cookie = request.cookies.get("session")
+    if not session_cookie:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated"
+        )
+
+    try:
+        serializer = URLSafeTimedSerializer(
+            settings.session_secret_key or "dev-secret-key-change-in-production"
+        )
+        session_data = serializer.loads(session_cookie, max_age=86400)
+    except Exception as e:
+        logger.warning("Invalid session cookie", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid session"
+        )
+
+    email = session_data.get("email")
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No email in session"
+        )
+
+    user_profile = await get_user_by_email(email)
+    if not user_profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    # Check if premium user
+    is_premium = user_profile.tier == UserTier.PREMIUM
+
+    if is_premium:
+        return {
+            "has_access": True,
+            "is_premium": True,
+            "sessions_used": 0,
+            "sessions_limit": 0,
+            "sessions_remaining": -1,  # Unlimited
+            "is_at_limit": False,
+            "upgrade_required": False,
+            "message": "You have unlimited audio sessions."
+        }
+
+    # Get freemium limit status
+    limit_status = await check_session_limit(user_profile)
+
+    return {
+        "has_access": limit_status.has_access,
+        "is_premium": False,
+        "sessions_used": limit_status.sessions_used,
+        "sessions_limit": limit_status.sessions_limit,
+        "sessions_remaining": limit_status.sessions_remaining,
+        "is_at_limit": limit_status.is_at_limit,
+        "upgrade_required": limit_status.upgrade_required,
+        "message": limit_status.message
+    }
+
+
+@router.post("/user/session-complete")
+async def complete_audio_session(request: Request):
+    """Mark an audio session as complete and increment the session counter.
+
+    This should be called when a freemium user completes an audio session.
+    Uses atomic Firestore operations to prevent race conditions.
+
+    Returns:
+        Success status and updated session count
+    """
+    from app.services.freemium_session_limiter import increment_session_count
+    from app.services.user_service import get_user_by_email
+    from app.models.user import UserTier
+
+    # Validate session
+    session_cookie = request.cookies.get("session")
+    if not session_cookie:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated"
+        )
+
+    try:
+        serializer = URLSafeTimedSerializer(
+            settings.session_secret_key or "dev-secret-key-change-in-production"
+        )
+        session_data = serializer.loads(session_cookie, max_age=86400)
+    except Exception as e:
+        logger.warning("Invalid session cookie", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid session"
+        )
+
+    email = session_data.get("email")
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No email in session"
+        )
+
+    # Get user profile
+    user_profile = await get_user_by_email(email)
+    if not user_profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    # Premium users don't need to track sessions
+    if user_profile.tier == UserTier.PREMIUM:
+        return {
+            "success": True,
+            "is_premium": True,
+            "sessions_used": 0,
+            "message": "Premium user - unlimited sessions"
+        }
+
+    # Increment session count for freemium users
+    try:
+        success = await increment_session_count(email)
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to increment session count"
+            )
+
+        # Get updated count
+        updated_profile = await get_user_by_email(email)
+        new_count = updated_profile.premium_sessions_used if updated_profile else 0
+        limit = updated_profile.premium_sessions_limit if updated_profile else 2
+
+        return {
+            "success": True,
+            "is_premium": False,
+            "sessions_used": new_count,
+            "sessions_limit": limit,
+            "sessions_remaining": max(0, limit - new_count),
+            "message": f"Session recorded. {max(0, limit - new_count)} sessions remaining."
+        }
+
+    except Exception as e:
+        logger.error("Failed to complete session", email=email, error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to record session completion"
+        )
