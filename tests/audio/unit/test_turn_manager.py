@@ -53,8 +53,11 @@ def test_turn_count_tracking():
         assert manager.turn_count == i
 
 
-def test_on_turn_complete_returns_phase_1():
-    """Turn completion should always return phase_1 (supportive MC)."""
+def test_on_turn_complete_returns_phase_1_for_early_turns():
+    """Turn completion should return phase_1 for turns 1-7 (supportive MC).
+
+    IQS-81: Updated to reflect dynamic phase calculation.
+    """
     from app.audio.turn_manager import AgentTurnManager
 
     manager = AgentTurnManager()
@@ -135,14 +138,33 @@ def test_reset_with_custom_turn_count():
     assert manager.turn_count == 10
 
 
-def test_multiple_completions_always_phase_1():
-    """Multiple turn completions should always return phase_1."""
+def test_phase_transitions_at_turn_8():
+    """Phase should transition from phase_1 to phase_2 at turn 8.
+
+    IQS-81: Updated to verify dynamic phase calculation.
+    Phase 1 (Supportive): turns 1-7
+    Phase 2 (Fallible): turns 8+
+    """
     from app.audio.turn_manager import AgentTurnManager
 
     manager = AgentTurnManager()
 
-    # Complete many turns
-    for i in range(10):
+    # Turns 1-7 should be phase_1
+    for i in range(1, 8):
         result = manager.on_turn_complete()
-        assert result["phase"] == "phase_1"
-        assert result["phase_changed"] is False
+        assert result["turn_count"] == i
+        assert result["phase"] == "phase_1", f"Turn {i} should be phase_1"
+        assert result["phase_changed"] is False, f"Turn {i} should not trigger phase change"
+
+    # Turn 8 should transition to phase_2
+    result = manager.on_turn_complete()
+    assert result["turn_count"] == 8
+    assert result["phase"] == "phase_2", "Turn 8 should be phase_2"
+    assert result["phase_changed"] is True, "Turn 8 should trigger phase change"
+
+    # Turns 9+ should remain phase_2
+    for i in range(9, 12):
+        result = manager.on_turn_complete()
+        assert result["turn_count"] == i
+        assert result["phase"] == "phase_2", f"Turn {i} should be phase_2"
+        assert result["phase_changed"] is False, f"Turn {i} should not trigger phase change"

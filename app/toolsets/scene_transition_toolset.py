@@ -3,7 +3,7 @@
 This toolset provides tools for the MC Agent to signal when the scene should
 begin, triggering a handoff to the Partner Agent for scene work.
 
-In audio mode, the MC hosts and introduces games, then uses _start_scene to
+In audio mode, the MC hosts and introduces games, then uses start_scene to
 hand off to the Partner Agent who will do the actual scene work.
 """
 
@@ -48,15 +48,15 @@ class SceneTransitionToolset(BaseToolset):
         """
         if self._tools is None:
             self._tools = [
-                FunctionTool(self._start_scene),
-                FunctionTool(self._resume_scene),
-                FunctionTool(self._end_scene),
+                FunctionTool(self.start_scene),
+                FunctionTool(self.resume_scene),
+                FunctionTool(self.end_scene),
             ]
             logger.debug("Scene transition tools created", tool_count=len(self._tools))
 
         return self._tools
 
-    async def _start_scene(
+    async def start_scene(
         self,
         game_name: str,
         scene_premise: Optional[str] = None,
@@ -104,7 +104,7 @@ class SceneTransitionToolset(BaseToolset):
             ),
         }
 
-    async def _resume_scene(
+    async def resume_scene(
         self,
         message: Optional[str] = None,
     ) -> Dict[str, Any]:
@@ -135,7 +135,7 @@ class SceneTransitionToolset(BaseToolset):
             "message": message or "Let's continue the scene!",
         }
 
-    async def _end_scene(
+    async def end_scene(
         self,
         reason: str = "scene_complete",
         turn_count: int = 0,

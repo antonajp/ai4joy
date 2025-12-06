@@ -72,9 +72,9 @@ class ImprovGamesToolset(BaseToolset):
         """
         if self._tools is None:
             self._tools = [
-                FunctionTool(self._get_all_games),
-                FunctionTool(self._get_game_by_id),
-                FunctionTool(self._search_games),
+                FunctionTool(self.get_all_games),
+                FunctionTool(self.get_game_by_id),
+                FunctionTool(self.search_games),
             ]
             logger.debug("Game tools created", tool_count=len(self._tools))
 
@@ -88,7 +88,7 @@ class ImprovGamesToolset(BaseToolset):
 
         return self._tools
 
-    async def _get_all_games(self) -> List[Dict[str, Any]]:
+    async def get_all_games(self) -> List[Dict[str, Any]]:
         """Get complete list of all available improv games.
 
         Returns:
@@ -96,7 +96,7 @@ class ImprovGamesToolset(BaseToolset):
         """
         return await data_service.get_all_games()
 
-    async def _get_game_by_id(self, game_id: str) -> Dict[str, Any]:
+    async def get_game_by_id(self, game_id: str) -> Dict[str, Any]:
         """Get specific improv game by its unique ID.
 
         Args:
@@ -108,7 +108,7 @@ class ImprovGamesToolset(BaseToolset):
         result = await data_service.get_game_by_id(game_id)
         return result if result else {}
 
-    async def _search_games(
+    async def search_games(
         self,
         energy_level: Optional[str] = None,
         player_count: Optional[int] = None,

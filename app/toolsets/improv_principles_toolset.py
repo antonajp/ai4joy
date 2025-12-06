@@ -74,11 +74,11 @@ class ImprovPrinciplesToolset(BaseToolset):
         """
         if self._tools is None:
             self._tools = [
-                FunctionTool(self._get_all_principles),
-                FunctionTool(self._get_principle_by_id),
-                FunctionTool(self._get_beginner_essentials),
-                FunctionTool(self._get_principles_by_importance),
-                FunctionTool(self._search_principles_by_keyword),
+                FunctionTool(self.get_all_principles),
+                FunctionTool(self.get_principle_by_id),
+                FunctionTool(self.get_beginner_essentials),
+                FunctionTool(self.get_principles_by_importance),
+                FunctionTool(self.search_principles_by_keyword),
             ]
             logger.debug("Principles tools created", tool_count=len(self._tools))
 
@@ -92,7 +92,7 @@ class ImprovPrinciplesToolset(BaseToolset):
 
         return self._tools
 
-    async def _get_all_principles(self) -> List[Dict[str, Any]]:
+    async def get_all_principles(self) -> List[Dict[str, Any]]:
         """Get complete list of all core improv principles.
 
         Returns:
@@ -100,7 +100,7 @@ class ImprovPrinciplesToolset(BaseToolset):
         """
         return await data_service.get_all_principles()
 
-    async def _get_principle_by_id(self, principle_id: str) -> Dict[str, Any]:
+    async def get_principle_by_id(self, principle_id: str) -> Dict[str, Any]:
         """Get specific improv principle by its unique ID.
 
         Args:
@@ -112,7 +112,7 @@ class ImprovPrinciplesToolset(BaseToolset):
         result = await data_service.get_principle_by_id(principle_id)
         return result if result else {}
 
-    async def _get_beginner_essentials(self) -> List[Dict[str, Any]]:
+    async def get_beginner_essentials(self) -> List[Dict[str, Any]]:
         """Get essential principles for beginners to focus on first.
 
         Returns:
@@ -120,7 +120,7 @@ class ImprovPrinciplesToolset(BaseToolset):
         """
         return await data_service.get_beginner_essentials()
 
-    async def _get_principles_by_importance(
+    async def get_principles_by_importance(
         self, importance: str
     ) -> List[Dict[str, Any]]:
         """Get principles filtered by importance level.
@@ -133,7 +133,7 @@ class ImprovPrinciplesToolset(BaseToolset):
         """
         return await data_service.get_principles_by_importance(importance)
 
-    async def _search_principles_by_keyword(self, keyword: str) -> List[Dict[str, Any]]:
+    async def search_principles_by_keyword(self, keyword: str) -> List[Dict[str, Any]]:
         """Search principles by keyword in name or description.
 
         Args:

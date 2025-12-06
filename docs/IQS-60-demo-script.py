@@ -32,25 +32,25 @@ async def demo_suggestion_generation():
     try:
         # Demo 1: Generate location suggestion
         print("1. Generating a LOCATION suggestion...")
-        location = await toolset._generate_audience_suggestion("location")
+        location = await toolset.generate_audience_suggestion("location")
         print(f"   Result: {location}")
         print()
 
         # Demo 2: Generate relationship suggestion
         print("2. Generating a RELATIONSHIP suggestion...")
-        relationship = await toolset._generate_audience_suggestion("relationship")
+        relationship = await toolset.generate_audience_suggestion("relationship")
         print(f"   Result: {relationship}")
         print()
 
         # Demo 3: Generate topic suggestion
         print("3. Generating a TOPIC suggestion...")
-        topic = await toolset._generate_audience_suggestion("topic")
+        topic = await toolset.generate_audience_suggestion("topic")
         print(f"   Result: {topic}")
         print()
 
         # Demo 4: Get game-specific suggestion for Long Form
         print("4. Getting suggestion for LONG FORM game...")
-        long_form_result = await toolset._get_suggestion_for_game("Long Form")
+        long_form_result = await toolset.get_suggestion_for_game("Long Form")
         print(f"   Suggestion: {long_form_result['suggestion']}")
         print(f"   Type: {long_form_result['suggestion_type']}")
         print(f"   Reasoning: {long_form_result['reasoning']}")
@@ -58,7 +58,7 @@ async def demo_suggestion_generation():
 
         # Demo 5: Get game-specific suggestion for Questions Only
         print("5. Getting suggestion for QUESTIONS ONLY game...")
-        questions_result = await toolset._get_suggestion_for_game("Questions Only")
+        questions_result = await toolset.get_suggestion_for_game("Questions Only")
         print(f"   Suggestion: {questions_result['suggestion']}")
         print(f"   Type: {questions_result['suggestion_type']}")
         print(f"   Reasoning: {questions_result['reasoning']}")
@@ -66,7 +66,7 @@ async def demo_suggestion_generation():
 
         # Demo 6: Get game-specific suggestion for Expert Interview
         print("6. Getting suggestion for EXPERT INTERVIEW game...")
-        expert_result = await toolset._get_suggestion_for_game("Expert Interview")
+        expert_result = await toolset.get_suggestion_for_game("Expert Interview")
         print(f"   Suggestion: {expert_result['suggestion']}")
         print(f"   Type: {expert_result['suggestion_type']}")
         print(f"   Reasoning: {expert_result['reasoning']}")
@@ -88,7 +88,7 @@ async def demo_suggestion_generation():
                 "improv_knowledge": "no prior experience",
             },
         ]
-        tech_location = await toolset._generate_audience_suggestion(
+        tech_location = await toolset.generate_audience_suggestion(
             "location", audience_sample=tech_audience
         )
         print(f"   Result: {tech_location}")
@@ -101,7 +101,7 @@ async def demo_suggestion_generation():
         print("Demo completed successfully!")
         print()
         print("NEXT STEPS:")
-        print("  - Room Agent can now use _get_suggestion_for_game() tool")
+        print("  - Room Agent can now use get_suggestion_for_game() tool")
         print("  - MC Agent will ask Room Agent for suggestions instead of USER")
         print("  - Suggestions will reflect audience demographics automatically")
         print("=" * 70)

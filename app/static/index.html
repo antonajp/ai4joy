@@ -15,6 +15,20 @@
       gtag('config', 'G-0CJGHXN57B');
     </script>
     <link rel="stylesheet" href="/static/styles.css">
+
+    <!-- Firebase SDK v10.8.0 (compat mode for compatibility with existing module) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+
+    <!-- Firebase/Identity Platform Configuration -->
+    <script>
+      // Identity Platform config for coherent-answer-479115-e1 project
+      window.FIREBASE_CONFIG = {
+        apiKey: "AIzaSyCPww6j0vqFyKRez3Pr8tiVZYF6KmPkuMU",
+        authDomain: "coherent-answer-479115-e1.firebaseapp.com",
+        projectId: "coherent-answer-479115-e1"
+      };
+    </script>
 </head>
 <body>
     <a href="#main-content" class="skip-link">Skip to main content</a>
@@ -24,8 +38,8 @@
             <div class="nav-content">
                 <h1 class="logo">Improv Olympics</h1>
                 <div class="nav-actions">
-                    <button id="login-btn" class="btn btn-secondary" aria-label="Sign in with Google">
-                        Sign In
+                    <button id="login-btn" class="btn btn-primary" aria-label="Sign in for free">
+                        Try Free
                     </button>
                     <button id="logout-btn" class="btn btn-secondary" aria-label="Sign out" style="display: none;">
                         Sign Out
@@ -36,6 +50,16 @@
     </header>
 
     <main id="main-content" role="main">
+        <!-- Announcement Banner -->
+        <div class="announcement-banner" role="alert">
+            <div class="container announcement-container">
+                <span class="announcement-badge">NEW</span>
+                <span class="announcement-text">
+                    <strong>Realtime Audio is here!</strong> Talk naturally with your AI scene partner using voice.
+                </span>
+            </div>
+        </div>
+
         <!-- Hero Section -->
         <section class="hero" aria-labelledby="hero-title">
             <div class="container">
@@ -44,11 +68,14 @@
                     Rebuild your social confidence in a safe, judgment-free environment.
                     Practice real-time improvisation with AI partners that adapt to your skill level.
                 </p>
+                <div class="hero-highlight">
+                    <span class="hero-highlight-icon" aria-hidden="true">🎙️</span>
+                    <span class="hero-highlight-text">Now with <strong>realtime voice conversations</strong> - speak naturally, get instant responses</span>
+                </div>
                 <div class="hero-actions">
                     <button id="start-session-btn" class="btn btn-primary btn-large" disabled aria-describedby="auth-notice">
                         Start Your Scene
                     </button>
-                    <p id="auth-notice" class="auth-notice">Sign in to start your improv session</p>
                 </div>
             </div>
         </section>
@@ -58,6 +85,15 @@
             <div class="container">
                 <h2 id="features-title" class="section-title">How It Works</h2>
                 <div class="features-grid">
+                    <article class="feature-card feature-card-highlight">
+                        <div class="feature-badge">NEW</div>
+                        <div class="feature-icon" aria-hidden="true">🎙️</div>
+                        <h3 class="feature-title">Realtime Audio</h3>
+                        <p class="feature-description">
+                            Talk naturally with your AI scene partner using your voice.
+                            Experience fluid, real-time conversations just like on stage.
+                        </p>
+                    </article>
                     <article class="feature-card">
                         <div class="feature-icon" aria-hidden="true">🎭</div>
                         <h3 class="feature-title">Scene Partner</h3>
@@ -135,6 +171,42 @@
                     Select an improv game to get started. Each game has different rules and challenges.
                 </p>
 
+                <!-- Mode Selection (IQS-66) -->
+                <div class="mode-selection-container">
+                    <label id="mode-selection-label" class="mode-selection-label">Choose how you'll interact:</label>
+                    <div class="mode-selector" role="radiogroup" aria-labelledby="mode-selection-label">
+                        <button type="button"
+                                id="text-mode-btn"
+                                class="mode-btn mode-btn-active"
+                                role="radio"
+                                aria-checked="true"
+                                aria-describedby="text-mode-desc"
+                                data-mode="text">
+                            <span class="mode-icon">💬</span>
+                            <span class="mode-label">Text Mode</span>
+                            <span class="mode-description" id="text-mode-desc">Type your responses, take your time</span>
+                        </button>
+                        <button type="button"
+                                id="voice-mode-btn"
+                                class="mode-btn"
+                                role="radio"
+                                aria-checked="false"
+                                aria-describedby="audio-mode-desc"
+                                data-mode="audio">
+                            <span class="mode-icon">🎙️</span>
+                            <span class="mode-label">Voice Mode</span>
+                            <span class="mode-description" id="audio-mode-desc">Speak naturally, real-time conversation</span>
+                        </button>
+                    </div>
+                    <p id="mode-helper-text" class="mode-helper-text" aria-live="polite">
+                        You'll type your responses and read your partner's replies
+                    </p>
+                    <div id="mic-permission-warning" class="mic-permission-warning" style="display: none;" role="alert">
+                        <span class="warning-icon">⚠️</span>
+                        <span class="warning-text">Microphone access required for Voice Mode. Please enable in browser settings or switch to Text Mode.</span>
+                    </div>
+                </div>
+
                 <!-- Game Selection Grid -->
                 <div id="game-selection-grid" class="game-selection-grid" role="listbox" aria-label="Available improv games">
                     <div class="games-loading">Loading games...</div>
@@ -188,6 +260,188 @@
     <!-- Toast notifications -->
     <div id="toast-container" class="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>
 
+    <!-- Firebase Auth Modal -->
+    <div id="auth-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title" style="display: none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-content auth-modal-content">
+            <button id="close-auth-modal" class="modal-close" aria-label="Close authentication dialog">&times;</button>
+
+            <h2 id="auth-modal-title" class="modal-title">Welcome to Improv Olympics</h2>
+
+            <!-- Tab Navigation -->
+            <div class="auth-tabs" role="tablist" aria-label="Authentication options">
+                <button id="tab-signin" class="auth-tab auth-tab-active" role="tab" aria-selected="true" aria-controls="panel-signin">Sign In</button>
+                <button id="tab-signup" class="auth-tab" role="tab" aria-selected="false" aria-controls="panel-signup">Sign Up</button>
+            </div>
+
+            <!-- Sign In Panel -->
+            <div id="panel-signin" class="auth-panel" role="tabpanel" aria-labelledby="tab-signin">
+                <form id="signin-form" class="auth-form" novalidate>
+                    <div class="form-group">
+                        <label for="signin-email" class="form-label">Email</label>
+                        <input type="email" id="signin-email" name="email" class="form-input" required autocomplete="email" aria-describedby="signin-email-error" />
+                        <div id="signin-email-error" class="form-error" role="alert" aria-live="polite"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="signin-password" class="form-label">Password</label>
+                        <input type="password" id="signin-password" name="password" class="form-input" required autocomplete="current-password" aria-describedby="signin-password-error" />
+                        <div id="signin-password-error" class="form-error" role="alert" aria-live="polite"></div>
+                    </div>
+                    <button type="button" id="forgot-password-link" class="auth-link-btn">Forgot password?</button>
+                    <button type="submit" class="btn btn-primary btn-large auth-submit-btn">Sign In</button>
+                </form>
+                <div class="auth-divider"><span>or continue with</span></div>
+                <button id="google-signin-btn" class="btn btn-secondary btn-large google-auth-btn">
+                    <svg class="google-icon" viewBox="0 0 24 24" width="20" height="20"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                    <span>Google</span>
+                </button>
+            </div>
+
+            <!-- Sign Up Panel -->
+            <div id="panel-signup" class="auth-panel" role="tabpanel" aria-labelledby="tab-signup" hidden>
+                <form id="signup-form" class="auth-form" novalidate>
+                    <div class="form-group">
+                        <label for="signup-email" class="form-label">Email</label>
+                        <input type="email" id="signup-email" name="email" class="form-input" required autocomplete="email" aria-describedby="signup-email-error" />
+                        <div id="signup-email-error" class="form-error" role="alert" aria-live="polite"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="signup-password" class="form-label">Password</label>
+                        <input type="password" id="signup-password" name="password" class="form-input" required autocomplete="new-password" minlength="6" aria-describedby="signup-password-error password-requirements" />
+                        <div id="signup-password-error" class="form-error" role="alert" aria-live="polite"></div>
+                        <p id="password-requirements" class="form-hint">Password must be at least 6 characters</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="signup-password-confirm" class="form-label">Confirm Password</label>
+                        <input type="password" id="signup-password-confirm" name="password-confirm" class="form-input" required autocomplete="new-password" aria-describedby="signup-confirm-error" />
+                        <div id="signup-confirm-error" class="form-error" role="alert" aria-live="polite"></div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-large auth-submit-btn">Create Account</button>
+                </form>
+                <div class="auth-divider"><span>or continue with</span></div>
+                <button id="google-signup-btn" class="btn btn-secondary btn-large google-auth-btn">
+                    <svg class="google-icon" viewBox="0 0 24 24" width="20" height="20"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                    <span>Google</span>
+                </button>
+                <p class="auth-terms">By signing up, you agree to our Terms of Service</p>
+            </div>
+
+            <!-- Email Verification Notice -->
+            <div id="email-verification-notice" class="auth-notice" role="status" aria-live="polite" hidden>
+                <div class="notice-icon">📧</div>
+                <h3>Check Your Email</h3>
+                <p>We've sent a verification link to <strong id="verification-email-display"></strong>.</p>
+                <button id="resend-verification-btn" class="btn btn-secondary">Resend Email</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MFA Enrollment Wizard Modal (IQS-65) -->
+    <div id="mfa-wizard-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="mfa-wizard-title" style="display: none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-content mfa-wizard-content">
+            <div class="mfa-progress" role="progressbar" aria-valuenow="1" aria-valuemin="1" aria-valuemax="4">
+                <div class="mfa-progress-bar"><div class="mfa-progress-fill" style="width: 25%"></div></div>
+                <span class="mfa-progress-text">Step 1 of 4</span>
+            </div>
+
+            <h2 id="mfa-wizard-title" class="modal-title">Secure Your Account</h2>
+
+            <!-- Step 1: Introduction -->
+            <div id="mfa-step-1" class="mfa-step" data-step="1">
+                <div class="mfa-step-content">
+                    <div class="mfa-icon">🔒</div>
+                    <h3 class="mfa-step-title">Two-Factor Authentication</h3>
+                    <p class="mfa-step-desc">Add an extra layer of security using an authenticator app like Google Authenticator, Authy, or 1Password.</p>
+                    <div class="mfa-benefits">
+                        <div class="mfa-benefit">✓ Protect against unauthorized access</div>
+                        <div class="mfa-benefit">✓ Backup codes for account recovery</div>
+                        <div class="mfa-benefit">✓ Takes only 2-3 minutes to set up</div>
+                    </div>
+                </div>
+                <div class="mfa-actions">
+                    <button type="button" id="mfa-skip-btn" class="btn btn-secondary">Set Up Later</button>
+                    <button type="button" id="mfa-start-btn" class="btn btn-primary">Get Started</button>
+                </div>
+            </div>
+
+            <!-- Step 2: QR Code -->
+            <div id="mfa-step-2" class="mfa-step" data-step="2" hidden>
+                <div class="mfa-step-content">
+                    <h3 class="mfa-step-title">Scan QR Code</h3>
+                    <p class="mfa-step-desc">Open your authenticator app and scan this code:</p>
+                    <div class="mfa-qr-container">
+                        <div id="mfa-qr-code" class="mfa-qr-code" aria-label="QR code for authenticator setup">
+                            <!-- QR code rendered here by JS -->
+                            <div class="mfa-qr-placeholder">Loading QR Code...</div>
+                        </div>
+                    </div>
+                    <details class="mfa-manual-entry">
+                        <summary>Can't scan? Enter manually</summary>
+                        <div class="mfa-manual-content">
+                            <label>Setup key:</label>
+                            <div class="mfa-secret-row">
+                                <code id="mfa-secret-display" class="mfa-secret-code">XXXX XXXX XXXX XXXX</code>
+                                <button type="button" id="copy-secret-btn" class="btn btn-small">Copy</button>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+                <div class="mfa-actions">
+                    <button type="button" class="btn btn-secondary mfa-back-btn">Back</button>
+                    <button type="button" class="btn btn-primary mfa-next-btn">I've Scanned It</button>
+                </div>
+            </div>
+
+            <!-- Step 3: Verify Code -->
+            <div id="mfa-step-3" class="mfa-step" data-step="3" hidden>
+                <div class="mfa-step-content">
+                    <h3 class="mfa-step-title">Verify Your Code</h3>
+                    <p class="mfa-step-desc">Enter the 6-digit code from your authenticator app:</p>
+                    <div class="mfa-code-input-container">
+                        <input type="text" id="mfa-code-input" class="mfa-code-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" aria-label="6-digit verification code" />
+                        <div id="mfa-code-error" class="form-error"></div>
+                    </div>
+                    <p class="mfa-code-hint">💡 The code refreshes every 30 seconds</p>
+                </div>
+                <div class="mfa-actions">
+                    <button type="button" class="btn btn-secondary mfa-back-btn">Back</button>
+                    <button type="button" id="mfa-verify-btn" class="btn btn-primary" disabled>Verify Code</button>
+                </div>
+            </div>
+
+            <!-- Step 4: Recovery Codes -->
+            <div id="mfa-step-4" class="mfa-step" data-step="4" hidden>
+                <div class="mfa-step-content">
+                    <div class="mfa-icon mfa-icon-success">✓</div>
+                    <h3 class="mfa-step-title">Save Recovery Codes</h3>
+                    <p class="mfa-step-desc">Store these codes safely. Each can be used once to access your account.</p>
+                    <div class="mfa-recovery-codes" id="mfa-recovery-codes">
+                        <!-- Recovery codes populated by JS -->
+                    </div>
+                    <div class="mfa-recovery-actions">
+                        <button type="button" id="download-codes-btn" class="btn btn-secondary">📥 Download</button>
+                        <button type="button" id="copy-codes-btn" class="btn btn-secondary">📋 Copy All</button>
+                    </div>
+                    <div class="mfa-confirm-checkbox">
+                        <label>
+                            <input type="checkbox" id="mfa-codes-saved" required />
+                            I have saved these recovery codes securely
+                        </label>
+                    </div>
+                    <div class="mfa-warning">⚠️ You won't be able to view these codes again after completing setup.</div>
+                </div>
+                <div class="mfa-actions">
+                    <button type="button" class="btn btn-secondary mfa-back-btn">Back</button>
+                    <button type="button" id="mfa-complete-btn" class="btn btn-primary btn-large" disabled>Complete Setup</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Firebase Auth module first (ES6 module) -->
+    <script type="module" src="/static/firebase-auth.js"></script>
+    <!-- Load main app after Firebase Auth -->
     <script src="/static/app.js"></script>
 </body>
 </html>

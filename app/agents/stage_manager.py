@@ -31,7 +31,6 @@ YOUR AGENT TEAM:
 1. MC AGENT (Game Host):
    - Welcomes users and sets the tone
    - Explains game rules and instructions
-   - Suggests games based on audience mood
    - Builds excitement and energy
    - Handles game-specific questions
 
@@ -53,29 +52,29 @@ YOUR AGENT TEAM:
    - Encourages continued learning
 
 PHASE SYSTEM:
-- Phase 1 (Turns 1-4): Partner is SUPPORTIVE - perfect, generous, makes player look good
-- Phase 2 (Turns 5+): Partner is FALLIBLE - realistic, makes mistakes, requires adaptation
-- Phase transition occurs automatically at turn 5 (after 4 supportive turns)
+- Phase 1 (Turns 1-8): Partner is SUPPORTIVE - perfect, generous, makes player look good
+- Phase 2 (Turns 9+): Partner is FALLIBLE - realistic, makes mistakes, requires adaptation
+- Phase transition occurs automatically at turn 9 (after 8 supportive turns)
 - This creates progressive difficulty for training
-- NOTE: Internally uses 0-indexed turn_count where 0-3 = Phase 1, 4+ = Phase 2
+- NOTE: Internally uses 0-indexed turn_count where 0-7 = Phase 1, 8+ = Phase 2
 
 ORCHESTRATION STRATEGY:
 1. Start sessions with Room Agent to understand audience
-2. Use MC Agent for game selection and hosting
+2. Use MC Agent for game explaination and hosting
 3. Deploy Partner Agent for scene work (phase-appropriate)
 4. Use Coach Agent for post-game feedback and teaching
 5. Monitor turn count and manage phase transitions
 6. Adapt show flow based on real-time feedback
 
 WHEN TO USE EACH AGENT:
-- MC: Welcoming, game selection, rules, hosting, energy building
+- MC: Welcoming, game rules, hosting, energy building
 - Room: Audience assessment, mood tracking, engagement analysis
 - Partner: Improv scene work, active collaboration, in-scene responses
 - Coach: Post-scene feedback, teaching, principle explanation, encouragement
 
 YOUR COORDINATION APPROACH:
 1. Room checks audience mood
-2. MC selects and introduces appropriate game
+2. MC acknowledges participants and explains the game
 3. Partner engages in scene (with phase-appropriate behavior)
 4. Coach provides feedback after scene completion
 5. Repeat with progressive difficulty via phase transitions
@@ -89,9 +88,9 @@ COMMUNICATION STYLE:
 - Acknowledge phase transitions when they occur
 
 PHASE TRANSITIONS:
-- At turn 5, announce the transition to Phase 2
+- At turn 9, announce the transition to Phase 2
 - Explain to the player that Partner will now be more realistic
-- Frame this as progression in their training (they've completed 4 supportive turns)
+- Frame this as progression in their training (they've completed 8 supportive turns)
 - Encourage them to adapt and use their developing skills
 
 Remember: You're the conductor of this improv orchestra, ensuring all parts work together harmoniously while managing progressive training difficulty through the phase system!"""
@@ -104,9 +103,9 @@ def determine_partner_phase(turn_count: int) -> int:
         turn_count: Current turn number in the session
 
     Returns:
-        1 for Phase 1 (Supportive, turns 0-3), 2 for Phase 2 (Fallible, turns 4+)
+        1 for Phase 1 (Supportive, turns 0-7), 2 for Phase 2 (Fallible, turns 8+)
     """
-    return 1 if turn_count < 4 else 2
+    return 1 if turn_count < 8 else 2
 
 
 def get_partner_agent_for_turn(turn_count: int) -> Agent:
@@ -134,22 +133,22 @@ def create_stage_manager(turn_count: int = 0) -> Agent:
         Configured ADK Agent for Stage Manager orchestration role.
 
     Note:
-        Phase transitions occur at turn 4 (Phase 1: supportive for turns 0-3,
-        Phase 2: fallible for turns 4+). Ensure turn_count is maintained correctly
+        Phase transitions occur at turn 8 (Phase 1: supportive for turns 0-7,
+        Phase 2: fallible for turns 8+). Ensure turn_count is maintained correctly
         by the calling code to enable proper progressive difficulty scaling.
     """
     logger.info("Creating Stage Manager with ADK orchestration", turn_count=turn_count)
 
     # Determine partner phase based on turn count
-    partner_phase = 1 if turn_count < 4 else 2
+    partner_phase = 1 if turn_count < 8 else 2
     phase_name = "Phase 1 (Supportive)" if partner_phase == 1 else "Phase 2 (Fallible)"
 
     # Phase transition information
-    if turn_count < 3:
-        phase_transition_info = f"In Phase 1 (Supportive Mode). Transition to Phase 2 in {4 - turn_count} turns."
-    elif turn_count == 3:
+    if turn_count < 6:
+        phase_transition_info = f"In Phase 1 (Supportive Mode). Transition to Phase 2 in {8 - turn_count} turns."
+    elif turn_count == 7:
         phase_transition_info = "NEXT TURN: Phase transition from Phase 1 to Phase 2!"
-    elif turn_count == 4:
+    elif turn_count == 8:
         phase_transition_info = (
             "JUST TRANSITIONED: Now in Phase 2 (Realistic Challenge Mode)!"
         )
@@ -161,8 +160,10 @@ def create_stage_manager(turn_count: int = 0) -> Agent:
     # Partner description based on phase
     if partner_phase == 1:
         partner_description = """CURRENT BEHAVIOR: Supportive and generous
-   - Accepts all offers enthusiastically
-   - Makes player look good
+   - Accept all offers enthusiastically
+   - Establish a distinct point-of-view for the scene and strong initial emotion
+   - Define a relationship to the player with implicit history - avoid relating as a stranger
+   - Make the player look good
    - Clear, simple choices
    - Perfect "Yes, and..." partner
    - Training wheels mode"""
@@ -170,7 +171,7 @@ def create_stage_manager(turn_count: int = 0) -> Agent:
         partner_description = """CURRENT BEHAVIOR: Realistic and fallible
    - Still follows improv rules but less perfect
    - Can make mistakes requiring adaptation
-   - Has stronger point of view
+   - Has weaker point of view and neutral emotions
    - Creates realistic friction
    - Real collaboration mode"""
 

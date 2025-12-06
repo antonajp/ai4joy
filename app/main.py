@@ -13,6 +13,15 @@ AI-powered social gym, featuring:
 """
 
 import os
+from pathlib import Path
+
+# Load .env.local for local development (must happen before any other imports)
+# This ensures GOOGLE_APPLICATION_CREDENTIALS is available via os.environ
+env_local = Path(__file__).parent.parent / ".env.local"
+if env_local.exists():
+    from dotenv import load_dotenv
+
+    load_dotenv(env_local, override=False)
 
 # Configure google-genai for Vertex AI BEFORE any ADK imports
 # This must happen at module load time, before Agent classes are imported
@@ -76,9 +85,11 @@ app.add_middleware(
 )
 
 # Starlette SessionMiddleware for OAuth state management
+# Use a different cookie name to avoid conflict with our auth session cookie
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.session_secret_key or "dev-secret-key-change-in-production",
+    session_cookie="oauth_state",  # Renamed from default "session" to avoid conflict
     max_age=3600,  # 1 hour for OAuth state
 )
 
@@ -133,6 +144,53 @@ async def startup_event():
         project=os.environ.get("GOOGLE_CLOUD_PROJECT"),
         location=os.environ.get("GOOGLE_CLOUD_LOCATION"),
     )
+
+    # Initialize Firebase Admin SDK if Firebase Auth is enabled (IQS-65 Phase 1)
+    if settings.firebase_auth_enabled:
+        try:
+            import firebase_admin
+            from firebase_admin import credentials
+
+            # Check if Firebase app is already initialized
+            if not firebase_admin._apps:
+                # Check for explicit service account file (local development)
+                service_account_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+                if service_account_path and os.path.exists(service_account_path):
+                    # Use Certificate credentials for explicit service account file
+                    cred = credentials.Certificate(service_account_path)
+                    logger.info(
+                        "Using service account credentials",
+                        path=service_account_path,
+                    )
+                else:
+                    # Use Application Default Credentials (ADC) for production
+                    # In Cloud Run, this uses Workload Identity
+                    cred = credentials.ApplicationDefault()
+                    logger.info("Using Application Default Credentials")
+
+                firebase_admin.initialize_app(
+                    cred,
+                    {
+                        "projectId": settings.firebase_project_id,
+                    },
+                )
+                logger.info(
+                    "Firebase Admin SDK initialized",
+                    project_id=settings.firebase_project_id,
+                    require_email_verification=settings.firebase_require_email_verification,
+                )
+            else:
+                logger.info("Firebase Admin SDK already initialized")
+        except Exception as e:
+            logger.error(
+                "Failed to initialize Firebase Admin SDK",
+                error=str(e),
+                project_id=settings.firebase_project_id,
+            )
+            # Don't fail startup - Firebase auth is optional
+            logger.warning("Firebase authentication will be unavailable")
+    else:
+        logger.info("Firebase authentication disabled, using OAuth only")
 
     logger.info("Initializing singleton Runner")
     initialize_runner()

@@ -7,7 +7,7 @@ Supports free, regular, and premium tiers with audio usage tracking.
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 
 
@@ -16,6 +16,7 @@ class UserTier(str, Enum):
 
     FREE = "free"
     REGULAR = "regular"
+    FREEMIUM = "freemium"  # Limited audio access (2 sessions lifetime)
     PREMIUM = "premium"
 
 
@@ -23,6 +24,7 @@ class UserTier(str, Enum):
 AUDIO_USAGE_LIMITS = {
     UserTier.FREE: 0,  # No audio access
     UserTier.REGULAR: 0,  # No audio access
+    UserTier.FREEMIUM: 0,  # Session-based limit (not time-based)
     UserTier.PREMIUM: 3600,  # 1 hour per reset period
 }
 
@@ -43,6 +45,10 @@ class UserProfile:
         created_at: Account creation timestamp
         last_login_at: Last login timestamp
         created_by: Admin who provisioned the account
+        mfa_enabled: Whether MFA is enabled for this user (Phase 2 - IQS-65)
+        mfa_secret: TOTP secret for MFA (base32 encoded)
+        mfa_enrolled_at: When MFA was enrolled
+        recovery_codes_hash: Hashed recovery codes for MFA bypass
     """
 
     user_id: str
@@ -63,10 +69,39 @@ class UserProfile:
     last_login_at: Optional[datetime] = None
     created_by: Optional[str] = None
 
+    # MFA fields (Phase 2 - IQS-65)
+    mfa_enabled: bool = False
+    mfa_secret: Optional[str] = None  # TOTP secret (base32 encoded)
+    mfa_enrolled_at: Optional[datetime] = None
+    recovery_codes_hash: Optional[List[str]] = field(
+        default_factory=list
+    )  # Hashed recovery codes
+
+    # Freemium session tracking (Phase 3 - IQS-65)
+    premium_sessions_used: int = 0  # Number of audio sessions completed
+    premium_sessions_limit: int = 2  # Default limit for freemium users
+
     @property
     def is_premium(self) -> bool:
         """Check if user has premium tier."""
         return self.tier == UserTier.PREMIUM
+
+    @property
+    def is_freemium(self) -> bool:
+        """Check if user has freemium tier."""
+        return self.tier == UserTier.FREEMIUM
+
+    @property
+    def has_audio_access(self) -> bool:
+        """Check if user has any audio access (freemium or premium)."""
+        return self.tier in (UserTier.FREEMIUM, UserTier.PREMIUM)
+
+    @property
+    def remaining_premium_sessions(self) -> int:
+        """Get remaining audio sessions for freemium users."""
+        if self.tier != UserTier.FREEMIUM:
+            return 0  # Not applicable for non-freemium
+        return max(0, self.premium_sessions_limit - self.premium_sessions_used)
 
     @property
     def audio_usage_limit(self) -> int:
@@ -87,6 +122,12 @@ class UserProfile:
             "created_at": self.created_at,
             "last_login_at": self.last_login_at,
             "created_by": self.created_by,
+            "mfa_enabled": self.mfa_enabled,
+            "mfa_secret": self.mfa_secret or "",
+            "mfa_enrolled_at": self.mfa_enrolled_at,
+            "recovery_codes_hash": self.recovery_codes_hash or [],
+            "premium_sessions_used": self.premium_sessions_used,
+            "premium_sessions_limit": self.premium_sessions_limit,
         }
 
     @classmethod
@@ -118,6 +159,12 @@ class UserProfile:
             created_at=doc.get("created_at"),
             last_login_at=doc.get("last_login_at"),
             created_by=doc.get("created_by"),
+            mfa_enabled=doc.get("mfa_enabled", False),
+            mfa_secret=doc.get("mfa_secret"),
+            mfa_enrolled_at=doc.get("mfa_enrolled_at"),
+            recovery_codes_hash=doc.get("recovery_codes_hash", []),
+            premium_sessions_used=doc.get("premium_sessions_used", 0),
+            premium_sessions_limit=doc.get("premium_sessions_limit", 2),
         )
 
 

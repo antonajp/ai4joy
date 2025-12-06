@@ -23,7 +23,7 @@ class TestAudienceSuggestionGeneration:
     async def test_generate_audience_suggestion_location(self, toolset):
         """Test generating a location suggestion."""
         # Generate a location suggestion
-        suggestion = await toolset._generate_audience_suggestion("location")
+        suggestion = await toolset.generate_audience_suggestion("location")
 
         # Should return a string
         assert isinstance(suggestion, str)
@@ -40,7 +40,7 @@ class TestAudienceSuggestionGeneration:
     async def test_generate_audience_suggestion_relationship(self, toolset):
         """Test generating a relationship suggestion."""
         # Generate a relationship suggestion
-        suggestion = await toolset._generate_audience_suggestion("relationship")
+        suggestion = await toolset.generate_audience_suggestion("relationship")
 
         # Should return a string
         assert isinstance(suggestion, str)
@@ -71,7 +71,7 @@ class TestAudienceSuggestionGeneration:
         # Generate multiple suggestions to increase likelihood of tech-related ones
         suggestions = []
         for _ in range(5):
-            suggestion = await toolset._generate_audience_suggestion(
+            suggestion = await toolset.generate_audience_suggestion(
                 "location", audience_sample=tech_audience
             )
             suggestions.append(suggestion.lower())
@@ -99,7 +99,7 @@ class TestAudienceSuggestionGeneration:
         """Test getting a game-specific suggestion for Long Form."""
 
         # Get suggestion for Long Form game (should be a relationship)
-        result = await toolset._get_suggestion_for_game("Long Form")
+        result = await toolset.get_suggestion_for_game("Long Form")
 
         # Should return a dictionary with required keys
         assert isinstance(result, dict)
@@ -116,7 +116,7 @@ class TestAudienceSuggestionGeneration:
         """Test getting a game-specific suggestion for Questions Only."""
 
         # Get suggestion for Questions Only game (should be a location)
-        result = await toolset._get_suggestion_for_game("Questions Only")
+        result = await toolset.get_suggestion_for_game("Questions Only")
 
         # Should return a dictionary with required keys
         assert isinstance(result, dict)
@@ -133,7 +133,7 @@ class TestAudienceSuggestionGeneration:
         """Test getting a game-specific suggestion for Expert Interview."""
 
         # Get suggestion for Expert Interview game (should be a topic)
-        result = await toolset._get_suggestion_for_game("Expert Interview")
+        result = await toolset.get_suggestion_for_game("Expert Interview")
 
         # Should return a dictionary with required keys
         assert isinstance(result, dict)
@@ -150,10 +150,10 @@ class TestAudienceSuggestionGeneration:
         """Test that different suggestion types produce different results."""
 
         # Generate suggestions of different types
-        location = await toolset._generate_audience_suggestion("location")
-        relationship = await toolset._generate_audience_suggestion("relationship")
-        topic = await toolset._generate_audience_suggestion("topic")
-        occupation = await toolset._generate_audience_suggestion("occupation")
+        location = await toolset.generate_audience_suggestion("location")
+        relationship = await toolset.generate_audience_suggestion("relationship")
+        topic = await toolset.generate_audience_suggestion("topic")
+        occupation = await toolset.generate_audience_suggestion("occupation")
 
         # All should be strings
         assert all(isinstance(s, str) for s in [location, relationship, topic, occupation])
@@ -181,7 +181,7 @@ class TestAudienceSuggestionGeneration:
         ]
 
         # Generate a suggestion
-        suggestion = await toolset._generate_audience_suggestion(
+        suggestion = await toolset.generate_audience_suggestion(
             "location", audience_sample=mixed_audience
         )
 

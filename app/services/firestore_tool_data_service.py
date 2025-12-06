@@ -9,9 +9,11 @@ This module provides async Firestore access for tool data collections including:
 Follows ADK patterns with async operations and singleton service instance.
 """
 
+import os
 import threading
 from typing import Optional, List, Dict, Any, Union
 from google.cloud.firestore_v1 import AsyncClient, AsyncQuery, AsyncCollectionReference
+from google.oauth2 import service_account
 from app.config import get_settings
 from app.utils.logger import get_logger
 
@@ -30,6 +32,8 @@ def get_firestore_client() -> AsyncClient:
 
     Note:
         Thread-safe using double-checked locking pattern.
+        Uses explicit service account credentials if GOOGLE_APPLICATION_CREDENTIALS
+        is set (local development), otherwise relies on ADC (production).
     """
     global _firestore_client
 
@@ -43,10 +47,31 @@ def get_firestore_client() -> AsyncClient:
                 project=settings.gcp_project_id,
                 database=settings.firestore_database,
             )
-            _firestore_client = AsyncClient(
-                project=settings.gcp_project_id,
-                database=settings.firestore_database,
-            )
+
+            # Check for explicit service account file (local development)
+            service_account_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+            if service_account_path and os.path.exists(service_account_path):
+                # Use explicit credentials from service account file
+                credentials = service_account.Credentials.from_service_account_file(
+                    service_account_path
+                )
+                logger.info(
+                    "Using explicit service account credentials for Firestore",
+                    path=service_account_path,
+                )
+                _firestore_client = AsyncClient(
+                    project=settings.gcp_project_id,
+                    database=settings.firestore_database,
+                    credentials=credentials,
+                )
+            else:
+                # Use Application Default Credentials (production/Cloud Run)
+                logger.info("Using ADC for Firestore")
+                _firestore_client = AsyncClient(
+                    project=settings.gcp_project_id,
+                    database=settings.firestore_database,
+                )
+
             logger.info("Firestore async client initialized successfully")
 
     return _firestore_client
@@ -116,6 +141,37 @@ async def get_game_by_id(game_id: str) -> Optional[Dict[str, Any]]:
             return game
 
     logger.warning("Game not found", game_id=game_id)
+    return None
+
+
+async def get_game_by_name(game_name: str) -> Optional[Dict[str, Any]]:
+    """Get a specific game by name (case-insensitive).
+
+    Args:
+        game_name: The game name to search for
+
+    Returns:
+        Game dictionary if found, None otherwise.
+
+    Note:
+        Performs case-insensitive matching by comparing lowercase names.
+        Firestore doesn't support case-insensitive queries natively.
+    """
+    client = get_firestore_client()
+    collection_ref = client.collection(settings.firestore_games_collection)
+
+    game_name_lower = game_name.lower().strip()
+
+    async for doc in collection_ref.stream():
+        game = doc.to_dict()
+        if game is not None:
+            stored_name = game.get("name", "")
+            if stored_name.lower().strip() == game_name_lower:
+                game["id"] = doc.id
+                logger.debug("Game found by name", game_name=game_name)
+                return game
+
+    logger.warning("Game not found by name", game_name=game_name)
     return None
 
 

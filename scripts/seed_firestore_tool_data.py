@@ -129,6 +129,14 @@ GAMES_DATA = [
         "skills": ["commitment", "quick_thinking", "world_building"],
         "duration_minutes": 8,
         "difficulty": "beginner",
+        "suggestion_count": 1,
+        "suggestion_prompt": "This game needs a made-up or absurd TOPIC that the player will be an expert in. The topic should be unusual, specific, and funny.",
+        "example_suggestions": [
+            "Competitive sock folding",
+            "The psychology of houseplants",
+            "Ancient alien cooking techniques",
+            "Professional crayon sharpening",
+        ],
     },
     {
         "id": "emotional_rollercoaster",
@@ -214,6 +222,13 @@ GAMES_DATA = [
         "skills": ["scene_work", "narrative", "planning"],
         "duration_minutes": 8,
         "difficulty": "intermediate",
+        "suggestion_count": 2,
+        "suggestion_prompt": "This game needs TWO complete sentences from the audience: an OPENING LINE to start the scene and a CLOSING LINE to end the scene. Both should be interesting dialogue that could be said by a character.",
+        "example_suggestions": [
+            "Opening line: 'I can't believe you ate the last donut!' | Closing line: 'That's why I'm never trusting a baker again.'",
+            "Opening line: 'Why is there a goat in the living room?' | Closing line: 'And that's how we became millionaires.'",
+            "Opening line: 'This is the worst birthday ever.' | Closing line: 'I guess sometimes the universe knows what it's doing.'",
+        ],
     },
     {
         "id": "accusation",
@@ -231,6 +246,14 @@ GAMES_DATA = [
         "skills": ["justification", "commitment", "quick_thinking"],
         "duration_minutes": 6,
         "difficulty": "beginner",
+        "suggestion_count": 1,
+        "suggestion_prompt": "This game needs an ACCUSATION - something absurd or mundane that one person would accuse another of doing. It should be specific and unusual.",
+        "example_suggestions": [
+            "You've been secretly teaching pigeons to dance!",
+            "You ate my lunch from the office fridge!",
+            "You've been using my Netflix account!",
+            "You trained your dog to steal newspapers!",
+        ],
     },
     {
         "id": "gibberish_translator",

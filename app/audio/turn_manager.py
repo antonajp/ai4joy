@@ -56,34 +56,41 @@ class AgentTurnManager:
         """Handle turn completion.
 
         Increments turn count for analytics tracking.
+        IQS-81: Now calculates actual phase based on turn count.
 
         Returns:
             Status dict with:
             - status: "ok" on success
             - turn_count: Updated turn count
-            - phase: Legacy field (always "phase_1" for backward compatibility)
-            - phase_changed: Legacy field (always False for backward compatibility)
-
-        Note:
-            The phase and phase_changed fields are maintained for backward
-            compatibility with the audio orchestrator's event processing.
-            In the simplified IQS-63 architecture, the unified MC agent
-            handles all scene work, so phases are no longer functional.
+            - phase: Current phase (phase_1 for turns 1-8, phase_2 for turns 9+)
+            - phase_changed: Whether phase just changed on this turn
         """
+        # Track previous phase before incrementing
+        from app.agents.stage_manager import determine_partner_phase
+
+        previous_phase = determine_partner_phase(self._state.turn_count)
+
         # Increment turn count
         self._state.turn_count += 1
+
+        # Calculate new phase after increment
+        current_phase = determine_partner_phase(self._state.turn_count)
+        phase_changed = current_phase != previous_phase
+
+        phase_str = f"phase_{current_phase}"
 
         logger.debug(
             "Turn completed",
             turn_count=self._state.turn_count,
+            phase=phase_str,
+            phase_changed=phase_changed,
         )
 
-        # Return phase_1 for backward compatibility (MC handles all scene work)
         return {
             "status": "ok",
             "turn_count": self._state.turn_count,
-            "phase": "phase_1",
-            "phase_changed": False,
+            "phase": phase_str,
+            "phase_changed": phase_changed,
         }
 
     def get_state(self) -> dict:

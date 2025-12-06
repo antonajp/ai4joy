@@ -2,6 +2,8 @@
 
 This module provides access control for premium-only audio features.
 Implements tier gating, usage tracking, and graceful fallbacks.
+
+Phase 3 - IQS-65: Enhanced with freemium session limit enforcement.
 """
 
 from dataclasses import dataclass
@@ -9,6 +11,10 @@ from typing import Optional
 
 from app.models.user import UserProfile, UserTier, AUDIO_USAGE_LIMITS
 from app.services import user_service
+from app.services.freemium_session_limiter import (
+    check_session_limit,
+    SessionLimitStatus,
+)
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -53,6 +59,7 @@ async def check_audio_access(
 
     Implements tier gating:
     - Premium users: Full access (up to usage limit)
+    - Freemium users: Session-based limits (2 sessions lifetime)
     - Regular users: 403 Forbidden
     - Free users: 403 Forbidden
 
@@ -71,7 +78,43 @@ async def check_audio_access(
             status_code=401,
         )
 
-    # Check tier
+    # Check freemium session limits first
+    if user_profile.is_freemium:
+        session_status: SessionLimitStatus = await check_session_limit(user_profile)
+
+        if not session_status.has_access:
+            logger.info(
+                "Audio access denied: Freemium session limit reached",
+                email=user_profile.email,
+                sessions_used=session_status.sessions_used,
+                sessions_limit=session_status.sessions_limit,
+            )
+            return AudioAccessResponse(
+                allowed=False,
+                error=session_status.message,
+                status_code=429,  # Too Many Requests
+                remaining_seconds=0,
+            )
+
+        # Freemium user has sessions remaining
+        logger.debug(
+            "Audio access granted: Freemium user with sessions remaining",
+            email=user_profile.email,
+            sessions_remaining=session_status.sessions_remaining,
+        )
+
+        # Include warning if on last session
+        warning = None
+        if session_status.sessions_remaining == 1:
+            warning = "This is your last free audio session! Upgrade to Premium for unlimited access."
+
+        return AudioAccessResponse(
+            allowed=True,
+            remaining_seconds=None,  # Not time-based for freemium
+            warning=warning,
+        )
+
+    # Check tier for non-freemium users
     if not user_profile.is_premium:
         logger.info(
             "Audio access denied: Non-premium tier",
@@ -165,18 +208,26 @@ def get_fallback_mode(user_profile: Optional[UserProfile]) -> FallbackMode:
     if user_profile.tier == UserTier.FREE:
         return FallbackMode(
             mode="text",
-            message="Upgrade to Premium to unlock voice interactions with the MC! "
+            message="Upgrade to Freemium or Premium to unlock voice interactions with the MC! "
             "For now, enjoy text-based improv games.",
         )
 
     if user_profile.tier == UserTier.REGULAR:
         return FallbackMode(
             mode="text",
-            message="Voice features are available for Premium subscribers. "
+            message="Voice features are available for Freemium and Premium subscribers. "
             "Upgrade to hear the MC welcome you live!",
         )
 
-    # Premium user over limit
+    if user_profile.tier == UserTier.FREEMIUM:
+        # Freemium user who hit session limit
+        return FallbackMode(
+            mode="text",
+            message="You've used all your free audio sessions! "
+            "Upgrade to Premium for unlimited access, or continue with text mode.",
+        )
+
+    # Premium user over time limit
     return FallbackMode(
         mode="text",
         message="You've reached your audio limit for this period. "

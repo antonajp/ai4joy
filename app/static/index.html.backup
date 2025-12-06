@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Improv Olympics - AI-powered social gym for rebuilding collaboration skills through improvisation">
+    <title>Improv Olympics - AI Social Gym</title>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-0CJGHXN57B"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-0CJGHXN57B');
+    </script>
+    <link rel="stylesheet" href="/static/styles.css">
+
+    <!-- Firebase SDK v10.8.0 (compat mode for compatibility with existing module) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+
+    <!-- Firebase Configuration -->
+    <script>
+      // Firebase config - loaded from backend or environment
+      window.FIREBASE_CONFIG = {
+        apiKey: "AIzaSyBxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        authDomain: "coherent-answer-479115-e1.firebaseapp.com",
+        projectId: "coherent-answer-479115-e1"
+      };
+    </script>
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <header role="banner">
+        <nav class="nav-container" role="navigation" aria-label="Main navigation">
+            <div class="nav-content">
+                <h1 class="logo">Improv Olympics</h1>
+                <div class="nav-actions">
+                    <button id="login-btn" class="btn btn-secondary" aria-label="Sign in with Google">
+                        Sign In
+                    </button>
+                    <button id="logout-btn" class="btn btn-secondary" aria-label="Sign out" style="display: none;">
+                        Sign Out
+                    </button>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main id="main-content" role="main">
+        <!-- Hero Section -->
+        <section class="hero" aria-labelledby="hero-title">
+            <div class="container">
+                <h2 id="hero-title" class="hero-title">Practice Collaboration Through AI Improv</h2>
+                <p class="hero-subtitle">
+                    Rebuild your social confidence in a safe, judgment-free environment.
+                    Practice real-time improvisation with AI partners that adapt to your skill level.
+                </p>
+                <div class="hero-actions">
+                    <button id="start-session-btn" class="btn btn-primary btn-large" disabled aria-describedby="auth-notice">
+                        Start Your Scene
+                    </button>
+                    <p id="auth-notice" class="auth-notice">Sign in to start your improv session</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section class="features" aria-labelledby="features-title">
+            <div class="container">
+                <h2 id="features-title" class="section-title">How It Works</h2>
+                <div class="features-grid">
+                    <article class="feature-card">
+                        <div class="feature-icon" aria-hidden="true">🎭</div>
+                        <h3 class="feature-title">Scene Partner</h3>
+                        <p class="feature-description">
+                            Practice with an AI partner that responds naturally to your ideas,
+                            building on what you say to create collaborative scenes.
+                        </p>
+                    </article>
+                    <article class="feature-card">
+                        <div class="feature-icon" aria-hidden="true">👥</div>
+                        <h3 class="feature-title">Audience Vibe</h3>
+                        <p class="feature-description">
+                            Get real-time feedback on scene energy, emotional tone, and
+                            collaboration quality from our AI audience.
+                        </p>
+                    </article>
+                    <article class="feature-card">
+                        <div class="feature-icon" aria-hidden="true">🎓</div>
+                        <h3 class="feature-title">Expert Coaching</h3>
+                        <p class="feature-description">
+                            Receive personalized coaching tips that help you develop stronger
+                            listening skills and collaborative techniques.
+                        </p>
+                    </article>
+                    <article class="feature-card">
+                        <div class="feature-icon" aria-hidden="true">📈</div>
+                        <h3 class="feature-title">Progressive Difficulty</h3>
+                        <p class="feature-description">
+                            Start with supportive scenes, then progress to more challenging
+                            scenarios as your confidence grows.
+                        </p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- About Section -->
+        <section class="about" aria-labelledby="about-title">
+            <div class="container">
+                <h2 id="about-title" class="section-title">Why Improv Olympics?</h2>
+                <div class="about-content">
+                    <p class="about-text">
+                        In a world where many of us work remotely and face fewer spontaneous social interactions,
+                        our collaboration skills can atrophy. Improv Olympics provides a low-stakes practice ground
+                        to rebuild these essential skills.
+                    </p>
+                    <p class="about-text">
+                        Through improvisation, you'll practice active listening, accepting ideas, building on
+                        others' contributions, and thinking on your feet. These aren't just performance skills -
+                        they're fundamental to effective teamwork, leadership, and human connection.
+                    </p>
+                    <div class="about-benefits">
+                        <h3 class="benefits-title">What You'll Practice</h3>
+                        <ul class="benefits-list">
+                            <li>Active listening and present-moment awareness</li>
+                            <li>Building on others' ideas instead of blocking them</li>
+                            <li>Accepting uncertainty and embracing mistakes</li>
+                            <li>Reading emotional cues and adapting your approach</li>
+                            <li>Generating creative responses under time pressure</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Session Setup Modal with Game Selection -->
+        <div id="setup-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" style="display: none;">
+            <div class="modal-overlay"></div>
+            <div class="modal-content modal-content-wide">
+                <button id="close-modal" class="modal-close" aria-label="Close dialog">
+                    &times;
+                </button>
+                <h2 id="modal-title" class="modal-title">Choose Your Game</h2>
+                <p class="modal-description">
+                    Select an improv game to get started. Each game has different rules and challenges.
+                </p>
+
+                <!-- Game Selection Grid -->
+                <div id="game-selection-grid" class="game-selection-grid" role="listbox" aria-label="Available improv games">
+                    <div class="games-loading">Loading games...</div>
+                </div>
+
+                <!-- Selected Game Info -->
+                <div id="selected-game-info" class="selected-game-info" style="display: none;">
+                    <div class="selected-game-header">
+                        <span class="selected-label">Selected:</span>
+                        <span id="selected-game-name" class="selected-game-name"></span>
+                    </div>
+                    <p id="selected-game-description" class="selected-game-description"></p>
+                </div>
+
+                <!-- Screen reader instruction (live region) -->
+                <p id="game-selection-instruction" class="modal-instruction" aria-live="polite">
+                    Select a game to continue
+                </p>
+
+                <div class="form-actions">
+                    <button type="button" id="cancel-session" class="btn btn-secondary">
+                        Cancel
+                    </button>
+                    <button type="button" id="create-session-btn" class="btn btn-primary" disabled aria-describedby="game-selection-instruction">
+                        Start Scene
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer role="contentinfo" class="footer">
+        <div class="container">
+            <p class="footer-text">
+                Improv Olympics - AI-powered social gym for collaboration practice
+            </p>
+            <p class="footer-text footer-secondary">
+                Built with Google Cloud AI and Vertex AI
+            </p>
+        </div>
+    </footer>
+
+    <!-- Loading overlay -->
+    <div id="loading-overlay" class="loading-overlay" role="status" aria-live="polite" style="display: none;">
+        <div class="loading-content">
+            <div class="spinner" aria-hidden="true"></div>
+            <p id="loading-message" class="loading-message">Loading...</p>
+        </div>
+    </div>
+
+    <!-- Toast notifications -->
+    <div id="toast-container" class="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Authentication Modal -->
+    <div id="auth-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title" style="display: none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <button id="close-auth-modal" class="modal-close" aria-label="Close authentication dialog">
+                &times;
+            </button>
+            <h2 id="auth-modal-title" class="modal-title">Welcome to Improv Olympics</h2>
+
+            <!-- Sign In Tab -->
+            <div id="signin-form-container" class="auth-form-container">
+                <p class="auth-description">Sign in to start practicing improv</p>
+
+                <!-- Google Sign-In Button -->
+                <button id="google-signin-btn" class="btn btn-primary btn-large auth-provider-btn">
+                    <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" style="margin-right: 8px;">
+                        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                    </svg>
+                    Sign in with Google
+                </button>
+
+                <div class="auth-divider">
+                    <span>or</span>
+                </div>
+
+                <!-- Email Sign-In Form -->
+                <form id="email-signin-form" class="auth-form">
+                    <div class="form-group">
+                        <label for="signin-email" class="form-label">Email</label>
+                        <input type="email" id="signin-email" class="form-input" placeholder="your@email.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="signin-password" class="form-label">Password</label>
+                        <input type="password" id="signin-password" class="form-input" placeholder="••••••••" required>
+                    </div>
+                    <div id="signin-error" class="auth-error" style="display: none;"></div>
+                    <button type="submit" class="btn btn-primary btn-large" style="width: 100%;">
+                        Sign In
+                    </button>
+                </form>
+
+                <div class="auth-footer">
+                    <p>Don't have an account? <a href="#" id="show-signup-link" class="auth-link">Sign up</a></p>
+                </div>
+            </div>
+
+            <!-- Sign Up Tab -->
+            <div id="signup-form-container" class="auth-form-container" style="display: none;">
+                <p class="auth-description">Create your account to get started</p>
+
+                <!-- Google Sign-Up Button -->
+                <button id="google-signup-btn" class="btn btn-primary btn-large auth-provider-btn">
+                    <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" style="margin-right: 8px;">
+                        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                    </svg>
+                    Sign up with Google
+                </button>
+
+                <div class="auth-divider">
+                    <span>or</span>
+                </div>
+
+                <!-- Email Sign-Up Form -->
+                <form id="email-signup-form" class="auth-form">
+                    <div class="form-group">
+                        <label for="signup-email" class="form-label">Email</label>
+                        <input type="email" id="signup-email" class="form-input" placeholder="your@email.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="signup-password" class="form-label">Password</label>
+                        <input type="password" id="signup-password" class="form-input" placeholder="At least 6 characters" minlength="6" required>
+                    </div>
+                    <div id="signup-error" class="auth-error" style="display: none;"></div>
+                    <div id="signup-success" class="auth-success" style="display: none;">
+                        Account created! Please check your email to verify your address before signing in.
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-large" style="width: 100%;">
+                        Create Account
+                    </button>
+                </form>
+
+                <div class="auth-footer">
+                    <p>Already have an account? <a href="#" id="show-signin-link" class="auth-link">Sign in</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MFA Enrollment Wizard Modal (IQS-65) -->
+    <div id="mfa-wizard-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="mfa-wizard-title" style="display: none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-content mfa-wizard-content">
+            <div class="mfa-progress" role="progressbar" aria-valuenow="1" aria-valuemin="1" aria-valuemax="4">
+                <div class="mfa-progress-bar"><div class="mfa-progress-fill" style="width: 25%"></div></div>
+                <span class="mfa-progress-text">Step 1 of 4</span>
+            </div>
+
+            <h2 id="mfa-wizard-title" class="modal-title">Secure Your Account</h2>
+
+            <!-- Step 1: Introduction -->
+            <div id="mfa-step-1" class="mfa-step" data-step="1">
+                <div class="mfa-step-content">
+                    <div class="mfa-icon">🔒</div>
+                    <h3 class="mfa-step-title">Two-Factor Authentication</h3>
+                    <p class="mfa-step-desc">Add an extra layer of security using an authenticator app like Google Authenticator, Authy, or 1Password.</p>
+                    <div class="mfa-benefits">
+                        <div class="mfa-benefit">✓ Protect against unauthorized access</div>
+                        <div class="mfa-benefit">✓ Backup codes for account recovery</div>
+                        <div class="mfa-benefit">✓ Takes only 2-3 minutes to set up</div>
+                    </div>
+                </div>
+                <div class="mfa-actions">
+                    <button type="button" id="mfa-skip-btn" class="btn btn-secondary">Set Up Later</button>
+                    <button type="button" id="mfa-start-btn" class="btn btn-primary">Get Started</button>
+                </div>
+            </div>
+
+            <!-- Step 2: QR Code -->
+            <div id="mfa-step-2" class="mfa-step" data-step="2" hidden>
+                <div class="mfa-step-content">
+                    <h3 class="mfa-step-title">Scan QR Code</h3>
+                    <p class="mfa-step-desc">Open your authenticator app and scan this code:</p>
+                    <div class="mfa-qr-container">
+                        <div id="mfa-qr-code" class="mfa-qr-code" aria-label="QR code for authenticator setup">
+                            <!-- QR code rendered here by JS -->
+                            <div class="mfa-qr-placeholder">Loading QR Code...</div>
+                        </div>
+                    </div>
+                    <details class="mfa-manual-entry">
+                        <summary>Can't scan? Enter manually</summary>
+                        <div class="mfa-manual-content">
+                            <label>Setup key:</label>
+                            <div class="mfa-secret-row">
+                                <code id="mfa-secret-display" class="mfa-secret-code">XXXX XXXX XXXX XXXX</code>
+                                <button type="button" id="copy-secret-btn" class="btn btn-small">Copy</button>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+                <div class="mfa-actions">
+                    <button type="button" class="btn btn-secondary mfa-back-btn">Back</button>
+                    <button type="button" class="btn btn-primary mfa-next-btn">I've Scanned It</button>
+                </div>
+            </div>
+
+            <!-- Step 3: Verify Code -->
+            <div id="mfa-step-3" class="mfa-step" data-step="3" hidden>
+                <div class="mfa-step-content">
+                    <h3 class="mfa-step-title">Verify Your Code</h3>
+                    <p class="mfa-step-desc">Enter the 6-digit code from your authenticator app:</p>
+                    <div class="mfa-code-input-container">
+                        <input type="text" id="mfa-code-input" class="mfa-code-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" aria-label="6-digit verification code" />
+                        <div id="mfa-code-error" class="form-error"></div>
+                    </div>
+                    <p class="mfa-code-hint">💡 The code refreshes every 30 seconds</p>
+                </div>
+                <div class="mfa-actions">
+                    <button type="button" class="btn btn-secondary mfa-back-btn">Back</button>
+                    <button type="button" id="mfa-verify-btn" class="btn btn-primary" disabled>Verify Code</button>
+                </div>
+            </div>
+
+            <!-- Step 4: Recovery Codes -->
+            <div id="mfa-step-4" class="mfa-step" data-step="4" hidden>
+                <div class="mfa-step-content">
+                    <div class="mfa-icon mfa-icon-success">✓</div>
+                    <h3 class="mfa-step-title">Save Recovery Codes</h3>
+                    <p class="mfa-step-desc">Store these codes safely. Each can be used once to access your account.</p>
+                    <div class="mfa-recovery-codes" id="mfa-recovery-codes">
+                        <!-- Recovery codes populated by JS -->
+                    </div>
+                    <div class="mfa-recovery-actions">
+                        <button type="button" id="download-codes-btn" class="btn btn-secondary">📥 Download</button>
+                        <button type="button" id="copy-codes-btn" class="btn btn-secondary">📋 Copy All</button>
+                    </div>
+                    <div class="mfa-confirm-checkbox">
+                        <label>
+                            <input type="checkbox" id="mfa-codes-saved" required />
+                            I have saved these recovery codes securely
+                        </label>
+                    </div>
+                    <div class="mfa-warning">⚠️ You won't be able to view these codes again after completing setup.</div>
+                </div>
+                <div class="mfa-actions">
+                    <button type="button" class="btn btn-secondary mfa-back-btn">Back</button>
+                    <button type="button" id="mfa-complete-btn" class="btn btn-primary btn-large" disabled>Complete Setup</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Firebase Auth module first (ES6 module) -->
+    <script type="module" src="/static/firebase-auth.js"></script>
+    <!-- Load main app after Firebase Auth -->
+    <script src="/static/app.js"></script>
+</body>
+</html>

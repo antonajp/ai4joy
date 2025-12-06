@@ -93,9 +93,9 @@ class SentimentAnalysisToolset(BaseToolset):
         """
         if self._tools is None:
             self._tools = [
-                FunctionTool(self._analyze_text),
-                FunctionTool(self._analyze_engagement),
-                FunctionTool(self._analyze_collective_mood),
+                FunctionTool(self.analyze_text),
+                FunctionTool(self.analyze_engagement),
+                FunctionTool(self.analyze_collective_mood),
             ]
             logger.debug("Sentiment tools created", tool_count=len(self._tools))
 
@@ -109,7 +109,7 @@ class SentimentAnalysisToolset(BaseToolset):
 
         return self._tools
 
-    async def _analyze_text(self, text: str) -> Dict[str, Any]:
+    async def analyze_text(self, text: str) -> Dict[str, Any]:
         """Analyze sentiment from text input (audience comments, suggestions).
 
         Args:
@@ -194,7 +194,7 @@ class SentimentAnalysisToolset(BaseToolset):
 
         return result
 
-    async def _analyze_engagement(self, observations: List[str]) -> Dict[str, Any]:
+    async def analyze_engagement(self, observations: List[str]) -> Dict[str, Any]:
         """Analyze audience engagement from behavioral observations.
 
         Args:
@@ -276,7 +276,7 @@ class SentimentAnalysisToolset(BaseToolset):
 
         return result
 
-    async def _analyze_collective_mood(
+    async def analyze_collective_mood(
         self,
         text_inputs: Optional[List[str]] = None,
         observations: Optional[List[str]] = None,
@@ -294,11 +294,11 @@ class SentimentAnalysisToolset(BaseToolset):
         sentiment_results = []
         if text_inputs:
             for text in text_inputs:
-                sentiment_results.append(await self._analyze_text(text))
+                sentiment_results.append(await self.analyze_text(text))
 
         engagement_result = None
         if observations:
-            engagement_result = await self._analyze_engagement(observations)
+            engagement_result = await self.analyze_engagement(observations)
 
         if not sentiment_results and not engagement_result:
             logger.warning("No data provided for collective mood analysis")
